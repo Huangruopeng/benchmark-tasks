@@ -287,8 +287,9 @@ def _follow(env) -> None:
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def _status() -> dict:
-    tr = None if _EP["tcps"] is None else _EP["tcps"][1]
-    let_go = tr is None or _EP["handle"] is None or float(np.linalg.norm(tr - _EP["handle"])) >= LET_GO
+    tcps = _EP["tcps"]
+    let_go = tcps is None or _EP["handle"] is None or all(float(np.linalg.norm(t - _EP["handle"])) >= LET_GO
+                                                           for t in tcps)
     strip = _EP["cut"] * RING_H
     return {"stripped": _EP["stripped"], "good": STRIP[0] - 1e-9 <= strip <= STRIP[1] + 1e-9, "strip": strip,
             "released": _EP["lever_deg"] <= -RELEASED_DEG and let_go, "inserted": _EP["best_depth"] >= INSERTED}
@@ -304,8 +305,8 @@ def _points(st) -> float:
 
 def score(objects) -> float:
     """1.0 with 8 to 12 mm of insulation stripped off (cut by the closed blades and left in the station as the cable was
-    pulled out) and the lever let go and back up; 0.5 for any strip, or for a cut of the right length with the blades
-    still closed on it; 0.25 if the cable's end went at least 5 mm into the hole; else 0.0."""
+    pulled out) and the lever let go (no TCP within 4 cm of its grip) and back up; 0.5 for any strip, or for a cut of the right length with the blades
+    still closed on it; 0.25 if the cable's end went at least 5 mm into the hole at some point; else 0.0."""
     return _points(_status())
 
 

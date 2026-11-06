@@ -1,7 +1,7 @@
 # Strip 10 mm off a cable in a benchtop stripper, one hand working the cable and the other holding the blades shut
 
-A benchtop wire-stripping station stands on the table: a block with a hole in its top, whose blades close round
-whatever is in the hole while its lever is held down. A short cable with a plug on one end stands upright in a holder
+A steel benchtop wire-stripping station stands on the table: a block with a hole in its top, whose blades close round
+whatever is in the hole while its lever is held down. A short PVC-insulated cable with a plastic plug on one end stands upright in a holder
 beside it. One hand takes the cable by its plug and puts its free end 10 mm down into the hole; the other presses the
 lever down, closing the blades, and keeps it down while the first pulls the cable straight back out. The cut
 insulation stays in the station and 10 mm of copper is bare. The task is one task file,
@@ -72,7 +72,7 @@ is from the cable's end and from the lever's grip) twice a second.
 
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (180 s on the clock, with Dream answering in 0.91 s on average), and about 1 minute for the scripted demo (514 steps, 25.7 s of simulated time, 72 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (180 s on the clock, with Dream answering in 0.91 s on average), and about 2 minutes for the scripted demo (514 steps, 25.7 s of simulated time, 105 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
