@@ -1,6 +1,6 @@
 # Press a stencil flat with one hand while the other dabs paint through its three holes
 
-A sheet of paper lies on the table with a thin plastic stencil on it: three square holes in a row. A sponge dauber,
+A sheet of paper lies on the table with a thin plastic stencil on it: three square holes in a row. A sponge dauber with a wooden handle,
 inked red, stands in a holder beside it. One hand presses the stencil flat on the paper; the other takes the dauber and
 dabs it down through each hole, once each, printing three red squares, then lifts it clear. The task is one task file,
 [`dab_paint_through_a_held_stencil.py`](dab_paint_through_a_held_stencil.py), for the `yam_arena` embodiment (scene,
@@ -69,7 +69,7 @@ smudged) twice a second.
 
 ## Runtime per trial
 
-On one RTX 5090: about 2 minutes for a Dream-1 trial of 1,200 steps (147 s on the clock, with Dream answering in 0.75 s on average), and about 1 minute for the scripted demo (458 steps, 22.9 s of simulated time, 71 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 2 minutes for a Dream-1 trial of 1,200 steps (147 s on the clock, with Dream answering in 0.75 s on average), and about 3 minutes for the scripted demo (458 steps, 22.9 s of simulated time, 181 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 

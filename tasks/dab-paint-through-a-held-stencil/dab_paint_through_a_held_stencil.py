@@ -202,11 +202,11 @@ def _status() -> dict:
     smudged = sum(1 for *_, c in _EP["prints"] if not c)
     pad = _EP["pad"]
     lifted = pad is not None and pad[2] - PAPER_TOP >= LIFTED
-    return {"done": len(done), "smudged": smudged, "lifted": lifted}
+    return {"done": len(done), "smudged": smudged, "lifted": lifted, "prints": len(_EP["prints"])}
 
 
 def _points(st) -> float:
-    if st["done"] == len(HOLES_Y) and st["smudged"] == 0 and st["lifted"]:
+    if st["done"] == len(HOLES_Y) and st["prints"] == len(HOLES_Y) and st["smudged"] == 0 and st["lifted"]:
         return 1.0
     if st["done"] >= 2 or (st["done"] + st["smudged"]) >= len(HOLES_Y):
         return 0.5
@@ -214,8 +214,8 @@ def _points(st) -> float:
 
 
 def score(objects) -> float:
-    """1.0 with all three squares printed cleanly (each dabbed with the stencil held flat, inside its hole where the
-    stencil first lay), no smudged print, and the dauber lifted; 0.5 with two clean squares, or three prints with some
+    """1.0 with all three squares printed cleanly once each (each dabbed with the stencil held flat, inside its hole
+    where the stencil first lay; exactly three prints in all), no smudged print, and the dauber lifted; 0.5 with two clean squares, or three prints with some
     smudged; 0.25 with at least one print; else 0.0."""
     return _points(_status())
 
