@@ -1,6 +1,6 @@
 # Hold a tape measure pulled out along a board with one hand while the other marks the board at 300 mm
 
-A wooden board lies on the table. A tape measure's hook is caught over a nail at the board's right end, its case lying
+A pine board lies on the table. A tape measure's hook is caught over a nail at the board's right end, its case lying
 on the board against it with the tape wound in. A marker pen stands in a holder beside the board. One hand pulls the
 case out along the board, well past 300 mm, and holds it there; the other takes the pen and dabs a mark on the board
 right beside the tape's 300 mm line (a red line across the tape), then lifts the pen. The task is one task file,
@@ -35,7 +35,7 @@ each body's own pose, and lets the task file act on the simulation after every c
 
 ## Run and score a trial
 
-The scorer is `task_score`: 1.0 when `success()` (full score) has held for 1 s, otherwise `score()` at the end of the
+The scorer is `task_score`: 1.0 when `success()` (full score, with the pen and the case still) has held for 1 s, otherwise `score()` at the end of the
 episode (0, 0.25, 0.5 or 1.0; see `task.json`). `-E object_jitter=0` keeps every object exactly where the task file
 puts it, so every trial starts from the same layout. The cameras render at 1280 x 704 for sharp videos; Dream-1's
 client scales every frame to 320 x 176 before sending it, so `-E cam_width=320 -E cam_height=176` gives the policy the
@@ -76,7 +76,7 @@ how far forward, and whether the tape was out past it), and how many marks are g
 
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (156 s on the clock, with Dream answering in 0.77 s on average), and under 1 minute for the scripted demo (255 steps, 12.8 s of simulated time, 47 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (156 s on the clock, with Dream answering in 0.77 s on average), and about 1 minute for the scripted demo (390 steps, 19.5 s of simulated time, 64 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
