@@ -1,10 +1,11 @@
 """On the station table a thin steel plate lies loose; near its right end a strong pot magnet (with a knob to hold it
 by) clings to it.
 
-Task: take the magnet off the plate and set it down on the table at least 5 cm from the plate: slide it off the
-plate's end (it holds on far too hard to be lifted straight off), carry it clear, and let go. A strong magnet set down
-too near the plate is pulled back and snaps onto it, which in real life crushes fingers: that scores 0. Sliding the
-magnet drags the light plate along with it, so one hand presses the plate down while the other slides the magnet off.
+Task: take the magnet off the plate: slide it off the plate's end (it holds on far too hard to be lifted straight
+off) and carry it well clear of the plate; then show it still works: pick up the small steel nail lying on the table
+with it and hold it up. A strong magnet let come back near the plate is pulled back and snaps onto it, which in real
+life crushes fingers: that scores 0. Sliding the magnet drags the light plate along with it, so one hand presses the
+plate down while the other slides the magnet off.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=slide_a_strong_magnet_off_a_steel_plate_without_it_snapping_back.py \\
            --instruction "..." --scorer task_score ...
@@ -21,7 +22,8 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from bodykit import Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, on_reset, on_step, rotation  # noqa: E402
+from bodykit import (Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, glue, on_reset, on_step,  # noqa: E402
+                     rotation, set_glue_on)
 from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
@@ -53,9 +55,18 @@ BACK = 0.004  # once off, back within this: it has snapped back
 CLEAR = 0.05  # set down with its rim at least this far from the plate
 STEEL, DARK, RED, GREY = (0.62, 0.63, 0.66), (0.16, 0.16, 0.18), (0.80, 0.15, 0.12), (0.45, 0.46, 0.48)
 
+# -- a small steel nail on the table, right of the plate: brought within PICK of the magnet's face (once the magnet is
+# off the plate), it jumps onto the face and sticks; its origin at the middle of its shank -----------------------------
+NAIL_AT = np.array([0.30, -0.17])
+NAIL_L, NAIL_R, HEAD_R, HEAD_T = 0.080, 0.0025, 0.0055, 0.002  # long: it sticks out either side of the magnet
+NAIL_MASS = 0.012
+PICK = 0.018
+
 # -- scoring ----------------------------------------------------------------------------------------------------------
 LET_GO = 0.03
 SLID = 0.02
+NAIL_UP = 0.03  # the nail held this far above the table, on the magnet: picked up
+HOME_WITHIN = 0.05
 SUCCESS_HOLD_S = 1.0
 
 
@@ -72,18 +83,57 @@ def _magnet() -> Body:
                       friction=(0.3, 0.25), color=RED, com=(0.0, 0.0, 0.006))
 
 
+def _nail() -> Body:
+    """Lying on the table along x, its head toward the arms."""
+    shapes = [CylShape((0.0, 0.0, 0.0), NAIL_R, NAIL_L, STEEL, axis="X"),
+              CylShape((-NAIL_L / 2, 0.0, 0.0), HEAD_R, HEAD_T, STEEL, axis="X")]
+    return Body.build("nail", pos=(NAIL_AT[0], NAIL_AT[1], TOP + HEAD_R), mass=NAIL_MASS, shapes=shapes,
+                      friction=(0.6, 0.5), color=STEEL)
+
+
 PLATE_B, MAGNET = _plate(), _magnet()
-OBJECTS = [PLATE_B, MAGNET]
+OBJECTS = [PLATE_B, MAGNET, _nail()]
+NAIL0 = np.array([NAIL_AT[0], NAIL_AT[1], TOP + HEAD_R])
+glue("nail_on", "magnet", "nail", anchor=tuple(NAIL0.tolist()))  # off until the magnet picks the nail up
 
 
 # -- followed after every control step: the pull, off and back --------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"off": False, "snapped": False, "best_slide": 0.0, "tcps": None, "gap": 0.0}
+    return {"off": False, "snapped": False, "best_slide": 0.0, "tcps": None, "gap": 0.0, "nail_on": False,
+            "nail_up": 0.0}
 
 
 _EP = _fresh()
 _DEBUG = {"on": bool(os.environ.get("MAG_DEBUG")), "steps": 0}
+
+
+def _quat_wxyz(m: np.ndarray) -> tuple[float, float, float, float]:
+    w = math.sqrt(max(0.0, 1.0 + m[0, 0] + m[1, 1] + m[2, 2])) / 2
+    if w > 1e-6:
+        return w, (m[2, 1] - m[1, 2]) / (4 * w), (m[0, 2] - m[2, 0]) / (4 * w), (m[1, 0] - m[0, 1]) / (4 * w)
+    i = int(np.argmax(np.diag(m)))
+    j, k = (i + 1) % 3, (i + 2) % 3
+    s = math.sqrt(max(0.0, 1.0 + m[i, i] - m[j, j] - m[k, k])) * 2
+    q = [0.0, 0.0, 0.0, 0.0]
+    q[0] = (m[k, j] - m[j, k]) / s
+    q[1 + i] = s / 4
+    q[1 + j] = (m[j, i] + m[i, j]) / s
+    q[1 + k] = (m[k, i] + m[i, k]) / s
+    return tuple(q)
+
+
+def _nail_frames(pos0, rot0) -> None:
+    """Where the nail sits on the magnet when the joint is on: ``pos0``/``rot0`` in the magnet's frame."""
+    import bodykit
+    from isaaclab.sim.utils.stage import get_current_stage
+    from pxr import Gf, UsdPhysics
+
+    joint = UsdPhysics.FixedJoint(get_current_stage().GetPrimAtPath(bodykit._GLUE_PATHS["nail_on"]))
+    joint.GetLocalPos0Attr().Set(Gf.Vec3f(*[float(v) for v in pos0]))
+    joint.GetLocalRot0Attr().Set(Gf.Quatf(*_quat_wxyz(np.asarray(rot0, float))))
+    joint.GetLocalPos1Attr().Set(Gf.Vec3f(0.0, 0.0, 0.0))
+    joint.GetLocalRot1Attr().Set(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
 
 
 @on_reset
@@ -91,6 +141,8 @@ def _new_episode() -> None:
     _EP.clear()
     _EP.update(_fresh())
     _DEBUG["steps"] = 0
+    _nail_frames(NAIL0 - np.array([MX0, MY0, TOP + 0.0005 + PLATE[2]]), np.eye(3))
+    set_glue_on("nail_on", False)
 
 
 def _tcps(base, origin) -> list[np.ndarray]:
@@ -158,6 +210,15 @@ def _follow(env) -> None:
         _EP["off"] = True
     elif _EP["off"] and gap <= BACK:
         _EP["snapped"] = True
+    n = as_numpy(base.scene["nail"].data.root_link_pose_w)[0]
+    n_pos, n_rot = n[:3] - origin, rotation(n[3:7])
+    _EP["nail_up"] = float(n_pos[2] - TOP)
+    face = m_pos  # the middle of the magnet's face
+    if not _EP["nail_on"] and _EP["off"] and float(np.linalg.norm(n_pos - face)) < PICK and m_rot[2, 2] > 0.8:
+        # the nail jumps onto the face and sticks there, lying flat across it
+        _nail_frames((0.0, 0.0, -NAIL_R - 0.0003), m_rot.T @ n_rot)
+        set_glue_on("nail_on", True)
+        _EP["nail_on"] = True
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 10 == 0:
@@ -165,7 +226,8 @@ def _follow(env) -> None:
             tl, tr = _EP["tcps"]
             print(f"[mag] t={_DEBUG['steps'] / 20:5.1f}s plate={np.round(p_pos * 1000).astype(int).tolist()} "
                   f"magnet={np.round(m_pos * 1000).astype(int).tolist()} gap={gap * 1000:6.1f}mm pull={np.linalg.norm(f):5.2f}N "
-                  f"off={_EP['off']} snapped={_EP['snapped']} let_go={st['let_go']} "
+                  f"off={_EP['off']} snapped={_EP['snapped']} let_go={st['let_go']} nail_on={_EP['nail_on']} "
+                  f"nail_up={_EP['nail_up'] * 1000:5.1f}mm nail-face={np.round((n_pos - face) * 1000).astype(int).tolist()} "
                   f"left TCP={np.round(tl * 1000).astype(int).tolist()} "
                   f"right TCP-knob={np.round((tr - m_pos - [0.0, 0.0, CUP_H + STUD_H + KNOB_H / 2]) * 1000).astype(int).tolist()} "
                   f"score={_points(st)}", file=sys.stderr, flush=True)
@@ -177,7 +239,7 @@ def _status_from(m_pos, gap) -> dict:
     let_go = _EP["tcps"] is None or all(float(np.linalg.norm(t - (np.asarray(m_pos) + [0.0, 0.0, 0.02]))) >= LET_GO
                                         for t in _EP["tcps"])
     return {"gap": gap, "off": _EP["off"], "snapped": _EP["snapped"], "let_go": let_go,
-            "slid": _EP["best_slide"] >= SLID}
+            "slid": _EP["best_slide"] >= SLID, "nail": _EP["nail_on"] and _EP["nail_up"] >= NAIL_UP}
 
 
 def _status(objects) -> dict:
@@ -189,29 +251,63 @@ def _status(objects) -> dict:
 def _points(st) -> float:
     if st["snapped"]:
         return 0.0
-    if st["gap"] >= CLEAR and st["let_go"]:
+    if st["gap"] >= CLEAR and st["nail"]:
         return 1.0
-    if st["off"]:
+    if st["gap"] >= OFF:
         return 0.5
     return 0.25 if st["slid"] else 0.0
 
 
 def score(objects) -> float:
     """0.0 if the magnet, once off the plate, came back onto it (snapped back). Otherwise 1.0 with it at least 5 cm from
-    the plate and let go (3 cm clear); 0.5 with it off the plate (at least 2 cm from it); 0.25 if it was slid at least
-    2 cm along the plate; else 0.0."""
-    return _points(_status(objects))
+    the plate and the nail picked up on it (at least 3 cm off the table), the plate let go (both TCPs at least 3 cm from
+    it) and the other arm back where it started; 0.5 with it off the plate (at least 2 cm from it at the end); 0.25 if
+    it was slid at least 2 cm along the plate at some point; else 0.0."""
+    pts = _points(_status(objects))
+    if pts >= 1.0 and not (_plate_let_go(objects) and _other_hand_home(objects["magnet"].pos)):
+        return 0.5  # off and the nail picked up, but the plate still held or the other arm not back
+    return pts
+
+
+_HOME: dict = {}
+
+
+def _other_hand_home(m_pos) -> bool:
+    """The arm not holding the magnet (the one whose TCP is farther from it) back where it started."""
+    from yam_arena import ik, station
+    from yam_arena.constants import READY
+
+    tcps = _EP.get("tcps")
+    if tcps is None:
+        return False
+    if "tcps" not in _HOME:
+        _HOME["tcps"] = [np.asarray(ik.tcp_pose(np.array(READY, float), station.BASES[a])[0], float)
+                         for a in ("left", "right")]
+    k = int(np.argmax([float(np.linalg.norm(t - np.asarray(m_pos, float))) for t in tcps]))
+    return float(np.linalg.norm(tcps[k] - _HOME["tcps"][k])) < HOME_WITHIN
+
+
+def _plate_let_go(objects) -> bool:
+    """Both grippers off the plate: each TCP at least LET_GO from the plate's outline."""
+    tcps = _EP.get("tcps")
+    if tcps is None:
+        return False
+    p_pos, p_rot = np.asarray(objects["plate"].pos, float), rotation(objects["plate"].quat_xyzw)
+    half = np.array(PLATE) / 2
+    return all(float(np.linalg.norm(np.maximum(np.abs(p_rot.T @ (t - p_pos)) - half, 0.0))) >= LET_GO for t in tcps)
 
 
 def success(objects) -> bool:
-    """Full score with the magnet still."""
+    """Full score with the magnet held still: the trial ends there."""
     return score(objects) >= 1.0 and objects["magnet"].resting()
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
 # The left hand comes straight down on the plate's left end, fingers closed, and presses it onto the table. The right
 # hand comes straight down on the magnet's knob, grips it and slides the magnet along the plate and off its right end,
-# carries it on to 6 cm from the plate, sets it down, lets go and rises. Then the left hand rises.
+# and carries it on, clear of the plate. The left lets go of the plate and goes back to where it started. The right
+# brings the magnet down over the nail on the table: the nail jumps onto its face; it lifts the magnet with the nail on
+# it and turns it a quarter turn, showing the nail stuck there.
 
 GRIP_L = grip_rotation(0.0)  # straight down, fingers closing along y (the left hand, pressing)
 GRIP_R = grip_rotation(0.0)  # straight down, fingers closing along y (the pull is along y: a finger pushes it)
@@ -264,6 +360,24 @@ def _knob_tcp(y: float, on_plate: bool) -> np.ndarray:
 PRESSED_AT = LEAD_S + 1.0 + 1.0
 
 
+def _go_home(arm: str, pos, rot, finger) -> list[Waypoint]:
+    """From a pose back to the arm's start, straight through joint space (the lead-in, reversed)."""
+    from yam_arena import ik, station
+    from yam_arena.constants import READY
+
+    q0, q1 = _good_ik(arm, pos, rot), np.array(READY, float)
+    out = []
+    for k in range(1, LEAD_STEPS + 1):
+        p, r = ik.tcp_pose(q0 + (q1 - q0) * k / LEAD_STEPS, station.BASES[arm])
+        out.append(Waypoint(LEAD_S / LEAD_STEPS, tuple(float(v) for v in p), finger, "back to where it started", r))
+    return out
+
+
+def _rz(a: float) -> np.ndarray:
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+
 def _left(release_at: float, total: float) -> list[Waypoint]:
     press = np.array([PX, PRESS_AT, TOP + PLATE[2] + 0.013 - PRESS])
     out = _lead_in("left", press + [0.0, 0.0, 0.04], GRIP_L, "over the plate's left end", FINGER_CLOSED)
@@ -272,9 +386,13 @@ def _left(release_at: float, total: float) -> list[Waypoint]:
     t = sum(w.duration for w in out)
     out.append(_w(max(release_at - t, 0.3), press, FINGER_CLOSED, "hold it down while the magnet is slid off", GRIP_L))
     out.append(_w(1.0, press + [0.0, 0.0, 0.05], FINGER_CLOSED, "rise", GRIP_L))
+    out += _go_home("left", press + [0.0, 0.0, 0.05], GRIP_L, FINGER_CLOSED)
     t = sum(w.duration for w in out)
-    out.append(_w(max(total - t, 0.5), press + [0.0, 0.0, 0.05], FINGER_CLOSED, "wait", GRIP_L))
+    out.append(_w(max(total - t, 0.5), out[-1].pos, FINGER_CLOSED, "wait at the start", out[-1].yaw))
     return out
+
+
+FACE_TO_TCP = CUP_H + STUD_H + KNOB_H / 2 + KNOB_IN_HAND  # the right TCP this far above the magnet's face
 
 
 def _right() -> tuple[list[Waypoint], float]:
@@ -284,17 +402,26 @@ def _right() -> tuple[list[Waypoint], float]:
     out += [_w(1.0, start, FINGER_OPEN, "down round the knob", GRIP_R),
             _w(0.8, start, FINGER_CLOSED, "grip it", GRIP_R)]
     t = sum(w.duration for w in out)
+    over_nail = np.array([NAIL_AT[0], NAIL_AT[1], TOP + 0.03 + FACE_TO_TCP])
+    on_nail = np.array([NAIL_AT[0], NAIL_AT[1], TOP + 2 * HEAD_R + 0.006 + FACE_TO_TCP])
+    up = on_nail + [0.0, 0.0, 0.07]
     out += [_w(max(PRESSED_AT - t, 0.2) + 0.3, start, FINGER_CLOSED, "wait for the plate to be held", GRIP_R),
             _w(1.5, edge, FINGER_CLOSED, "slide it along the plate and off its end", GRIP_R),
-            _w(1.5, _knob_tcp(SET_AT, False) + [0.0, 0.0, 0.004], FINGER_CLOSED, "carry it on, clear of the plate", GRIP_R),
-            _w(0.6, _knob_tcp(SET_AT, False) + [0.0, 0.0, 0.002], FINGER_CLOSED, "set it down", GRIP_R),
-            _w(0.5, _knob_tcp(SET_AT, False) + [0.0, 0.0, 0.002], FINGER_OPEN, "let go", GRIP_R),
-            _w(1.0, _knob_tcp(SET_AT, False) + [0.0, 0.0, 0.05], FINGER_OPEN, "rise", GRIP_R)]
-    return out, sum(w.duration for w in out)
+            _w(1.5, _knob_tcp(SET_AT, False) + [0.0, 0.0, 0.02], FINGER_CLOSED, "carry it on, clear of the plate", GRIP_R)]
+    clear_at = sum(w.duration for w in out)
+    out += [_w(1.5, over_nail, FINGER_CLOSED, "over the steel nail", GRIP_R),
+            _w(1.2, on_nail, FINGER_CLOSED, "down to it: the nail jumps onto the magnet", GRIP_R),
+            _w(0.6, on_nail, FINGER_CLOSED, "down to it: the nail jumps onto the magnet", GRIP_R),
+            _w(1.2, up, FINGER_CLOSED, "lift the magnet with the nail on it", GRIP_R),
+            _w(2.0, up, FINGER_CLOSED, "turn it: the nail stays on", _rz(-math.pi / 2) @ GRIP_R),
+            _w(1.0, up, FINGER_CLOSED, "hold it up: the trial ends once the full score has held 1 s",
+               _rz(-math.pi / 2) @ GRIP_R)]
+    return out, clear_at
 
 
 def demo():
-    right, t_right = _right()
-    total = t_right + 4.0
-    right.append(_w(4.0, right[-1].pos, FINGER_OPEN, "wait", right[-1].yaw))
-    return {"left": _left(t_right, total), "right": right}
+    right, clear_at = _right()
+    t_r = sum(w.duration for w in right)
+    total = max(t_r, clear_at + 1.0 + LEAD_S) + 3.0
+    right.append(_w(total - t_r, right[-1].pos, FINGER_CLOSED, "hold it up", right[-1].yaw))
+    return {"left": _left(clear_at, total), "right": right}
