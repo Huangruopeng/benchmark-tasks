@@ -1,4 +1,4 @@
-# Hold a plastic pipe still with one hand while the other tightens its union nut until snug, and stop before the thread strips
+# Hold a plastic pipe still with one hand while the other tightens its union nut snug, stopping before the thread strips
 
 A short plastic pipe lies in two supports with a union nut started on its threaded end. One hand holds the pipe; the
 other tightens the nut until it is snug against the pipe's collar, and stops there: plastic threads strip if they are
