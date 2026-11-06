@@ -1,0 +1,20 @@
+{
+  "title": "Hold a light puzzle box still with one hand while the other slides its four panels open in order and takes out the block",
+  "category": "Other",
+  "keywords": [
+    "bimanual",
+    "puzzle box",
+    "sliding panels",
+    "sequence",
+    "holding a light object"
+  ],
+  "instruction": "Open the puzzle box and take out the red block: hold the box still by its left end with one hand; with the other slide its panels open in the order of the white dots on them (the one-dot tile away from you, the two-dot tile toward you, the three-dot tile away, then the four-dot lid off to the right); lift the red block out and set it on the tray in front of the box, let go of the box, and take both arms back to where they started.",
+  "context": "Secret boxes (the Japanese himitsu-bako) open only when their panels are slid in the right order, and many everyday things work the same way: battery covers, latched lids, drawers with catches. A light box pushed on one side just slides away, so one hand holds it while the other works the panels, then lifts out what is inside.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A dark lacquered-wood tray, 46 by 72 cm (from 10 to 56 cm forward, from 40 cm right of the centre line to 32 cm left of it), so smooth that things on it slide at the lightest push. (2) On it, a long beech-wood puzzle box, 200 g: 35 cm long left to right (from 21.5 cm right of the centre line to 13.5 cm left of it), 6.5 cm wide, 5 cm tall, its middle line 30 cm forward. Four panels on its top slide, each with a dark walnut knob 1.2 cm square on top (the knobs' tops 8.5 cm above the table) and marked with white dots: three tiles 5 by 2.8 cm, with one, two and three dots, at 4.5, 7.7 and 10.9 cm right of the centre line (the one-dot tile slides away from the arms, the two-dot tile toward them, the three-dot tile away, each up to 1.5 cm), and a lid with four dots, 8.8 cm long, over a compartment at the box's right end (its knob 13.7 cm right of the centre line), which slides to the right, up to 8.5 cm. Each panel is locked until the one before it (by its dots) has been slid at least 1 cm (the one-dot tile is free from the start); then it slides against a light drag and stays where it is left. (3) In the compartment, a red-painted beech block 2.5 by 2.5 by 3.6 cm (30 g), standing in a low socket, 17 cm right of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end of the trial. Open: a panel slid at least 1 cm from where it started (the lid 7 cm) at some point, each after the one before it (panels stay where they are left). The block out: on the tray in front of the box (toward the arms), its middle at least 3 cm beyond the box's near side. 1.0: all four panels open and the block out, each gripper's fingertip centre (TCP) at least 4 cm from it, and both arms back where they started (each TCP within 5 cm of its start); 0.5: all four panels open; 0.25: the first two open; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the block and the box still.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "reset_notes": "Put the block back in its socket and slide the lid and the three tiles back shut, the lid first.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: each panel slides on a prismatic joint whose drive the task file keeps stiff (locked) until the panel before it is open, then makes soft, moving its target so the panel stays where it is left; the tray is nearly frictionless. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-H3JUL8"
+}
