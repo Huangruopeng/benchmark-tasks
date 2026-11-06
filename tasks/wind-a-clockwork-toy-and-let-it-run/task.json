@@ -1,0 +1,20 @@
+{
+  "title": "Hold a clockwork toy with one hand while the other winds its key, then let it run over the finish line",
+  "category": "Other",
+  "keywords": [
+    "bimanual",
+    "toy",
+    "winding",
+    "regrasping",
+    "ratchet"
+  ],
+  "instruction": "Hold the clockwork toy still with one hand, and with the other wind the key on its top, half a turn at a time, at least a turn and a half; then let go of the toy so that it runs over the finish line.",
+  "context": "Winding a clockwork toy, a kitchen timer or a music box is an everyday two-handed act: the key is stiff, so one hand holds the thing still while the other turns the key, taking it again every half turn. The toy then runs on what was wound.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A loose clockwork tin locomotive, red with a yellow cab roof, about 120 g: a body 18 cm long, 4.5 cm wide and 3.2 cm tall riding 8 mm above the table on two axles of tin wheels. It stands on the centre line with its middle 22.5 cm forward, heading forward (away from the arms), run down. (2) Its brass winding key, on top 7 cm ahead of the middle: a shaft 1.2 cm tall and a wing 2.6 cm wide, 1.8 cm tall and 5 mm thick, turned about 60 degrees from the toy's length. (3) A white finish line painted across the table 37.5 cm forward. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end of the trial. Wound: how far the key has been turned on (anticlockwise seen from above; a ratchet holds it, and the other way does nothing). The key takes 0.6 N m to turn (0.05 N m more for each turn wound), at most three turns. Let go of (both grippers' fingertip centres, TCPs, at least 3 cm from the toy and from the space 3 cm above it) and standing on its wheels, it runs forward at 10 cm/s, 12 cm for each turn wound. 1.0: it ran with its middle over the finish line by itself (the run started behind the line); 0.5: wound at least one turn; 0.25: at least a quarter turn; else 0.0. The trial ends at the run limit, or once the full score has held with the toy run down and still for 1 s.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "reset_notes": "Let the toy run down, stand it back in its place heading forward, and turn the key's wing back to about 60 degrees from the toy's length.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the mainspring and its ratchet are a spring on the key's hinge that the task file keeps 6 degrees behind the most the key has been wound. The run is the task file setting the toy going at 10 cm/s along its heading each step while it is wound and let go, using up 12 cm of travel per turn; the wheels are braked except while it runs. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-8J8U8G"
+}
