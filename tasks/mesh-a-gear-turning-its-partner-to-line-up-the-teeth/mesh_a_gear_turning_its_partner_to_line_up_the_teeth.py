@@ -3,7 +3,8 @@ gear (36 teeth) is fitted; a detent holds it half a tooth out of line. On the ri
 cannot turn on it), a smaller gear (24 teeth) waits 2.5 cm up, held there by a spring, its teeth on the large gear's.
 
 Task: mesh the gears: turn the large gear by its knob until its teeth line up with the small gear's, hold it there,
-and push the small gear down its shaft into mesh; then let go. Let go, the large gear springs back out of line; the
+and push the small gear down its shaft into mesh; then turn the large gear on, at least 30 degrees, to show the small
+gear turning with it, and let go. Let go, the large gear springs back out of line; the
 small gear only goes down while the teeth line up, and needs a push: one hand holds the large gear lined up while the
 other pushes the small one in.
 
@@ -61,6 +62,8 @@ IN_MESH = 0.002  # down to within this of the bottom: in mesh (it clicks in and 
 STEEL, BRASS, DARK, PLATE_C = (0.70, 0.71, 0.74), (0.78, 0.64, 0.30), (0.15, 0.15, 0.16), (0.30, 0.32, 0.36)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
+DRIVEN = 30.0  # the large gear turned at least this far once in mesh, the small one turning with it
+HOME_WITHIN = 0.05
 LET_GO = 0.03
 HELD_S = 1.0
 SUCCESS_HOLD_S = 1.0
@@ -96,14 +99,23 @@ def _gear_a() -> Body:
 def _gear_b() -> Body:
     z = GEAR_Z + UP + GEAR_T / 2
     shapes = [CylShape((0.0, 0.0, z), B_R - 0.004, GEAR_T, STEEL),
-              *_teeth(B_R + 0.001, B_TEETH, z, STEEL, phase=0.0),  # a tooth facing the large gear: out of line at its 0
               CylShape((0.0, 0.0, GEAR_Z + UP + GEAR_T + B_HUB_H / 2), B_HUB_R, B_HUB_H, STEEL)]
     return Body.build("small_gear", pos=(BX, BY, PLATE_TOP), mass=0.15, shapes=shapes, friction=(1.0, 0.9), color=STEEL,
                       ignore=("plate", "big_gear"))
 
 
+def _small_teeth() -> Body:
+    """The small gear's teeth and a mark on its face, shown only: the task file moves them with the small gear and,
+    once it is in mesh, turns them with the large gear (36 to 24: half as fast again, the other way)."""
+    z = GEAR_Z + UP + GEAR_T / 2
+    shapes = [*_teeth(B_R + 0.001, B_TEETH, z, STEEL, phase=0.0),  # a tooth facing the large gear: out of line at its 0
+              BoxShape((0.0, -B_R * 0.55, GEAR_Z + UP + GEAR_T + 0.0005), (0.006, B_R * 0.6, 0.001), DARK,
+                       collide=False)]  # a mark
+    return Body.build("small_teeth", pos=(BX, BY, PLATE_TOP), mass=0.01, shapes=shapes, kinematic=True, color=STEEL)
+
+
 PLATE_B, GEAR_A, GEAR_B = _plate(), _gear_a(), _gear_b()
-OBJECTS = [PLATE_B, GEAR_A, GEAR_B]
+OBJECTS = [PLATE_B, GEAR_A, GEAR_B, _small_teeth()]
 hinge("big_shaft", "plate", "big_gear", anchor=(AX, AY, PLATE_TOP), axis="Z", spring=DETENT, target_deg=0.0,
       damping=0.002)
 slider("small_shaft", "plate", "small_gear", anchor=(BX, BY, PLATE_TOP), axis="Z", limits=(-UP, 0.0),
@@ -113,7 +125,7 @@ slider("small_shaft", "plate", "small_gear", anchor=(BX, BY, PLATE_TOP), axis="Z
 # -- followed after every control step: lining up, the small gear's way down, the mesh --------------------------------------
 
 def _fresh() -> dict:
-    return {"state": "waiting", "lined_steps": 0, "held_lined": False, "tcps": None}
+    return {"state": "waiting", "lined_steps": 0, "held_lined": False, "tcps": None, "phi_mesh": None, "driven": 0.0}
 
 
 _EP = _fresh()
@@ -146,6 +158,16 @@ def _off_line(phi: float) -> float:
     return abs((phi - LINED_UP_AT + PITCH_A / 2) % PITCH_A - PITCH_A / 2)
 
 
+def _place_teeth(base, origin, pos, turn_deg) -> None:
+    import torch
+
+    a = math.radians(turn_deg)
+    asset = base.scene["small_teeth"]
+    p = np.asarray(pos, float) + origin
+    asset.write_root_pose_to_sim(torch.tensor([[*p.tolist(), 0.0, 0.0, math.sin(a / 2), math.cos(a / 2)]],
+                                              dtype=torch.float32, device=asset.device))
+
+
 @on_step
 def _follow(env) -> None:
     base = env.unwrapped
@@ -162,8 +184,9 @@ def _follow(env) -> None:
     state = _EP["state"]
     if state in ("waiting", "free") and down >= UP - IN_MESH:  # all the way down: it clicks in and stays
         set_slider_drive("small_shaft", target=-UP, stiffness=3000.0)
-        set_hinge_drive("big_shaft", target_deg=phi, spring=5.0)
+        set_hinge_drive("big_shaft", target_deg=phi, spring=0.0, damping=0.004)  # in mesh: the pair turns freely
         state = "meshed"
+        _EP["phi_mesh"] = phi
     elif state == "waiting" and lined:  # the teeth line up: it can go down, against its spring
         set_slider_drive("small_shaft", target=SPRING_PRE, stiffness=SPRING_K)
         state = "free"
@@ -174,6 +197,12 @@ def _follow(env) -> None:
         set_hinge_drive("big_shaft", target_deg=phi, spring=5.0)
         _EP["a_locked"] = True
     _EP["state"] = state
+    turn_b = 0.0
+    if _EP["phi_mesh"] is not None:  # in mesh: the small gear turns with the large one
+        d = (phi - _EP["phi_mesh"] + 180.0) % 360.0 - 180.0
+        _EP["driven"] = max(_EP["driven"], abs(d))
+        turn_b = -d * A_TEETH / B_TEETH
+    _place_teeth(base, origin, b[:3] - origin, turn_b)
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 10 == 0:
@@ -181,6 +210,7 @@ def _follow(env) -> None:
             tl, tr = _EP["tcps"]
             print(f"[gear] t={_DEBUG['steps'] / 20:5.1f}s big_gear={phi:6.2f}deg off_line={_off_line(phi):4.2f} "
                   f"small_down={down * 1000:5.1f}mm state={state} held_lined={_EP['held_lined']} let_go={st['let_go']} "
+                  f"driven={_EP['driven']:5.1f}deg small_turn={turn_b:6.1f}deg "
                   f"left TCP-knob={np.round((tl - np.array([AX, AY, PLATE_TOP + GEAR_Z + GEAR_T + A_KNOB_H / 2])) * 1000).astype(int).tolist()} "
                   f"right TCP={np.round(tr * 1000).astype(int).tolist()} score={_points(st)}", file=sys.stderr, flush=True)
 
@@ -195,7 +225,7 @@ def _status_from(down: float) -> dict:
         for t in _EP["tcps"]:
             let_go &= float(np.linalg.norm(t - knob)) >= LET_GO and float(np.linalg.norm(t - hub)) >= LET_GO
     return {"meshed": _EP["state"] == "meshed", "let_go": let_go,
-            "tried": _EP["held_lined"] or down >= UP - ENGAGED}
+            "tried": _EP["held_lined"] or down >= UP - ENGAGED, "driven": _EP["driven"] >= DRIVEN}
 
 
 def _status(objects) -> dict:
@@ -203,7 +233,7 @@ def _status(objects) -> dict:
 
 
 def _points(st) -> float:
-    if st["meshed"] and st["let_go"]:
+    if st["meshed"] and st["driven"] and st["let_go"]:
         return 1.0
     if st["meshed"]:
         return 0.5
@@ -211,21 +241,44 @@ def _points(st) -> float:
 
 
 def score(objects) -> float:
-    """1.0 with the small gear pushed all the way down into mesh and both grippers let go (3 cm clear of the large gear's
-    knob and the small gear's hub); 0.5 with it in mesh; 0.25 if the large gear was held lined up for 1 s, or the small
-    gear got in among its teeth, at some point; else 0.0."""
-    return _points(_status(objects))
+    """1.0 with the small gear pushed all the way down into mesh, the large gear then turned at least 30 degrees (the
+    small one turning with it), both grippers let go (3 cm clear of the large gear's knob and the small gear's hub) and
+    both arms back where they started; 0.5 with it in mesh; 0.25 if the large gear was held lined up for 1 s, or the
+    small gear got in among its teeth, at some point; else 0.0."""
+    pts = _points(_status(objects))
+    if pts >= 1.0 and not _arms_home():
+        return 0.5  # in mesh and driven, but the arms not back
+    return pts
+
+
+_HOME: dict = {}
+
+
+def _arms_home() -> bool:
+    """Both arms back where they started (each TCP within HOME_WITHIN of its start)."""
+    from yam_arena import ik, station
+    from yam_arena.constants import READY
+
+    tcps = _EP.get("tcps")
+    if tcps is None:
+        return False
+    if "tcps" not in _HOME:
+        _HOME["tcps"] = [np.asarray(ik.tcp_pose(np.array(READY, float), station.BASES[a])[0], float)
+                         for a in ("left", "right")]
+    return all(float(np.linalg.norm(t - h)) < HOME_WITHIN for t, h in zip(tcps, _HOME["tcps"]))
 
 
 def success(objects) -> bool:
-    """Full score with both gears still."""
+    """Full score with both gears still: the trial ends there."""
     return score(objects) >= 1.0 and objects["big_gear"].resting() and objects["small_gear"].resting()
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
 # The left hand comes straight down on the large gear's knob, grips it and turns it 5 degrees counterclockwise, lining
 # its teeth up with the small gear's, and holds it. The right hand comes straight down on the small gear's knob, grips it
-# and pushes it down its shaft into mesh. Then both let go and rise.
+# and pushes it down its shaft into mesh, lets go and goes back to where it started. Then the left turns the large gear
+# on 60 degrees, the small gear turning with it (the other way, half as fast again), lets go and goes back to where it
+# started.
 
 
 def _rz(a):
@@ -276,24 +329,44 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
 
 
 TURNED_AT = LEAD_S + 1.0 + 0.8 + 1.2
+DRIVE = math.radians(60.0)  # once in mesh, the left turns the large gear on this far
 
 
-def _left(release_at: float, total: float) -> list[Waypoint]:
+def _go_home(arm: str, pos, rot, finger) -> list[Waypoint]:
+    """From a pose back to the arm's start, straight through joint space (the lead-in, reversed)."""
+    from yam_arena import ik, station
+    from yam_arena.constants import READY
+
+    q0, q1 = _good_ik(arm, pos, rot), np.array(READY, float)
+    out = []
+    for k in range(1, LEAD_STEPS + 1):
+        p, r = ik.tcp_pose(q0 + (q1 - q0) * k / LEAD_STEPS, station.BASES[arm])
+        out.append(Waypoint(LEAD_S / LEAD_STEPS, tuple(float(v) for v in p), finger, "back to where it started", r))
+    return out
+
+
+def _left(drive_at: float, total: float) -> list[Waypoint]:
     knob = np.array([AX, AY, PLATE_TOP + GEAR_Z + GEAR_T + A_KNOB_H / 2 + KNOB_IN_HAND])
     out = _lead_in("left", knob + [0.0, 0.0, 0.05], KNOB_GRIP, "over the large gear's knob", FINGER_OPEN)
     out += [_w(1.0, knob, FINGER_OPEN, "down round the knob", KNOB_GRIP),
             _w(0.8, knob, FINGER_CLOSED, "grip it", KNOB_GRIP),
             _w(1.2, knob, FINGER_CLOSED, "turn it 5 degrees: the teeth line up", _rz(TURN) @ KNOB_GRIP)]
     t = sum(w.duration for w in out)
-    out.append(_w(max(release_at - t, 0.3), knob, FINGER_CLOSED, "hold it there", _rz(TURN) @ KNOB_GRIP))
-    out += [_w(0.5, knob, FINGER_OPEN, "let go", _rz(TURN) @ KNOB_GRIP),
-            _w(1.0, knob + [0.0, 0.0, 0.05], FINGER_OPEN, "rise", _rz(TURN) @ KNOB_GRIP)]
+    out.append(_w(max(drive_at - t, 0.3), knob, FINGER_CLOSED, "hold it there", _rz(TURN) @ KNOB_GRIP))
+    for k in range(1, 5):
+        out.append(_w(0.75, knob, FINGER_CLOSED, "turn it on: the small gear turns with it",
+                      _rz(TURN + DRIVE * k / 4) @ KNOB_GRIP))
+    end = _rz(TURN + DRIVE) @ KNOB_GRIP
+    out += [_w(0.5, knob, FINGER_OPEN, "let go", end),
+            _w(1.0, knob + [0.0, 0.0, 0.05], FINGER_OPEN, "rise", end)]
+    out += _go_home("left", knob + [0.0, 0.0, 0.05], end, FINGER_OPEN)
     t = sum(w.duration for w in out)
-    out.append(_w(max(total - t, 0.5), knob + [0.0, 0.0, 0.05], FINGER_OPEN, "wait", _rz(TURN) @ KNOB_GRIP))
+    out.append(_w(max(total - t, 0.5), out[-1].pos, FINGER_OPEN,
+                  "hold still: the trial ends once the full score has held 1 s with both arms home", out[-1].yaw))
     return out
 
 
-def _right() -> list[Waypoint]:
+def _right() -> tuple[list[Waypoint], float]:
     knob = np.array([BX, BY, PLATE_TOP + GEAR_Z + UP + GEAR_T + B_HUB_H / 2 + 0.005])
     down = knob - [0.0, 0.0, UP + PUSH]
     out = _lead_in("right", knob + [0.0, 0.0, 0.05], PUSH_GRIP, "over the small gear's knob", FINGER_OPEN)
@@ -305,12 +378,14 @@ def _right() -> list[Waypoint]:
             _w(0.5, down, FINGER_CLOSED, "it clicks in", PUSH_GRIP),
             _w(0.5, down, FINGER_OPEN, "let go", PUSH_GRIP),
             _w(1.0, down + [0.0, 0.0, 0.05], FINGER_OPEN, "rise", PUSH_GRIP)]
-    return out
+    drive_at = sum(w.duration for w in out)
+    out += _go_home("right", down + [0.0, 0.0, 0.05], PUSH_GRIP, FINGER_OPEN)
+    return out, drive_at
 
 
 def demo():
-    right = _right()
-    t_right = sum(w.duration for w in right)
-    total = t_right + 4.0
-    right.append(_w(4.0, right[-1].pos, FINGER_OPEN, "wait", right[-1].yaw))
-    return {"left": _left(t_right - 1.0, total), "right": right}
+    right, drive_at = _right()
+    total = max(sum(w.duration for w in right), drive_at + 3.0 + 1.5 + LEAD_S) + 3.0
+    right.append(_w(total - sum(w.duration for w in right), right[-1].pos, FINGER_OPEN, "wait at the start",
+                    right[-1].yaw))
+    return {"left": _left(drive_at, total), "right": right}
