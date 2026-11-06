@@ -198,15 +198,16 @@ def score(objects) -> float:
 
 
 def success(objects) -> bool:
-    return score(objects) >= 1.0
+    """Full score with the drawer and the key still: the trial ends once it has held 1 s."""
+    return score(objects) >= 1.0 and objects["drawer"].resting() and objects["key"].resting()
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
 # The left hand comes level from the front onto the key's bow, fingers closing across it, and rolls its wrist a quarter
 # turn clockwise, turning the key, and holds it there. The right hand comes straight down on the pull's bar, fingers
 # closing across it, and pulls the drawer straight out 9 cm. The left keeps the key turned, following it out, until the
-# drawer is 2.5 cm out (the bolt past the strike), then lets it go (it turns back) and draws back. The right lets go of
-# the pull and rises.
+# drawer is 2.5 cm out (the bolt past the strike), then lets it go (it turns back) and rises out of the drawer's way.
+# The right lets go of the pull and rises.
 
 
 def _rx(a: float) -> np.ndarray:
@@ -225,6 +226,7 @@ BOW_IN_HAND = 0.004  # the left TCP this far into the bow from its outer end
 BAR_IN_HAND = 0.012  # the right TCP this far below the bar's top
 PULL_TO = 0.09
 PULL_EXTRA = 0.01  # aimed further: the arm gives
+KEY_CLEAR_S = 1.6  # the pull pauses this long once the bolt is past the strike, while the key hand lets go and clears
 LEAD_S, LEAD_STEPS = 3.0, 15
 
 
@@ -278,9 +280,11 @@ def _left(release_at: float, total: float) -> tuple[list[Waypoint], float]:
             _w(0.6, bow - [step, 0.0, 0.0], FINGER_CLOSED, "keep it turned as the drawer starts out", turned),
             _w(0.4, bow - [step + 0.01, 0.0, 0.0], FINGER_OPEN, "let it go, the bolt past the strike: it turns back",
                turned),
-            _w(1.0, bow - [step + 0.015, -0.05, -0.02], FINGER_OPEN, "out of the key's way", turned)]
+            _w(0.5, bow - [step + 0.07, 0.0, 0.0], FINGER_OPEN, "back off the key's bow", turned),
+            _w(0.6, bow - [step + 0.07, 0.0, -0.07], FINGER_OPEN,
+               "up out of the way, above the drawer's front (which comes out under it)", turned)]
     t = sum(w.duration for w in out)
-    out.append(_w(max(total - t, 0.5), bow - [step + 0.015, -0.05, -0.02], FINGER_OPEN,
+    out.append(_w(max(total - t, 0.5), bow - [step + 0.07, 0.0, -0.07], FINGER_OPEN,
                   "hold still: the trial ends once the full score has held 1 s", turned))
     return out, turned_at
 
@@ -294,6 +298,8 @@ def _right(start: float) -> tuple[list[Waypoint], float]:
     for k in range(1, 5):
         out.append(_w(0.6, bar - [(PULL_TO + PULL_EXTRA) * k / 4, 0.0, 0.0], FINGER_CLOSED,
                       "pull the drawer straight out", PULL_GRIP))
+        if k == 1:  # the bolt is past the strike: wait while the other hand lets go of the key and clears the way
+            out.append(_w(KEY_CLEAR_S, out[-1].pos, FINGER_CLOSED, "wait for the key hand to clear", PULL_GRIP))
     end = bar - [PULL_TO + PULL_EXTRA, 0.0, 0.0]
     out += [_w(1.2, end, FINGER_CLOSED, "hold it out", PULL_GRIP),
             _w(0.5, end, FINGER_OPEN, "let go", PULL_GRIP),
