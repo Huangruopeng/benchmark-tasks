@@ -1,6 +1,6 @@
 # Hold a sock still on a clothesline in a breeze with one hand while the other clips a clothespin over it
 
-A short clothesline runs across the table between two posts, with a long green sock folded over it along its length. A
+A short steel clothesline runs across the table between two posts, with a long green cotton sock folded over it along its length. A
 breeze pushes the sock to and fro, swinging it about the line. A wooden clothespin stands in a holder beside it. One
 hand holds the sock still on the line; the other takes the clothespin by its handle (squeezing it opens the jaws),
 brings it down astride the line over the sock and lets go, so the pin's spring shuts its jaws on them. Then the first
@@ -38,7 +38,7 @@ each body's own pose, and lets the task file act on the simulation after every c
 
 ## Run and score a trial
 
-The scorer is `task_score`: 1.0 when `success()` (full score) has held for 1 s, otherwise `score()` at the end of the
+The scorer is `task_score`: 1.0 when `success()` (full score, with the sock and the pin still) has held for 1 s, otherwise `score()` at the end of the
 episode (0, 0.25, 0.5 or 1.0; see `task.json`). `-E object_jitter=0` keeps every object exactly where the task file
 puts it, so every trial starts from the same layout. The cameras render at 1280 x 704 for sharp videos; Dream-1's
 client scales every frame to 320 x 176 before sending it, so `-E cam_width=320 -E cam_height=176` gives the policy the
@@ -79,7 +79,7 @@ the pin's handle and the sock.
 
 ## Runtime per trial
 
-On one RTX 5090: about 2 minutes for a Dream-1 trial of 1,200 steps (147 s on the clock, with Dream answering in 0.85 s on average), and under 1 minute for the scripted demo (249 steps, 12.4 s of simulated time, 42 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 2 minutes for a Dream-1 trial of 1,200 steps (147 s on the clock, with Dream answering in 0.85 s on average), and about 2 minutes for the scripted demo (352 steps, 17.6 s of simulated time, 122 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 

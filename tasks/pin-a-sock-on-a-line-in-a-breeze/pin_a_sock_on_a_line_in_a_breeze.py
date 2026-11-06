@@ -325,9 +325,9 @@ def score(objects) -> float:
 
 
 def success(objects) -> bool:
-    """Full score: the trial ends once it has held 1 s (the breeze keeps the sock moving a little, so no stillness
-    check)."""
-    return score(objects) >= 1.0
+    """Full score with the sock and the pin still (the breeze stops once the pin has clipped on): the trial ends once it
+    has held 1 s."""
+    return score(objects) >= 1.0 and all(objects[n].resting() for n in ("sock", "pin_a", "pin_b"))
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
