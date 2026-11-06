@@ -1,0 +1,20 @@
+{
+  "title": "Hold a flex cable fully in its connector with one hand while the other flips the connector's latch shut",
+  "category": "Impact on AI timelines",
+  "keywords": [
+    "bimanual",
+    "electronics assembly",
+    "connector",
+    "flex cable",
+    "hinged latch"
+  ],
+  "instruction": "Slide the flex cable straight into the connector until it is fully in and hold it there with one hand; with the other tip the connector's open latch over so it falls shut on the cable; then let go of both.",
+  "context": "Assembling and repairing electronics (phones, laptops, displays) means seating flat flex cables in ZIF connectors and locking them by flipping the connector's latch shut. The connector's contacts push the cable back out, so it is held fully in while the latch is closed with the other hand; a latch shut on a half-seated cable makes a bad connection.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A fixed green circuit board, 2 mm thick, from 25 to 35 cm forward and from 17 cm right of the centre line to 13 cm left of it; its surface is slick. (2) A fixed white connector socket on it, 30 cm forward, its mouth 9.5 cm right of the centre line and facing left: two side guides 2.5 mm tall and a back stop 6 mm in. (3) The connector's latch: a dark flap 2.8 cm wide and 1.8 cm long, hinged across the back of the socket 4.5 mm above the board, standing open just past upright against its stop. Tipped over forward, it falls shut over the socket; within 12 degrees of shut it snaps shut and stays. (4) A loose flat flex cable, 6 g, 18 cm long, 2.4 cm wide and 1.5 mm thick, with a blue stiffener at its end, lying across the board 30 cm forward with its end 1 mm outside the socket's mouth, reaching to 8.6 cm left of the centre line. Whenever the cable is in the socket and not locked, the socket's contacts push it back out (about 0.3 N fully in). The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end of the trial. Fully in: the cable's end at least 4.5 mm into the socket (of 6 mm) and the cable within 5 degrees of straight. Locked: the latch snapped shut while the cable was fully in; a locked cable stays in. 1.0: locked and still fully in, with each gripper's fingertip centre (TCP) at least 3 cm from the cable (anywhere along it) and from the latch's hinge; 0.5: locked, but a hand within 3 cm of them; 0.25: the latch snapped shut without the cable fully in, or the cable fully in at some point; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "reset_notes": "Flip the latch back open, pull the cable out and lay it straight with its end 1 mm outside the socket's mouth.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the flex cable is a rigid strip. The contacts' push is a force the task file puts on the cable while it is in the socket. When the latch snaps shut on a fully seated cable, the task file fixes the cable where it is (locked); the latch itself does not collide with the cable. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-P72R8M"
+}
