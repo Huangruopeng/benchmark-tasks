@@ -64,6 +64,7 @@ DRAG_K, DRAG_MAX = 60.0, 4.0  # the teeth bite: rubbing drags the grater along t
 FULL, HALF, SOME = 9, 5, 1  # shreds on the board
 UPRIGHT = math.radians(20.0)
 SUCCESS_HOLD_S = 1.0
+HOME_WITHIN = 0.05  # each TCP this close to where it started: the arms are back home
 
 
 def _board() -> Body:
@@ -234,21 +235,48 @@ def _points(shreds, g_rot) -> float:
 
 
 def score(objects) -> float:
-    """1.0 with at least 9 shreds of cheese on the board and the grater standing; 0.5 with at least 5 shreds; 0.25 with at
-    least 1; else 0.0. (A shred falls inside the grater for each 2 cm the cheese is rubbed up or down the grating face,
-    pressed on it, with the grater standing.)"""
-    return _points([objects[n].pos for n in SHRED_NAMES], rotation(objects["grater"].quat_xyzw))
+    """1.0 with at least 9 shreds of cheese on the board and the grater standing, the cheese put down and both arms back
+    where they started; 0.5 with at least 5 shreds; 0.25 with at least 1; else 0.0. (A shred falls inside the grater
+    for each 2 cm the cheese is rubbed up or down the grating face, pressed on it, with the grater standing.)"""
+    pts = _points([objects[n].pos for n in SHRED_NAMES], rotation(objects["grater"].quat_xyzw))
+    if pts >= 1.0 and not (_cheese_down(objects) and _arms_home()):
+        return 0.5  # grated, but the cheese not put down or the arms not back
+    return pts
+
+
+_HOME: dict = {}
+
+
+def _arms_home() -> bool:
+    """Both arms back where they started (each TCP within HOME_WITHIN of its start)."""
+    from yam_arena import ik, station
+    from yam_arena.constants import READY
+
+    tcps = _EP.get("tcps")
+    if tcps is None:
+        return False
+    if "tcps" not in _HOME:
+        _HOME["tcps"] = [np.asarray(ik.tcp_pose(np.array(READY, float), station.BASES[a])[0], float)
+                         for a in ("left", "right")]
+    return all(float(np.linalg.norm(t - h)) < HOME_WITHIN for t, h in zip(tcps, _HOME["tcps"]))
+
+
+def _cheese_down(objects) -> bool:
+    """The cheese put down: lying on the board or the table (its middle no higher than its length's half above the
+    board), not held."""
+    return float(objects["cheese"].pos[2]) < BOARD_TOP + CHEESE[1] / 2
 
 
 def success(objects) -> bool:
-    """Full score with the shreds still."""
-    return score(objects) >= 1.0 and all(objects[n].resting() for n in SHRED_NAMES[:FULL])
+    """Full score with the shreds, the grater and the cheese still: the trial ends there."""
+    return score(objects) >= 1.0 and all(objects[n].resting() for n in SHRED_NAMES[:FULL] + ["grater", "cheese"])
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
 # The left hand comes straight down on the grater's handle near its end and holds it. The right hand comes straight
 # down on the cheese, near its right end, lifts it and presses its left end against the grating face, then rubs it up
-# and down the face a few times, and puts it back down.
+# and down the face a few times, and puts it back down. Then the left lets go of the grater and both arms go back to
+# where they started, leaving the grated cheese on the board.
 
 GRIP_X = grip_rotation(-math.pi / 2)  # straight down, fingers closing along x (the left hand)
 GRIP_R = grip_rotation(math.pi / 2)  # the same for the right hand, turned the other way round (its wrist's range)
@@ -294,6 +322,19 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
     return Waypoint(t, tuple(float(v) for v in pos), finger, label, rot)
 
 
+def _go_home(arm: str, pos, rot, finger) -> list[Waypoint]:
+    """From a pose back to the arm's start, straight through joint space (the lead-in, reversed)."""
+    from yam_arena import ik, station
+    from yam_arena.constants import READY
+
+    q0, q1 = _good_ik(arm, pos, rot), np.array(READY, float)
+    out = []
+    for k in range(1, LEAD_STEPS + 1):
+        p, r = ik.tcp_pose(q0 + (q1 - q0) * k / LEAD_STEPS, station.BASES[arm])
+        out.append(Waypoint(LEAD_S / LEAD_STEPS, tuple(float(v) for v in p), finger, "back to where it started", r))
+    return out
+
+
 def _cheese_tcp(cheese_mid_y: float, underside_z: float) -> np.ndarray:
     return np.array([GX, cheese_mid_y + CHEESE_GRIP_AT, underside_z + CHEESE_IN_HAND])
 
@@ -322,21 +363,29 @@ def _right() -> list[Waypoint]:
             _w(0.8, rest + [0.0, 0.0, 0.003], FINGER_CLOSED, "put it down", GRIP_R),
             _w(0.5, rest + [0.0, 0.0, 0.003], FINGER_OPEN, "let go", GRIP_R),
             _w(1.0, rest + [0.0, 0.0, 0.06], FINGER_OPEN, "rise", GRIP_R)]
+    out += _go_home("right", rest + [0.0, 0.0, 0.06], GRIP_R, FINGER_OPEN)
     return out
 
 
-def _left(total: float) -> list[Waypoint]:
+def _left(release_at: float, total: float) -> list[Waypoint]:
     handle = np.array([GX, GY + G_Y / 2 + HANDLE[1] - 0.025, BOARD_TOP + 0.0005 + G_H + G_T - HANDLE[2] / 2 + 0.003])
     out = _lead_in("left", handle + [0.0, 0.0, 0.05], GRIP_X, "over the grater's handle")
     out += [_w(1.0, handle, FINGER_OPEN, "down round the handle", GRIP_X),
             _w(0.8, handle, FINGER_CLOSED, "hold the grater", GRIP_X)]
     t = sum(w.duration for w in out)
-    out.append(_w(max(total - t, 0.5), handle, FINGER_CLOSED, "hold it steady while the cheese is grated", GRIP_X))
+    out += [_w(max(release_at - t, 0.5), handle, FINGER_CLOSED, "hold it steady while the cheese is grated", GRIP_X),
+            _w(0.5, handle, FINGER_OPEN, "let go", GRIP_X),
+            _w(1.0, handle + [0.0, 0.0, 0.05], FINGER_OPEN, "rise", GRIP_X)]
+    out += _go_home("left", handle + [0.0, 0.0, 0.05], GRIP_X, FINGER_OPEN)
+    t = sum(w.duration for w in out)
+    out.append(_w(max(total - t, 0.5), out[-1].pos, FINGER_OPEN,
+                  "hold still: the trial ends once the full score has held 1 s with both arms home", out[-1].yaw))
     return out
 
 
 def demo():
     right = _right()
-    total = sum(w.duration for w in right) + 2.0
-    right.append(_w(2.0, right[-1].pos, FINGER_OPEN, "wait", right[-1].yaw))
-    return {"left": _left(total), "right": right}
+    put_down = sum(w.duration for w in right) - LEAD_S  # the cheese is down and the right hand on its way home
+    total = sum(w.duration for w in right) + LEAD_S + 3.0
+    right.append(_w(LEAD_S + 3.0, right[-1].pos, FINGER_OPEN, "wait at the start", right[-1].yaw))
+    return {"left": _left(put_down, total), "right": right}
