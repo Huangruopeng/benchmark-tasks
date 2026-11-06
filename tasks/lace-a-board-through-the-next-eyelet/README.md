@@ -1,7 +1,7 @@
 # Lace a board's next eyelet, handing the lace's tip through the hole from one hand to the other
 
-An upright lacing board stands on the table with two metal eyelets side by side. A lace is knotted behind the first
-eyelet, comes through it, hangs in a loop and ends in a long stiff tip (an aglet) resting on two pegs, pointing at the
+An upright plywood lacing board stands on the table with two brass eyelets side by side. A polyester lace is knotted behind the first
+eyelet, comes through it, hangs in a loop and ends in a long stiff plastic tip (an aglet) resting on two wooden pegs, pointing at the
 second eyelet. One hand pushes the tip through the second eyelet and keeps hold of it; behind the board the other hand
 takes the tip that comes through, the first lets go, and the second pulls the lace on through. The task is one task
 file, [`lace_a_board_through_the_next_eyelet.py`](lace_a_board_through_the_next_eyelet.py), for the `yam_arena`
