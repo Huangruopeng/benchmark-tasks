@@ -315,7 +315,8 @@ def score(objects) -> float:
 
 
 def success(objects) -> bool:
-    return score(objects) >= 1.0
+    """Full score with the bar, the drill's quill and the clamp's screw still: the trial ends once it has held 1 s."""
+    return score(objects) >= 1.0 and all(objects[n].resting() for n in ("bar", "quill", "screw"))
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
