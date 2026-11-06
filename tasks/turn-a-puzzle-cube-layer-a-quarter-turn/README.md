@@ -44,8 +44,8 @@ inspect-robots run --embodiment yam_arena --policy dream \
 ```
 
 The scripted demo, which reaches full score: both hands come in level from their own side. The left one, fingers
-closing on the cube's front and back, grips its left two layers. The right one, fingers closing on the right layer's
-top and bottom, grips that layer and rolls the wrist a quarter turn; the layer clicks into line. Then the right hand
+closing on the cube's top and bottom, grips its left two layers. The right one, fingers closing on the right layer's
+front and back, grips that layer and rolls the wrist a quarter turn; the layer clicks into line. Then the right hand
 lets go and backs away, and so does the left:
 
 ```bash

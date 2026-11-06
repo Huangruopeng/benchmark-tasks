@@ -205,8 +205,8 @@ def success(objects) -> bool:
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
-# Both hands come in level from their own side. The left one, fingers closing on the cube's front and back, grips its
-# left two layers; the right one, fingers closing on the right layer's top and bottom, grips that layer and rolls the
+# Both hands come in level from their own side. The left one, fingers closing on the cube's top and bottom, grips its
+# left two layers; the right one, fingers closing on the right layer's front and back, grips that layer and rolls the
 # wrist a quarter turn: the layer clicks into line. Then the right hand lets go and backs away, and so does the left.
 
 
@@ -220,8 +220,8 @@ def _ry(a):
     return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
 
 
-SIDE_L = _ry(math.pi / 2) @ _rx(-math.pi / 2) @ grip_rotation(-math.pi / 2)  # level, pointing -y, closing along x
-SIDE_R = _rx(math.pi / 2) @ grip_rotation(math.pi / 2)  # level, pointing +y, fingers closing along z
+SIDE_L = _ry(math.pi / 2) @ _rx(-math.pi / 2) @ grip_rotation(-math.pi / 2)  # level, pointing -y, fingers closing along z
+SIDE_R = _rx(math.pi / 2) @ grip_rotation(math.pi / 2)  # level, pointing +y, fingers closing along x
 L_DY = 0.006  # the left TCP from the cube's centre: its fingertips 3 mm short of the right layer
 R_DY = -0.026  # the right TCP from the cube's centre: 4 mm inside the right face, its fingertips 3 mm short of the rest
 OUT = 0.08
