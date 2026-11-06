@@ -1,6 +1,6 @@
 # Hold a puzzle cube's left two layers with one hand while the other turns its right layer a quarter turn
 
-A solved 3x3 puzzle cube sits loose on a slim display stand. One hand holds the cube's left two layers; the other grips
+A solved 3x3 puzzle cube (ABS plastic, vinyl stickers) sits loose on a slim plastic display stand. One hand holds the cube's left two layers; the other grips
 its right layer and turns it a quarter turn, until it clicks into line. Then both hands let go. The task is one task
 file, [`turn_a_puzzle_cube_layer_a_quarter_turn.py`](turn_a_puzzle_cube_layer_a_quarter_turn.py), for the `yam_arena`
 embodiment (scene, scoring and the scripted demo), plus [`bodykit.py`](bodykit.py), which it imports from the same
