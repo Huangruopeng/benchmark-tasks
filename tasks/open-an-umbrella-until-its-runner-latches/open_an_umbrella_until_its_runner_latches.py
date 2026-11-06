@@ -1,10 +1,10 @@
-"""On the station table a stick umbrella, closed, rests on a fixed stand (a cradle under its shaft by the tip, a flat
-pad under its handle), its tip to the right and its handle to the left, its shaft 13 cm up.
+"""On the station table a stick umbrella, closed, rests on a fixed stand (two cradles under its shaft, one by the tip and
+one by the handle), its tip to the right and its handle to the left, its shaft 14.5 cm up.
 
 Task: open the umbrella: hold it by its handle and push the runner (the sleeve on the shaft) along the shaft toward
-the tip, against the ribs' springs, until it latches at the top; then let go of the runner. The umbrella lies loose in
-its stand: pushed on alone, the runner shoves the whole umbrella along it, so one hand holds the handle while the
-other pushes the runner.
+the tip, against the ribs' springs, until it latches at the top; then let go of the runner, and lift the open umbrella
+up by its handle, tip raised. The umbrella lies loose in its stand: pushed on alone, the runner shoves the whole
+umbrella along it, so one hand holds the handle while the other pushes the runner.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=open_an_umbrella_until_its_runner_latches.py \\
            --instruction "..." --scorer task_score ...
@@ -33,11 +33,11 @@ SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 
 # -- the umbrella: its frame: origin at the tip (ferrule) on the shaft's axis, +y along the shaft toward the handle ----
-UX, UY, UZ = 0.28, -0.33, TOP + 0.13  # the tip, in the world
+UX, UY, UZ = 0.28, -0.33, TOP + 0.145  # the tip, in the world
 SHAFT_R, SHAFT_L = 0.006, 0.40
 HANDLE_R, HANDLE_L = 0.015, 0.10
 NOTCH_Y = 0.030  # the ribs' top notch, along the shaft from the tip
-UMBRELLA_MASS = 0.30
+UMBRELLA_MASS = 0.22
 
 # -- the runner: a sleeve on the shaft; pushed toward the tip it opens the ribs; at the top it latches ----------------
 RUNNER_R, RUNNER_L = 0.012, 0.030
@@ -51,12 +51,14 @@ N_RIBS, RIB_L, RIB_W = 8, 0.140, 0.055
 CLOSED_DEG, OPEN_DEG = 5.0, 60.0
 NAVY, WOOD, STEEL, DARK, CRADLE_C = (0.10, 0.14, 0.32), (0.45, 0.28, 0.14), (0.75, 0.76, 0.78), (0.12, 0.12, 0.13), \
     (0.30, 0.30, 0.32)
-CRADLE_Y = -0.19  # world y of the cradle under the shaft (by the tip); the handle rests on a flat pad
-PAD = (0.05, 0.08)  # the pad under the handle: across, along
+CRADLE_Y = -0.19  # world y of the cradle under the shaft by the tip ...
+POST_Y = UY + SHAFT_L + HANDLE_L - 0.005  # ... and of a narrow post under the handle's end (the rest of the handle is free)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 LET_GO = 0.03
 HALF = 0.5
+HELD_UP = 0.12  # the umbrella's tip this far above where it lay: held up
+BY_HANDLE = 0.04  # a TCP this close to the handle's axis (between its ends): the umbrella is held by its handle
 SUCCESS_HOLD_S = 1.0
 
 
@@ -115,15 +117,15 @@ def _ribs() -> list[Body]:
 
 
 def _cradles() -> Body:
-    """A cradle under the shaft by the tip, and a flat pad under the handle (nothing stops the umbrella sliding)."""
+    """A cradle under the shaft by the tip and a narrow post under the handle's end (nothing stops the umbrella sliding
+    along them: slid toward the tip, its handle comes off the post)."""
     h = UZ - SHAFT_R - TOP
     hp = UZ - HANDLE_R - TOP
-    dy = (UY + SHAFT_L + HANDLE_L / 2) - CRADLE_Y
     shapes = [BoxShape((0.0, 0.0, h / 2), (0.05, 0.02, h), CRADLE_C),
               *[BoxShape((s * (SHAFT_R + 0.005), 0.0, h + 0.006), (0.006, 0.02, 0.012), CRADLE_C) for s in (-1.0, 1.0)],
-              BoxShape((0.0, dy, hp / 2), (PAD[0], PAD[1], hp), CRADLE_C)]
+              BoxShape((0.0, POST_Y - CRADLE_Y, hp / 2), (0.03, 0.008, hp), CRADLE_C)]
     return Body.build("cradles", pos=(UX, CRADLE_Y, TOP), mass=1.0, shapes=shapes, kinematic=True,
-                      friction=(0.5, 0.4), color=CRADLE_C)
+                      friction=(0.05, 0.05), slick=True, color=CRADLE_C)  # smooth: the umbrella slides along them
 
 
 CRADLES, UMBRELLA, RUNNER = _cradles(), _umbrella(), _runner()
@@ -179,6 +181,7 @@ def _follow(env) -> None:
     f = _travel(u_pos, u_rot, r[:3] - origin)
     _EP["tcps"] = _tcps(base, origin)
     _EP["best"] = max(_EP["best"], f)
+    _EP["tip_up"] = float(u_pos[2] - UZ)  # the tip (the umbrella's origin) above where it lay
     if not _EP["latched"] and f >= LATCH:  # at the top: it latches
         set_slider_drive("shaft", target=-TRAVEL, stiffness=3000.0)
         _EP["latched"] = True
@@ -195,7 +198,7 @@ def _follow(env) -> None:
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 10 == 0:
-            st = _status_from(r[:3] - origin, f)
+            st = _status_from(r[:3] - origin, f, u_pos, u_rot)
             tl, tr = _EP["tcps"]
             print(f"[umb] t={_DEBUG['steps'] / 20:5.1f}s umbrella={np.round(u_pos * 1000).astype(int).tolist()} "
                   f"travel={f * 100:5.1f}% ribs={angle:5.1f}deg latched={_EP['latched']} let_go={st['let_go']} "
@@ -206,19 +209,29 @@ def _follow(env) -> None:
 
 # -- scoring --------------------------------------------------------------------------------------------------------
 
-def _status_from(r_pos, f) -> dict:
-    let_go = _EP["tcps"] is None or float(np.linalg.norm(_EP["tcps"][1] - np.asarray(r_pos))) >= LET_GO and \
-        float(np.linalg.norm(_EP["tcps"][0] - np.asarray(r_pos))) >= LET_GO
-    return {"latched": _EP["latched"], "let_go": let_go, "best": _EP["best"]}
+def _to_handle(tcp, u_pos, u_rot) -> float:
+    """How far a TCP is from the handle's axis, between the handle's ends."""
+    p = u_rot.T @ (np.asarray(tcp, float) - np.asarray(u_pos, float))
+    y = min(max(float(p[1]), SHAFT_L), SHAFT_L + HANDLE_L)
+    return float(np.linalg.norm(p - np.array([0.0, y, 0.0])))
+
+
+def _status_from(r_pos, f, u_pos, u_rot) -> dict:
+    tcps = _EP["tcps"]
+    let_go = tcps is None or all(float(np.linalg.norm(t - np.asarray(r_pos))) >= LET_GO for t in tcps)
+    by_handle = tcps is not None and min(_to_handle(t, u_pos, u_rot) for t in tcps) <= BY_HANDLE
+    return {"latched": _EP["latched"], "let_go": let_go, "best": _EP["best"], "by_handle": by_handle,
+            "up": _EP.get("tip_up", 0.0) >= HELD_UP}
 
 
 def _status(objects) -> dict:
     u, r = objects["umbrella"], objects["runner"]
-    return _status_from(r.pos, _travel(u.pos, rotation(u.quat_xyzw), r.pos))
+    u_pos, u_rot = np.asarray(u.pos, float), rotation(u.quat_xyzw)
+    return _status_from(r.pos, _travel(u_pos, u_rot, r.pos), u_pos, u_rot)
 
 
 def _points(st) -> float:
-    if st["latched"] and st["let_go"]:
+    if st["latched"] and st["let_go"] and st["up"] and st["by_handle"]:
         return 1.0
     if st["latched"]:
         return 0.5
@@ -226,22 +239,38 @@ def _points(st) -> float:
 
 
 def score(objects) -> float:
-    """1.0 with the runner pushed up until it latched (the umbrella open) and no gripper on it (3 cm clear); 0.5 with it
-    latched; 0.25 if it was pushed at least half way up at some point; else 0.0."""
+    """1.0 with the runner pushed up until it latched (the umbrella open), no gripper on it (3 cm clear), and the open
+    umbrella held up by its handle (its tip at least 12 cm above where it lay, a fingertip centre within 4 cm of the
+    handle's axis); 0.5 with it latched; 0.25 if it was pushed at least half way up at some point; else 0.0."""
     return _points(_status(objects))
 
 
 def success(objects) -> bool:
-    """Full score with the umbrella still."""
+    """Full score with the umbrella still (held up)."""
     return score(objects) >= 1.0 and objects["umbrella"].resting()
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
-# The left hand comes straight down on the umbrella's handle and holds it in its cradle. The right hand comes straight
-# down on the runner, grips it and pushes it along the shaft toward the tip until it latches; the ribs open. Then the
-# right hand lets go and rises.
+# The left hand comes level from the front onto the umbrella's handle, fingers closing across it (top and bottom), and
+# holds it. The right hand comes straight down on the runner, grips it and pushes it along the shaft toward the tip
+# until it latches; the ribs open. Then the right hand lets go and draws back out of the way, and the left lifts the
+# open umbrella up by its handle, tip raised, and holds it up.
 
-GRIP_L = grip_rotation(-math.pi / 2)  # straight down, fingers closing along x (across the handle)
+
+def _rx(a: float) -> np.ndarray:
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
+
+
+def _ry(a: float) -> np.ndarray:
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+
+
+GRIP_L = _ry(-math.pi / 2) @ grip_rotation(-math.pi / 2)  # level, pointing +x (from the front), closing up and down
+LIFT, SHIFT, TILT = 0.10, 0.04, math.radians(35.0)  # the left lifts the umbrella this much, draws it this far left,
+# and raises its tip this far
+PARK_R = np.array([0.17, -0.22, TOP + 0.15])  # the right waits here, low and back, out of the open umbrella's way
 GRIP_R = grip_rotation(math.pi / 2)  # straight down, fingers closing along x (across the runner)
 IN_HAND = 0.003
 PUSH_PAST = 0.040  # push this far past the top (the shaft's stop holds it; the arm gives against the spring)
@@ -285,17 +314,37 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
 HELD_AT = LEAD_S + 1.0 + 0.8
 
 
-def _left(total: float) -> list[Waypoint]:
-    grip = np.array([UX, UY + SHAFT_L + HANDLE_L / 2, UZ + IN_HAND])
-    out = _lead_in("left", grip + [0.0, 0.0, 0.03], GRIP_L, "over the umbrella's handle")
-    out += [_w(1.0, grip, FINGER_OPEN, "down round the handle", GRIP_L),
-            _w(0.8, grip, FINGER_CLOSED, "hold it", GRIP_L)]
-    t = sum(w.duration for w in out)
-    out.append(_w(max(total - t, 0.5), grip, FINGER_CLOSED, "hold the umbrella in its cradle", GRIP_L))
+def _go_home(arm: str, pos, rot, finger) -> list[Waypoint]:
+    """From a pose back to the arm's start, straight through joint space (the lead-in, reversed)."""
+    from yam_arena import ik, station
+    from yam_arena.constants import READY
+
+    q0, q1 = _good_ik(arm, pos, rot), np.array(READY, float)
+    out = []
+    for k in range(1, LEAD_STEPS + 1):
+        p, r = ik.tcp_pose(q0 + (q1 - q0) * k / LEAD_STEPS, station.BASES[arm])
+        out.append(Waypoint(LEAD_S / LEAD_STEPS, tuple(float(v) for v in p), finger, "back to where it started", r))
     return out
 
 
-def _right() -> list[Waypoint]:
+def _left(lift_at: float, total: float) -> list[Waypoint]:
+    grip = np.array([UX, UY + SHAFT_L + HANDLE_L / 2, UZ])
+    out = _lead_in("left", grip + [-0.08, 0.0, 0.08], GRIP_L, "level, in front of and above the umbrella's handle")
+    out += [_w(1.0, grip - [0.07, 0.0, 0.0], FINGER_OPEN, "down in front of the handle", GRIP_L),
+            _w(1.0, grip, FINGER_OPEN, "onto the handle", GRIP_L),
+            _w(0.8, grip, FINGER_CLOSED, "hold it", GRIP_L)]
+    t = sum(w.duration for w in out)
+    up = _rx(-TILT) @ GRIP_L  # the wrist rolled: the tip goes up
+    out += [_w(max(lift_at - t, 0.5), grip, FINGER_CLOSED, "hold the umbrella in its cradles", GRIP_L),
+            _w(1.2, grip + [0.0, SHIFT / 2, LIFT * 0.6], FINGER_CLOSED, "lift the open umbrella", GRIP_L),
+            _w(1.5, grip + [0.0, SHIFT, LIFT], FINGER_CLOSED, "raise its tip", up)]
+    t = sum(w.duration for w in out)
+    out.append(_w(max(total - t, 0.5), grip + [0.0, SHIFT, LIFT], FINGER_CLOSED,
+                  "hold it up: the trial ends once the full score has held 1 s", up))
+    return out
+
+
+def _right() -> tuple[list[Waypoint], float]:
     start = np.array([UX, UY + RUNNER_Y, UZ + IN_HAND])
     top = start - [0.0, TRAVEL + PUSH_PAST, 0.0]
     out = _lead_in("right", start + [0.0, 0.0, 0.025], GRIP_R, "over the runner")
@@ -306,12 +355,16 @@ def _right() -> list[Waypoint]:
             _w(3.0, top, FINGER_CLOSED, "push it up the shaft: the ribs open", GRIP_R),
             _w(0.6, top, FINGER_CLOSED, "it latches", GRIP_R),
             _w(0.5, top, FINGER_OPEN, "let go", GRIP_R),
-            _w(1.0, top + [0.0, 0.0, 0.025], FINGER_OPEN, "rise", GRIP_R)]
-    return out
+            _w(1.0, top + [0.0, 0.0, 0.04], FINGER_OPEN, "rise", GRIP_R)]
+    out += [_w(1.0, top + [-0.05, 0.0, 0.05], FINGER_OPEN, "back and up, clear of the umbrella", GRIP_R),
+            _w(1.5, PARK_R, FINGER_OPEN, "out of the way, low and back", GRIP_R)]
+    lift_at = sum(w.duration for w in out)
+    return out, lift_at
 
 
 def demo():
-    right = _right()
-    total = sum(w.duration for w in right) + 3.0
-    right.append(_w(3.0, right[-1].pos, FINGER_OPEN, "wait", right[-1].yaw))
-    return {"left": _left(total), "right": right}
+    right, lift_at = _right()
+    total = max(sum(w.duration for w in right), lift_at + 2.7) + 3.0
+    right.append(_w(total - sum(w.duration for w in right), right[-1].pos, FINGER_OPEN, "wait at the start",
+                    right[-1].yaw))
+    return {"left": _left(lift_at, total), "right": right}
