@@ -3,8 +3,10 @@ toward the arms. A short cable with a stripped end lies on a rest to its left.
 
 Task: crimp the terminal onto the cable's end. One hand picks up the cable and pushes its stripped end into the
 terminal's barrel, straight along it, and holds it there; the other presses the crimper's lever down until it closes,
-then lets it spring open again. Let go of, the cable tips in the barrel (it is loose in it until crimped), and a crimp on
-a tipped or wrongly inserted cable is a bad crimp.
+then lets it spring open again. Then the first hand pulls the cable out of the crimper with the terminal crimped on its
+end, holds it up to show it, and lays it back on its rest, and both arms go back to where they started. Let go of, the
+cable tips in the barrel (it is loose in it until crimped), and a crimp on a tipped or wrongly inserted cable is a bad
+crimp.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=crimp_a_terminal_onto_a_cable_end.py \\
            --instruction "..." --scorer task_score ...
@@ -21,8 +23,8 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from bodykit import (Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, glue, hinge, on_reset,  # noqa: E402
-                     on_step, plate, rotation, set_glue_on)
+from bodykit import (Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, hinge, on_reset, on_step,  # noqa: E402
+                     plate, rotation)
 from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
@@ -66,6 +68,10 @@ ALIGN_DEG = 8.0
 INSERTED = 0.006
 RELEASED_DEG = 10.0  # the lever back open at least this far
 LET_GO = 0.04
+OUT = 0.04  # the cable's tip this far from the barrel's mouth: taken out of the crimper
+HOME_WITHIN = 0.05  # each TCP this close to where it started: the arms are back home
+ON_REST = (0.03, 0.015, 20.0)  # laid back on its rest: the tip this close to where it lay (across, up) and the cable
+# within this many degrees of lying along its rests
 SUCCESS_HOLD_S = 1.0
 
 
@@ -73,20 +79,47 @@ def _crimper() -> Body:
     shapes = [BoxShape((0.01, 0.02, 0.006), (0.09, 0.15, 0.012), DARK),  # base plate
               BoxShape((0.01, 0.0, 0.012 + (AXIS_Z - BAR_RI - BAR_T - 0.012) / 2),
                        (0.034, 0.03, AXIS_Z - BAR_RI - BAR_T - 0.012), STEEL),  # lower die block, under the barrel
-              BoxShape((PIVOT[0], PIVOT[1], (0.012 + PIVOT[2] + 0.012) / 2), (0.03, 0.02, PIVOT[2]), DARK),  # bracket
-              BoxShape((BAR_L + 0.012, 0.0, AXIS_Z - BAR_RI - BAR_T + 0.001), (0.024, 0.014, 0.002), COPPER)]  # tongue
+              BoxShape((PIVOT[0], PIVOT[1], (0.012 + PIVOT[2] + 0.012) / 2), (0.03, 0.02, PIVOT[2]), DARK)]  # bracket
     n = 10
-    for k in range(n):  # the barrel and its flared lead-in, panels round the x axis
+    for k in range(n):  # the die's flared lead-in in front of the terminal's mouth, panels round the x axis
         a = 2 * math.pi * k / n
         u = (0.0, math.cos(a), math.sin(a))
         r = BAR_RI + BAR_T / 2
-        shapes.append(plate((0.0, r * u[1], AXIS_Z + r * u[2]), (BAR_L, r * u[1], AXIS_Z + r * u[2]),
-                            2 * r * math.tan(math.pi / n) + 0.001, BAR_T, u, COPPER))
         r1 = FLARE_R + BAR_T / 2
         shapes.append(plate((0.0, r * u[1], AXIS_Z + r * u[2]), (-FLARE_L, r1 * u[1], AXIS_Z + r1 * u[2]),
-                            2 * r1 * math.tan(math.pi / n) + 0.001, BAR_T, u, COPPER))
+                            2 * r1 * math.tan(math.pi / n) + 0.001, BAR_T, u, STEEL))
     return Body.build("crimper", pos=(BX, BY, TOP), mass=1.0, shapes=shapes, kinematic=True, friction=(0.6, 0.5),
                       color=DARK)
+
+
+def _terminal_shapes(r_in: float, collide: bool) -> list:
+    """A ring terminal on the barrel's axis, its mouth at x = 0: the barrel (panels round the x axis, ``r_in`` inside)
+    and its flat tongue with a ring."""
+    n = 10
+    shapes = [BoxShape((BAR_L + 0.012, 0.0, -BAR_RI - BAR_T + 0.001), (0.024, 0.014, 0.002), COPPER, collide=collide),
+              CylShape((BAR_L + 0.018, 0.0, -BAR_RI - BAR_T + 0.0021), 0.0035, 0.0003, DARK, collide=False)]  # its hole
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        u = (0.0, math.cos(a), math.sin(a))
+        r = r_in + BAR_T / 2
+        shapes.append(plate((0.0, r * u[1], r * u[2]), (BAR_L, r * u[1], r * u[2]), 2 * r * math.tan(math.pi / n) + 0.001,
+                            BAR_T, u, COPPER, collide=collide))
+    return shapes
+
+
+TERM_AT = np.array([BX, BY, TOP + AXIS_Z])  # the terminal's origin (its mouth, on the axis) as it sits in the die
+HIDE = np.array([BX, BY + 0.05, TOP - 0.03])  # under the table
+
+
+def _terminal() -> Body:
+    return Body.build("terminal", pos=tuple(TERM_AT.tolist()), mass=0.01, shapes=_terminal_shapes(BAR_RI, True),
+                      kinematic=True, friction=(0.6, 0.5), color=COPPER)
+
+
+def _crimped() -> Body:
+    """The terminal crimped (its barrel squeezed onto the copper): shown once crimped, following the cable."""
+    return Body.build("crimped_terminal", pos=tuple(HIDE.tolist()), mass=0.01, kinematic=True, color=COPPER,
+                      shapes=_terminal_shapes(STRIP_R + 0.0008, False))
 
 
 def _lever() -> Body:
@@ -120,17 +153,16 @@ def _cable() -> Body:
 
 
 CRIMPER, LEVER, REST, CABLE = _crimper(), _lever(), _rest(), _cable()
-OBJECTS = [CRIMPER, LEVER, REST, CABLE]
+OBJECTS = [CRIMPER, LEVER, REST, CABLE, _terminal(), _crimped()]
 hinge("lever_pin", "crimper", "lever", anchor=(BX + PIVOT[0], BY + PIVOT[1], TOP + PIVOT[2]), axis="X",
       limits_deg=(-OPEN_DEG, 0.0), spring=SPRING, damping=0.002, target_deg=SPRING_TO)
-glue("crimp", "crimper", "cable", anchor=(TIP0[0], TIP0[1], TOP + AXIS_Z + 0.0005))  # off until the crimp
 
 
 # -- followed after every control step: the crimp ------------------------------------------------------------------
 
 def _fresh() -> dict:
     return {"crimped": False, "good": False, "depth": None, "align": None, "best_depth": -1.0, "tcps": None,
-            "lever_deg": -OPEN_DEG, "handle": None}
+            "lever_deg": -OPEN_DEG, "handle": None, "on_cable": None, "tip": None}
 
 
 _EP = _fresh()
@@ -142,7 +174,6 @@ def _new_episode() -> None:
     _EP.clear()
     _EP.update(_fresh())
     _DEBUG["steps"] = 0
-    set_glue_on("crimp", False)
 
 
 def _tcps(base, origin) -> list[np.ndarray]:
@@ -183,19 +214,20 @@ def _quat_wxyz(m: np.ndarray) -> tuple[float, float, float, float]:
     return tuple(q)
 
 
-def _crimp_hold(c_pos, c_rot) -> None:
-    """Fix the cable to the crimper where it is now: the crimped barrel holds it."""
-    import bodykit
-    from isaaclab.sim.utils.stage import get_current_stage
-    from pxr import Gf, UsdPhysics
+def _place(base, origin, name, pos, rot) -> None:
+    import torch
 
-    joint = UsdPhysics.FixedJoint(get_current_stage().GetPrimAtPath(bodykit._GLUE_PATHS["crimp"]))
-    p = np.asarray(c_pos, float) - np.array([BX, BY, TOP])  # the crimper is unrotated
-    joint.GetLocalPos0Attr().Set(Gf.Vec3f(*p.tolist()))
-    joint.GetLocalRot0Attr().Set(Gf.Quatf(*_quat_wxyz(c_rot)))
-    joint.GetLocalPos1Attr().Set(Gf.Vec3f(0.0, 0.0, 0.0))
-    joint.GetLocalRot1Attr().Set(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
-    set_glue_on("crimp", True)
+    asset = base.scene[name]
+    w, x, y, z = _quat_wxyz(np.asarray(rot, float))
+    p = np.asarray(pos, float) + origin
+    asset.write_root_pose_to_sim(torch.tensor([[*p.tolist(), x, y, z, w]], dtype=torch.float32, device=asset.device))
+
+
+def _crimp(base, origin, c_pos, c_rot) -> None:
+    """The crimp: the terminal is squeezed onto the cable's end; from now on it goes where the cable goes."""
+    _EP["on_cable"] = (c_rot.T @ (TERM_AT - c_pos), c_rot.T)  # the terminal (unrotated) in the cable's frame
+    _place(base, origin, "terminal", HIDE, np.eye(3))
+    _place(base, origin, "crimped_terminal", TERM_AT, np.eye(3))
 
 
 @on_step
@@ -216,7 +248,11 @@ def _follow(env) -> None:
         _EP["depth"], _EP["align"] = depth, align
         _EP["good"] = DEPTH[0] <= depth <= DEPTH[1] and align <= ALIGN_DEG and off < BAR_RI
         if depth > 0.0 and off < BAR_RI:
-            _crimp_hold(c_pos, c_rot)
+            _crimp(base, origin, c_pos, c_rot)
+    elif _EP["on_cable"] is not None:  # the crimped terminal goes with the cable
+        p_rel, r_rel = _EP["on_cable"]
+        _place(base, origin, "crimped_terminal", c_pos + c_rot @ p_rel, c_rot @ r_rel)
+    _EP["tip"] = c_pos
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 10 == 0:
@@ -234,14 +270,18 @@ def _follow(env) -> None:
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def _status() -> dict:
-    tr = None if _EP["tcps"] is None else _EP["tcps"][1]
-    let_go = tr is None or _EP["handle"] is None or float(np.linalg.norm(tr - _EP["handle"])) >= LET_GO
+    tcps = _EP["tcps"]
+    let_go = tcps is None or _EP["handle"] is None or all(float(np.linalg.norm(t - _EP["handle"])) >= LET_GO
+                                                           for t in tcps)
+    tip = _EP["tip"]
+    out = tip is not None and float(np.linalg.norm(tip - TERM_AT)) >= OUT
     return {"crimped": _EP["crimped"] and _EP["depth"] is not None and _EP["depth"] > 0.0, "good": _EP["good"],
-            "released": _EP["lever_deg"] <= -RELEASED_DEG and let_go, "inserted": _EP["best_depth"] >= INSERTED}
+            "released": _EP["lever_deg"] <= -RELEASED_DEG and let_go, "inserted": _EP["best_depth"] >= INSERTED,
+            "out": out and _EP["on_cable"] is not None}
 
 
 def _points(st) -> float:
-    if st["good"] and st["released"]:
+    if st["good"] and st["released"] and st["out"]:
         return 1.0
     if st["crimped"]:
         return 0.5
@@ -250,13 +290,44 @@ def _points(st) -> float:
 
 def score(objects) -> float:
     """1.0 for a good crimp (the bare end 6 to 14 mm into the barrel and the cable within 8 degrees of its axis when
-    the lever closed) with the lever let go and back open; 0.5 for any crimp with the bare end in the barrel; 0.25 if the
-    end was pushed at least 6 mm into the barrel; else 0.0."""
-    return _points(_status())
+    the lever closed) with the lever let go and back open, the cable taken out of the crimper with the terminal on it
+    (its tip at least 4 cm from where the barrel's mouth was) and laid back on its rest, and both arms back where they
+    started; 0.5 for any crimp with the bare end in the barrel; 0.25 if the end was pushed at least 6 mm into the barrel
+    at some point; else 0.0."""
+    pts = _points(_status())
+    if pts >= 1.0 and not (_on_rest(objects) and _arms_home()):
+        return 0.5  # crimped and taken out, but not laid back on its rest or the arms not back
+    return pts
+
+
+def _on_rest(objects) -> bool:
+    """The cable laid back on its rest: its tip within 3 cm (across) and 1.5 cm (up or down) of where it lay, and the
+    cable within 20 degrees of lying along the rests."""
+    c = objects["cable"]
+    tip, axis = np.asarray(c.pos, float), rotation(c.quat_xyzw)[:, 0]
+    return (float(np.linalg.norm(tip[:2] - TIP0)) <= ON_REST[0] and abs(float(tip[2]) - (TOP + AXIS_Z)) <= ON_REST[1]
+            and abs(float(axis[0])) >= math.cos(math.radians(ON_REST[2])))
+
+
+_HOME: dict = {}
+
+
+def _arms_home() -> bool:
+    """Both arms back where they started (each TCP within HOME_WITHIN of its start)."""
+    from yam_arena import ik, station
+    from yam_arena.constants import READY
+
+    tcps = _EP.get("tcps")
+    if tcps is None:
+        return False
+    if "tcps" not in _HOME:
+        _HOME["tcps"] = [np.asarray(ik.tcp_pose(np.array(READY, float), station.BASES[a])[0], float)
+                         for a in ("left", "right")]
+    return all(float(np.linalg.norm(t - h)) < HOME_WITHIN for t, h in zip(tcps, _HOME["tcps"]))
 
 
 def success(objects) -> bool:
-    """Full score with the lever and the cable still."""
+    """Full score with the lever and the cable still: the trial ends there."""
     return score(objects) >= 1.0 and objects["lever"].resting() and objects["cable"].resting()
 
 
@@ -264,7 +335,9 @@ def success(objects) -> bool:
 # The left hand comes straight down on the cable 5.5 cm from its tip, fingers closing across it, lifts it off its rest,
 # carries it to the barrel's axis 2 cm in front of the mouth and pushes the bare end straight in, 1 cm deep, and holds
 # it. The right hand comes straight down on the lever's rubber grip, fingers closed, and presses the lever down until
-# it closes and crimps; then it rises and the lever springs open. Then the left hand lets go and rises.
+# it closes and crimps; then it rises, the lever springs open, and the right goes back to where it started. The left
+# pulls the cable straight back out with the terminal crimped on its end, holds it up to show it, lays it back on its
+# rest and goes back to where it started.
 
 GRIP_L = grip_rotation(0.0)  # straight down, fingers closing along y (across the cable, which runs along x)
 GRIP_R = grip_rotation(0.0)  # straight down, fingers closed, pressing the grip
@@ -342,16 +415,44 @@ def _right(start: float) -> list[Waypoint]:
     return out
 
 
+def _go_home(arm: str, pos, rot, finger) -> list[Waypoint]:
+    """From a pose back to the arm's start, straight through joint space (the lead-in, reversed)."""
+    from yam_arena import ik, station
+    from yam_arena.constants import READY
+
+    q0, q1 = _good_ik(arm, pos, rot), np.array(READY, float)
+    out = []
+    for k in range(1, LEAD_STEPS + 1):
+        p, r = ik.tcp_pose(q0 + (q1 - q0) * k / LEAD_STEPS, station.BASES[arm])
+        out.append(Waypoint(LEAD_S / LEAD_STEPS, tuple(float(v) for v in p), finger, "back to where it started", r))
+    return out
+
+
+PULL_OUT = 0.06  # the left pulls the cable this far straight back out of the crimper
+SHOW_UP = 0.06  # ... and lifts it this much, to show the terminal on its end
+
+
 def demo():
     left, t_held = _left()
     right = _right(t_held + 0.3)
     t_r = sum(w.duration for w in right)
-    held = left[-1].pos
+    right += _go_home("right", right[-1].pos, GRIP_R, FINGER_CLOSED)
+    held = np.asarray(left[-1].pos)
+    pulled = held - [PULL_OUT, 0.0, 0.0]
+    shown = pulled + [0.0, 0.0, SHOW_UP]
+    rest = np.array([TIP0[0] - HOLD_AT, TIP0[1], TOP + AXIS_Z + SAG])  # the cable back on its rest
     left += [_w(max(t_r - t_held, 0.2) + 0.5, held, FINGER_CLOSED, "hold the cable in the barrel", GRIP_L),
-             _w(0.6, held, FINGER_OPEN, "let go", GRIP_L),
-             _w(1.0, np.asarray(held) + [0.0, 0.0, 0.05], FINGER_OPEN, "rise", GRIP_L),
-             _w(3.0, np.asarray(held) + [0.0, 0.0, 0.05], FINGER_OPEN,
-                "hold still: the trial ends once the full score has held 1 s", GRIP_L)]
+             _w(1.5, pulled, FINGER_CLOSED, "pull it straight out: the terminal comes with it, crimped on", GRIP_L),
+             _w(1.0, shown, FINGER_CLOSED, "hold it up to show the terminal", GRIP_L),
+             _w(1.5, shown, FINGER_CLOSED, "hold it up to show the terminal", GRIP_L),
+             _w(1.5, rest + [0.0, 0.0, 0.03], FINGER_CLOSED, "over its rest", GRIP_L),
+             _w(0.8, rest, FINGER_CLOSED, "lay it on its rest", GRIP_L),
+             _w(0.5, rest, FINGER_OPEN, "let go", GRIP_L),
+             _w(0.8, rest + [0.0, 0.0, 0.05], FINGER_OPEN, "rise", GRIP_L)]
+    left += _go_home("left", rest + [0.0, 0.0, 0.05], GRIP_L, FINGER_OPEN)
     t_l = sum(w.duration for w in left)
-    right.append(_w(max(t_l - t_r, 0.5), right[-1].pos, FINGER_CLOSED, "wait", GRIP_R))
+    left.append(_w(3.0, left[-1].pos, FINGER_OPEN,
+                   "hold still: the trial ends once the full score has held 1 s with both arms home", left[-1].yaw))
+    t_r = sum(w.duration for w in right)
+    right.append(_w(max(t_l - t_r, 0.5) + 3.0, right[-1].pos, FINGER_CLOSED, "wait at the start", right[-1].yaw))
     return {"left": left, "right": right}
