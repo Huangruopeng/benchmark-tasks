@@ -1,6 +1,6 @@
 # Turn a tuning key with one hand while the other plucks the string until a tuner reads 440 Hz
 
-A one-string zither lies on the table: a steel string from a bridge to a tuning pin, a key on the pin, and a clip-on
+A one-string zither (a spruce box) lies on the table: a steel string from a bridge to a tuning pin, a key on the pin, and a clip-on
 tuner at its end. The string starts flat, at 412 Hz. One hand turns the key clockwise a little at a time while the other
 plucks the string again and again, watching the tuner's needle; once it points straight up and the green light comes
 on, the string is plucked once more with the key still held, and both hands let go. The task is one task file,
@@ -32,7 +32,7 @@ each body's own pose, and lets the task file act on the simulation after every c
 
 ## Run and score a trial
 
-The scorer is `task_score`: 1.0 when `success()` (full score) has held for 1 s, otherwise `score()` at the end of the
+The scorer is `task_score`: 1.0 when `success()` (full score, with the key still) has held for 1 s, otherwise `score()` at the end of the
 episode (0, 0.25, 0.5 or 1.0; see `task.json`). `-E object_jitter=0` keeps every object exactly where the task file
 puts it, so every trial starts from the same layout. The cameras render at 1280 x 704 for sharp videos; Dream-1's
 client scales every frame to 320 x 176 before sending it, so `-E cam_width=320 -E cam_height=176` gives the policy the
@@ -71,7 +71,7 @@ key, whether both hands are clear, and where each TCP is from the string and the
 
 ## Runtime per trial
 
-On one RTX 5090: about 2 minutes for a Dream-1 trial of 1,200 steps (136 s on the clock, with Dream answering in 0.81 s on average), and under 1 minute for the scripted demo (373 steps, 18.6 s of simulated time, 48 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 2 minutes for a Dream-1 trial of 1,200 steps (136 s on the clock, with Dream answering in 0.81 s on average), and about 2 minutes for the scripted demo (373 steps, 18.6 s of simulated time, 122 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 

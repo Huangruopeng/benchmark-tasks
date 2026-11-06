@@ -235,7 +235,8 @@ def score(objects) -> float:
 
 
 def success(objects) -> bool:
-    return score(objects) >= 1.0
+    """Full score with the key still: the trial ends once it has held 1 s."""
+    return score(objects) >= 1.0 and objects["key"].resting()
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
