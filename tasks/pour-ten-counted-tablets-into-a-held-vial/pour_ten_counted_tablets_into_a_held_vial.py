@@ -142,9 +142,13 @@ def _where(t_pos, tray_pos, tray_rot, vial_pos, vial_rot) -> str:
 
 
 def _counts(t_positions, tray_pos, tray_rot, vial_pos, vial_rot) -> dict:
-    out = {"vial": 0, "tray": 0, "out": 0}
-    for p in t_positions:
-        out[_where(p, tray_pos, tray_rot, vial_pos, vial_rot)] += 1
+    """Where the tablets are (in TABLET_NAMES order: the 10 counted ones first, then the extras)."""
+    out = {"vial": 0, "tray": 0, "out": 0, "extras_in": 0}
+    for i, p in enumerate(t_positions):
+        w = _where(p, tray_pos, tray_rot, vial_pos, vial_rot)
+        out[w] += 1
+        if w == "vial" and i >= COUNTED:
+            out["extras_in"] += 1
     return out
 
 
@@ -179,7 +183,7 @@ def _follow(env) -> None:
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def _points(c: dict, held_up: bool) -> float:
-    if c["vial"] == COUNTED and c["out"] == 0 and held_up:
+    if c["vial"] == COUNTED and c["extras_in"] == 0 and c["out"] == 0 and held_up:
         return 1.0
     if COUNTED - 1 <= c["vial"] <= COUNTED + 1:
         return 0.5
@@ -187,9 +191,9 @@ def _points(c: dict, held_up: bool) -> float:
 
 
 def score(objects) -> float:
-    """1.0 with exactly the 10 counted tablets in the vial (16 tablets in all, so none of the extras), none spilt, and
-    the vial held up off the table (its underside 2 cm up) when the first one went in; 0.5 with 9 to 11 in the vial;
-    0.25 with at least 1; else 0.0."""
+    """1.0 with the 10 counted tablets in the vial and none of the 6 extras, none spilt, and the vial held up off the
+    table (its underside 2 cm up) when the first one went in; 0.5 with 9 to 11 tablets in the vial; 0.25 with at least
+    1; else 0.0."""
     tray, vial = objects["tray"], objects["vial"]
     c = _counts([objects[n].pos for n in TABLET_NAMES], np.asarray(tray.pos, float), rotation(tray.quat_xyzw),
                 np.asarray(vial.pos, float), rotation(vial.quat_xyzw))

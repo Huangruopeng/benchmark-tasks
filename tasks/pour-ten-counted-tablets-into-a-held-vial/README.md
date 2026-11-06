@@ -1,8 +1,8 @@
 # Hold a vial up to a counting tray's chute with one hand while the other tips the tray to pour ten counted tablets
 
-A pharmacy counting tray lies on the table. Ten counted tablets wait in the trough along its right side, which opens at
+A plastic pharmacy counting tray lies on the table. Ten counted tablets wait in the trough along its right side, which opens at
 the back into a short chute; six more lie on the tray's floor, kept out of the trough by a low divider. One hand holds
-an empty vial up under the chute; the other lifts the tray by its grip fin and tips it back, so the ten counted tablets
+an empty plastic vial up under the chute; the other lifts the tray by its grip fin and tips it back, so the ten counted tablets
 slide down the trough and out of the chute into the vial, while the extras stay on the tray. Too many or too few in the
 vial is a miscount. The task is one task file,
 [`pour_ten_counted_tablets_into_a_held_vial.py`](pour_ten_counted_tablets_into_a_held_vial.py), for the `yam_arena`
@@ -71,7 +71,7 @@ vial's underside was when the first tablet went in) twice a second.
 
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (167 s on the clock, with Dream answering in 0.81 s on average), and about 1 minute for the scripted demo (476 steps, 23.8 s of simulated time, 72 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (167 s on the clock, with Dream answering in 0.81 s on average), and about 1 minute for the scripted demo (476 steps, 23.8 s of simulated time, 74 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
