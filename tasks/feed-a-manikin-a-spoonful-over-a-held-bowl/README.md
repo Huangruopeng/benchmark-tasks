@@ -1,7 +1,7 @@
 # Feed a manikin a spoonful of soup with one hand while the other holds the bowl under its chin
 
-A care-training manikin sits at the far side of the table with its mouth open; a feeding spoon with a spoonful of soup
-(four beads) lies on a rest, and a soup bowl with a long handle stands to the left. One hand lifts the bowl and holds
+A vinyl care-training manikin sits at the far side of the table with its mouth open; a steel feeding spoon with a
+spoonful of soup (four beads) lies on a wooden rest, and a porcelain soup bowl with a long handle stands to the left. One hand lifts the bowl and holds
 it under the manikin's chin; the other brings the spoon to the mouth, tips the soup in and brings the spoon out. The
 task is one task file, [`feed_a_manikin_a_spoonful_over_a_held_bowl.py`](feed_a_manikin_a_spoonful_over_a_held_bowl.py),
 for the `yam_arena` embodiment (scene, scoring and the scripted demo), plus [`bodykit.py`](bodykit.py), which it imports
