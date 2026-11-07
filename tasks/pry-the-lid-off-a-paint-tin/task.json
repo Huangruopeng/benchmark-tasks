@@ -1,0 +1,20 @@
+{
+  "title": "Pry the lid off a paint tin: hold the light tin down by its bail while the other hand hooks up the lid's three tabs",
+  "category": "Impact on jobs",
+  "keywords": [
+    "bimanual",
+    "painting and decorating",
+    "prying",
+    "holding down",
+    "lid lifter"
+  ],
+  "instruction": "Open the paint tin: hold the tin down by its bail's black grip with one hand; with the other take the lid lifter out of its holder and pry up each of the three white tabs on the lid's rim, hooking the lifter's claw under the tab's lip and lifting until the tab turns up. Then let go of the bail, put the lifter back on its holder, lift the lid off by its knob and set it on the table beside the tin, and take both arms back to where they started. Don't let the tin tip over.",
+  "context": "Opening a tin of paint, varnish or sealant is routine in decorating and maintenance work. A lid crimped on tight takes more of a pull to lift than a small tin weighs, so the tin has to be held down while the lid is worked loose all round.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A small steel paint tin, 9 cm across and 10 cm tall, 400 g, nearly full of green paint, its middle 30 cm forward and 3 cm right of the centre line, on the table. Its wire bail lies folded flat to the left, its black plastic grip 8.5 cm left of the tin's middle and 9 cm above the table. Its grey steel lid, 8.6 cm across with a black plastic knob 2.4 cm tall in its middle, is held on by three white steel tabs, hinged on its rim, whose hooked lips reach in under the rolled bead round the tin's rim (on the near-right, right and far-right of the rim, each over a white arrow on the tin). (2) A steel lid lifter, a black plastic handle 3 cm tall with a steel shank ending in a claw 1.2 cm long, standing in a wooden holder 4.5 cm tall, 17 cm forward and 20 cm right of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end of the trial. 0.0 if the tin has ever tilted more than 25 degrees (tipped over). Otherwise 1.0 with all three tabs pried up (each turned up at least 18 degrees, which swings its hook out from under the tin's bead and frees the lid), the lid off (its middle at least 8 cm from the tin's axis, down on the table, right way up within 30 degrees), the lid lifter put down (at least 10 cm from the tin's axis, its handle's middle lower than 10 cm above the table), each gripper's fingertip centre (TCP) at least 4 cm from the lifter's handle and from the lid's knob, and both arms back where they started (each TCP within 5 cm of its start); 0.5 with all three tabs pried up; 0.25 with at least one; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the tin, the lid and the lid lifter still.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "reset_notes": "Press the lid back on and the three tabs back down; put the lifter back in its holder.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: each tab is a rigid hook on a hinge whose spring holds it where it last stopped; it gives (and stays) only under about 10 N at its lip, more than it takes to tip the light tin up by its rim. The tin's bail is part of the tin. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-9PC3KH"
+}
