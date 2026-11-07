@@ -1,0 +1,22 @@
+{
+  "title": "Chop basil with a double-handled mezzaluna: lift it by both handles and rock its curved blade over the leaves",
+  "category": "Impact on jobs",
+  "keywords": [
+    "bimanual",
+    "cooking",
+    "kitchen tools",
+    "two-handed tool",
+    "coordinated motion",
+    "rocking",
+    "putting a tool back"
+  ],
+  "instruction": "Chop the basil with the mezzaluna: take it out of its rest by both handles, one in each hand, set its curved blade down across the row of basil leaves on the board and rock it from end to end, back and forth, until every leaf is chopped. Then stand the mezzaluna back in its rest and take both arms back to where they started.",
+  "context": "Cooks mince herbs with a double-handled mezzaluna, rocking its curved blade with a hand on each handle. Held by one handle, the blade swings round that hand instead of rocking.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A beech chopping board 2 cm thick, from 22.5 to 34.5 cm forward and from 15 cm right to 15 cm left of the centre line, fixed. (2) Eight fresh basil leaves (about 2.6 by 1.6 cm each) in a row along the board 28.5 cm forward, from 4.9 cm right to 4.9 cm left of the centre line. (3) A beech rest 18 cm forward: a block 20 cm long (left to right) with a 5 mm slot 2.5 cm deep along its top, guide boards leaning out above it in a V. (4) Standing edge down in the slot, a double-handled mezzaluna (250 g): a stainless steel blade 3 mm thick and 3.5 cm deep whose edge is curved to a 15 cm radius, 17 cm across its ends, its middle on the centre line; at each end an upright beech handle 2.2 cm across and 5.5 cm tall on a steel collar, the two handles 17.6 cm apart. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged from the whole trial. A leaf is chopped when the blade's edge passes over it cutting: the edge's lowest point within 6 mm of the board's top and within 1.2 cm of the leaf's middle (front to back and side to side), the blade rocked no more than 30 degrees from level and its plane within 15 degrees of upright; a chopped leaf stays chopped. In its rest: the mezzaluna's edge in the slot (its lowest point within 6 mm of the slot front to back, 2 cm side to side and 8 mm of the slot's bottom), upright within 10 degrees. 1.0: at least seven of the eight leaves chopped, the mezzaluna in its rest and both arms back where they started (each gripper's fingertip centre within 5 cm of its start), at the end; 0.5: at least seven leaves chopped; 0.25: at least one leaf chopped; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the mezzaluna still.",
+  "run_limit": "900 steps (45 s at 20 Hz)",
+  "reset_notes": "Lay eight fresh basil leaves in a row along the middle of the board and stand the mezzaluna back in its rest.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the basil does not collide and is not cut by contact. When the blade's edge passes over a leaf as described in the scoring, the task file swaps that leaf for a small heap of chopped bits. The mezzaluna is one rigid body; the board and the rest are fixed. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-NFYPAP"
+}
