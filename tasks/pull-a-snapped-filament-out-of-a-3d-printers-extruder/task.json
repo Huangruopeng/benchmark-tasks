@@ -1,0 +1,22 @@
+{
+  "title": "Clear a 3D printer's extruder: hold its tension lever down with one hand while the other pulls a snapped filament out",
+  "category": "Impact on AI timelines",
+  "keywords": [
+    "bimanual",
+    "3D printer",
+    "extruder",
+    "snapped filament",
+    "spring lever",
+    "hold and pull",
+    "robot-lab maintenance"
+  ],
+  "instruction": "A piece of orange filament has snapped off inside the 3D printer's extruder. Press the extruder's red tension lever down by its pad with one hand and keep it down, and with the other hand pull the broken piece straight out of the extruder's inlet; then drop the piece in the grey scrap tray, let the lever go, and take both arms back to where they started.",
+  "context": "Labs that build robots and AI hardware print parts around the clock, and a filament snapping inside the extruder is the most common printer fault. Clearing it is a person's job today: the drive gear grips the piece until the tension lever is held open, so one hand holds the lever while the other draws the piece out.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) The corner of a desktop 3D printer, fixed: a black aluminium frame beam (20 by 20 mm) along the table 37 cm forward, on two legs; on it a black steel stepper motor (4.2 cm cube) and, in front of the motor, the black plastic extruder housing (4 cm deep, 4.5 cm long left to right, 4 cm tall) 30 cm forward on the centre line, its filament path running left to right 8.5 cm above the table; a black inlet fitting on its left side, a white PTFE tube from its right side back and up to the print head on the frame behind (uprights, top beam, bed and screen drawn only), and a spool of orange PLA on a holder behind on the left. (2) On top of the housing, the extruder's red aluminium tension lever (40 g): an arm 10 cm long from its pivot 1.2 cm left of the centre line toward the right, ending in a 2.6 cm square ridged pad whose top is 11.6 cm above the table, 8.3 cm right of the centre line. (3) A 13 cm piece of orange PLA filament (drawn 6 mm thick, 30 g), snapped off inside the extruder: its broken tip 3.5 cm right of the centre line, past the drive gear, and the rest along the path out of the inlet, its outer end 9.5 cm left of the centre line. (4) A grey plastic scrap tray (8 by 20 cm, walls 2.2 cm high) in front, 15 to 23 cm forward, from 5 to 25 cm left of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged from the whole trial. The lever: pressed down (its pad) past 8 degrees, the idler is off the filament; let go, it springs back to 0. Out of the extruder: the piece's tip has left the inlet (pulled 7.4 cm). In the tray: the piece lying in the scrap tray, both ends inside it. Let go: the lever back down within 4 degrees. 1.0: the piece out of the extruder and in the tray, the lever let go, and both arms back where they started (each gripper's fingertip centre within 5 cm of its start) at the end; 0.5: the piece out of the extruder at the end; 0.25: the piece pulled at least 3 cm out of the extruder at some point; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the piece still.",
+  "run_limit": "900 steps (45 s at 20 Hz)",
+  "reset_notes": "Push a fresh 13 cm piece of filament back into the extruder's inlet past the drive gear with the lever held open, let the lever go, and empty the scrap tray.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the filament is a rigid 6 mm rod. The drive gear's grip is a joint on the filament path with a stiff spring the task file holds where the piece is while the lever is up and lets follow it while the lever is pressed past 8 degrees (or the tip is past the gear); the piece passes through the extruder. The printer is fixed. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-M2JYJZ"
+}
