@@ -1,0 +1,20 @@
+{
+  "title": "Draw 10 ml from a vial: hold the syringe's needle in the stopper with one hand and pull the plunger with the other",
+  "category": "Impact on jobs",
+  "keywords": [
+    "bimanual",
+    "medical",
+    "syringe",
+    "dose",
+    "vial",
+    "precision"
+  ],
+  "instruction": "Draw 10 ml of the medicine from the vial into the syringe: with one hand take the syringe out of its rack by the barrel, push the needle down through the vial's rubber stopper into the medicine and hold the syringe there, and with the other pull the plunger up to the red 10 ml mark. Then pull the needle out of the vial, stand the syringe back in its rack, let go of it, and take both arms back to where they started.",
+  "context": "Drawing an exact dose from a vial is routine for nurses and pharmacy technicians: the syringe must be held still in the stopper while the plunger is drawn to the mark.",
+  "setup": "Station table, one fixed layout. A 30 ml amber glass medicine vial (32 mm across) with a white label stands in a grey ABS weighted holder (7 x 7 cm) at x 0.36, y 0.00 m, its aluminium crimp cap and grey butyl-rubber stopper up, 6.6 cm above the table (16 mm of rubber exposed). A white ABS syringe rack (7 x 7 cm base, 7.5 cm tall, a 25 mm square cup with a lead-in on top over a bore for the needle) stands at x 0.27, y -0.11 m. In it, needle down, stands an empty 20 ml syringe: a clear polypropylene barrel 22 mm across and 8.5 cm long, a black mark every 2 ml and a red mark at 10 ml, a 44 x 18 mm finger flange, a white polypropylene plunger (black rubber tip, 12 mm square rod, 32 mm thumb rest) pushed fully in, and a 25 mm stainless-steel needle on a clear hub. Medicine drawn into the barrel shows red below the plunger's tip.",
+  "scoring": "1.0: 9 to 11 ml of medicine and no more than 1 ml of air in the syringe, the needle out of the vial, the syringe standing in its rack (the barrel's end within 8 mm of the cup's middle, tilted at most 15 degrees) and let go of (each TCP at least 4 cm from the barrel's middle and the plunger's rod), and both arms back where they started (each TCP within 5 cm of its start). Plunger travel draws medicine only while the needle's tip is at least 7 mm below the stopper's top, otherwise air; pushing the plunger back in empties medicine first. 0.5: 9 to 11 ml of medicine and at most 1 ml of air in the syringe at the end, wherever it is. 0.25: the needle's tip was in the medicine at some point. 0.0 otherwise. The trial ends early once the full score has held for 1 s with the syringe and plunger still.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "fidelity": "Rigid bodies. The needle in the stopper is a sliding joint switched on when its tip enters the exposed rubber, held only by a stick-slip grip of about 0.25 N; the plunger slides in the barrel against about 0.8 N, so pulling it with the barrel let go draws the syringe off the needle. The medicine is not a fluid: plunger travel with the tip in the vial counts as medicine, shown by a red cylinder inside the clear barrel below the plunger's tip.",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-FF4J6X"
+}
