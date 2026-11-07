@@ -1,0 +1,21 @@
+{
+  "title": "Hold a self-closing gate open by its knob while the other hand pushes a parcel through onto a running conveyor",
+  "category": "Societal relevance",
+  "keywords": [
+    "bimanual",
+    "self-closing door",
+    "hold open",
+    "conveyor",
+    "logistics",
+    "door hits object"
+  ],
+  "instruction": "Send the cardboard parcel through the gateway in the low partition onto the running conveyor belt beyond it, without the gate touching it: with one hand pull the gate open by its knob and hold it wide open; with the other slide the parcel along the table through the gateway onto the belt, which carries it away to the right onto the steel run-off plate at its end, then draw that hand back out; then let the gate swing back shut gently, and take both arms back to where they started. Keep the parcel on the table: do not lift it over the partition.",
+  "context": "Self-closing doors and gates guard many work areas: fire doors, pass-through hatches, the gate in front of a dispatch conveyor. Feeding a parcel onto a running belt through one means holding it open with one hand, pushing the load with the other, and not letting the door swing back into the load. Warehouse, mailroom and hospital robots meet this all the time.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. A low partition of white-painted MDF (1.2 cm thick, 11 cm tall) runs left-right across the table 36 cm forward, from 24 cm right to 26 cm left of the centre line, with a gateway in it between a round steel hinge post 18 cm left of the centre line and a steel latch post 1.2 cm right of it. A pine gate (18.4 cm wide, 10 cm tall, 1 cm thick, 250 g) hangs on the hinge post and closes the gateway; it opens toward the arms (up to 100 degrees) and a spring in its hinge swings it shut when let go (0.36 N m at 90 degrees). On its top edge, 13.5 cm from the hinge, a black knob (1.4 cm across, 3 cm tall) turns freely in place. Beyond the partition, a conveyor belt of black rubber (11.4 cm wide) runs along it from 22 cm left to 18 cm right of the centre line, its middle 44 cm forward, its top 2 mm above the table with a 2 cm aluminium ramp up to it from the partition, an aluminium rail along its far side and a blue motor box at its left end; it runs to the right at 10 cm/s. Past its right end lies a stainless steel run-off plate (12 cm long) with an aluminium stop at its end. On the arms' side, a cardboard parcel (8 by 8 by 6 cm, 150 g) stands on the table, its middle 12.5 cm forward and 5 cm left of the centre line, clear of the gate's swing. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "0.0 if the gate ever touches the parcel (comes within 3 mm of it) or the parcel is ever lifted off the table (its bottom more than 2 cm up). Otherwise, judged at the end: 1.0 with the parcel carried off the belt's end onto the run-off plate (all of it past the belt, upright within 15 degrees), the gate shut (within 5 degrees) and both arms back where they started (each gripper's fingertip centre within 5 cm of its start); 0.5 with the parcel entirely beyond the partition; 0.25 with its middle beyond the partition's middle; else 0.0. The belt carries a parcel lying on it, entirely beyond the partition, to the right. The trial ends at the run limit, or once the full score has held for 1 s with the parcel and the gate still.",
+  "run_limit": "1,000 steps (50 s at 20 Hz)",
+  "reset_notes": "Put the parcel back on the arms' side; the gate shuts itself; the belt keeps running.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). The gate turns on a revolute joint with a spring drive pulling it shut; its knob turns on a free hinge. The belt is a rule: a slick fixed surface that sets a parcel lying on it moving at belt speed every control step; its ribs are shown moving. Touching is judged from poses seen from above. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-DN5WRQ"
+}
