@@ -1,0 +1,20 @@
+{
+  "title": "Water a house plant at its roots: hold its big front leaf aside with one hand while the other pours the jug",
+  "category": "Societal relevance",
+  "keywords": [
+    "bimanual",
+    "home",
+    "plant care",
+    "holding a sprung part aside",
+    "pouring"
+  ],
+  "instruction": "Water the plant at its roots without wetting its leaves: with one hand push the big front leaf aside on its stalk and hold it there, and with the other pour the water from the jug onto the soil underneath. Then put the jug back on its stool, let the leaf go back over the soil, and take both arms back to where they started.",
+  "context": "Many house plants (and seedlings, and vegetables in a bed) must be watered at the soil, not over the leaves, which rot or scorch when wet; with leaves spread over the pot, one hand holds the foliage aside while the other pours, as in caring for plants at home, in a nursery or in a care home.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A terracotta pot 17 cm across and 7.5 cm tall on a saucer, its middle 30 cm forward and 2 cm right of the centre line, filled with dark soil 1.3 cm below its rim; fixed. In it a house plant with a green stem and broad leaves (15 cm long, up to 13 cm wide) spread low over the soil: three fixed in the crown, over the back and both sides of the pot, and one big leaf in front on a springy stalk, joined to the stem 10 cm above the table, lying over the front of the soil and reaching out 6 cm past the rim toward the arms. Pushed round on its stalk, the big leaf springs back over the soil when let go. (2) A blue plastic watering jug (5.4 cm across, 8.5 cm tall, with a pouring lip and a handle) holding 12 water drops (7 mm beads), standing on a beech stool 6 cm tall, 26 cm forward and 13 cm left of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "A water bead wets a leaf if it ever comes within 4 mm of one; it waters the soil if it lands on the soil inside the pot without having touched a leaf. Judged at the end: 1.0 with at least 5 of the 12 beads on the soil, at most 1 bead ever on a leaf, the jug back on its stool (within 3 cm, upright within 15 degrees), the big leaf back over the soil (within 12 degrees of where it lay), both hands let go (each TCP at least 4 cm from the jug and the leaf) and both arms back where they started (each TCP within 5 cm); 0.5 with at least 5 beads on the soil and at most 1 ever on a leaf; 0.25 with at least 3 beads on the soil; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the jug, the big leaf and every bead still.",
+  "run_limit": "1200 steps (60 s at 20 Hz)",
+  "reset_notes": "The big leaf back over the soil, the jug full and back on its stool.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: water is 12 rigid beads (7 mm, 0.8 g); the soil does not soak them up. Leaves are rigid plates; the crown's leaves and the pot are fixed, and the big leaf turns on its stalk about the stem against a spring (0.0016 N m per degree). Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-HYHHL6"
+}
