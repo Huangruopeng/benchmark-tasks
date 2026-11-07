@@ -1,0 +1,20 @@
+{
+  "title": "Hang a telescoping rack rail: hold its front pegs in one post while the other hand pulls its rear out to latch",
+  "category": "Impact on AI timelines",
+  "keywords": [
+    "bimanual",
+    "data center",
+    "rack",
+    "rail",
+    "telescoping",
+    "hold-and-act"
+  ],
+  "instruction": "Hang the rack rail between the two rack posts: hold its outer channel with one hand and put its front pegs into the square holes of the left post, keep it there while the other hand pulls the inner channel out until its rear pegs go into the right post's holes and latch. Then let go of the rail and take both arms back to where they started.",
+  "context": "Installing rails in server racks is a large part of building out data centers; the rail must be held at one post while it is stretched to the other.",
+  "setup": "Station table, one fixed layout. Two rack posts (square steel tubes 2 x 2 x 12 cm, black, on steel feet) stand at x 0.32 m, y +0.20 and -0.20 m, each with a pair of 14 mm square holes (18 mm apart, centred 8 cm above the table) through it along y. In front of them, at x 0.24 m, a zinc-plated steel telescoping rail lies pushed short on its bracket plates: an outer channel (1.4 x 3 x 22.6 cm) with a front bracket and two 6 mm square pegs, and an inner channel (1 x 2.2 x 26 cm) sliding in it with a rear bracket, two pegs and an orange latch.",
+  "scoring": "1.0: the rail latched between the posts (both brackets' pegs at least 5 mm into their holes at once, which locks it), level within 5 degrees, and let go of (each TCP at least 4 cm from the rail), and both arms back where they started (each TCP within 5 cm of its start). 0.5: the rail latched. 0.25: the front pegs were in the left post's holes at some point. 0.0 otherwise. Once latched it stays latched. The trial ends early once the full score has held for 1 s with both channels still.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "fidelity": "Rigid bodies. The posts' holes and the brackets' pegs are real geometry: unlatched pegs only rest in their holes. The inner channel slides in the outer one against a stick-slip hold of about 1.5 N. The latch is a rule: when both brackets' pegs are in their holes at once, a fixed joint holds the rail where it is and the slide is locked.",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-Y6F3YX"
+}
