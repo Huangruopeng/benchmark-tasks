@@ -1,0 +1,21 @@
+{
+  "title": "Fish a dropped screw out of a chassis: hold it tipped with one hand while the other picks the screw up with a magnet",
+  "category": "Impact on AI timelines",
+  "keywords": [
+    "bimanual",
+    "electronics repair",
+    "magnetic pick-up tool",
+    "tilting",
+    "holding while picking",
+    "lost screw"
+  ],
+  "instruction": "A screw has slid under the circuit board in the open chassis. With one hand lift the chassis's left end by its handle so the screw slides out to the open right end, and hold it there; with the other take the magnetic pick-up tool out of its holder, pick the screw up with its magnet and touch it into the magnetic parts dish. Then put the tool back in its holder, set the chassis back down on its block, and take both arms back to where they started.",
+  "context": "Screws dropped into equipment while it is being assembled or repaired roll under boards and brackets where neither fingers nor tools reach. Technicians tip the unit to bring the screw out, and fish it out with a magnetic pick-up while holding the unit tipped, since the screw slides back as soon as it is set down.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) An open-topped steel equipment chassis, 1.2 kg, 26 cm long left to right, 16 cm deep, 3 cm tall, on four rubber feet, its middle 30 cm forward and 6 cm left of the centre line; its right end's feet stand on a wooden block 2.3 cm tall, so its floor slopes 6 degrees down to the left. A green circuit board (FR-4) on steel standoffs, 1.2 cm over the floor, covers the floor's left half; a black plastic carrying handle, a bar 10 cm long, stands 3 cm over the left end's wall. (2) A zinc-plated steel screw, 8 g, lying on the floor under the circuit board against the left end. (3) A magnetic pick-up tool standing upright in a wooden holder, 20 cm forward and 20 cm right of the centre line: a black rubber handle 3 cm tall (4 by 1.6 cm), a 5.5 cm steel rod and a red magnet 1.4 cm across at its foot. (4) A dark steel magnetic parts dish, 9 cm across and 2 cm deep, 30 cm forward and 17 cm right of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end of the trial. 1.0 with the screw in the parts dish (its middle within 4.1 cm of the dish's middle, below the dish's rim), the pick-up tool back in its holder (within 3 cm of where it started), the chassis back down on its block (within 2 degrees and 2 cm of where it started), each gripper's fingertip centre (TCP) at least 4 cm from the tool's handle and from the chassis's handle, and both arms back where they started (each TCP within 5 cm of its start); 0.5 with the screw in the dish; 0.25 if the tool's magnet has picked the screw up at some point; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the screw, the tool and the chassis still.",
+  "run_limit": "1,000 steps (50 s at 20 Hz)",
+  "reset_notes": "Put the screw back under the circuit board at the left end, the tool back on its holder and the chassis back on its block.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the magnet is a rule: the screw is fixed to the tool's tip once the tip comes within 2 cm of it, and moves to the dish when touched into it (a stronger magnet). The screw's slide on the chassis floor is near frictionless, so it slides at small tilts. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-BXGQPC"
+}
