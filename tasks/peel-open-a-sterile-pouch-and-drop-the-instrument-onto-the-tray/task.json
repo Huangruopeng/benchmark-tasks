@@ -1,0 +1,21 @@
+{
+  "title": "Peel a sterile pouch open over the tray with both hands so the forceps drop onto the drape untouched",
+  "category": "Impact on jobs",
+  "keywords": [
+    "bimanual",
+    "aseptic technique",
+    "sterile field",
+    "peel pouch",
+    "operating room",
+    "no-touch transfer"
+  ],
+  "instruction": "Open the sterile pouch over the tray: take it by its two pull tabs, lift it out of its holder and hold it over the tray, then pull the two sheets apart so the forceps drop onto the green drape, without touching the forceps and without letting the pouch touch the tray; then drop the two sheets in the waste bins and take both arms back to where they started.",
+  "context": "Circulating nurses and surgical technicians open sterile instruments onto the sterile field many times a day. The pouch is peeled apart with both hands, holding only its outside, so the instrument falls onto the field without anything non-sterile touching it or the field. One hand pulling one sheet only drags the whole pouch along.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A clear acrylic pouch holder on the centre line, from 5 to 25 cm forward: a base 20 by 6 cm with a slot 2.4 cm wide and 2.2 cm deep running front to back. (2) Standing in it, a sterile peel pouch, 16 cm long front to back (its middle 15 cm forward) and 6 cm tall up to its seal: a white medical-grade paper sheet on the left and a clear PET/PE film sheet on the right (printed with blue seal lines), 1 cm apart, sealed together along the front, back and bottom edges; each sheet weighs 12 g. Above the seal each sheet's top flap is folded outward, 12 cm out to its side and 3 cm wide, ending in a stiff card pull tab 2 cm long, 3.5 cm tall and 6 mm thick: blue on the paper's flap, 11.6 cm left of the centre line, orange on the film's, 11.6 cm right of it, both 15 cm forward with their tops 8.8 cm above the table. The seal holds the sheets together until they are pulled 12 mm apart (about 7 N), then lets go. (3) Inside the pouch, lying front to back on the bottom seal, stainless-steel dressing forceps 12.4 cm long (30 g). (4) A stainless-steel instrument tray lined with a green cotton drape (the sterile field), inside 18 by 30 cm (from 27 to 45 cm forward, from 15 cm right to 15 cm left of the centre line), with a 1.5 cm rim. (5) Two grey polypropylene waste bins, inside 20 by 16 cm and 3.5 cm tall, centred 21 cm forward and 25 cm to the left and to the right of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end of the trial. Touched: a gripper's fingertip centre (TCP) within 2 cm of the forceps at any moment: the score is 0.0. Peeled open: the two sheets pulled at least 12 mm apart at some point. On the drape: the forceps lying inside the tray's rim, their middle less than 1.5 cm above the drape. The pouch on the tray: any point of either sheet's bottom edge on the drape or the rim at any moment. 1.0: peeled open, the forceps on the drape and never touched, the pouch never on the tray, each sheet in a waste bin (its middle inside a bin, below its walls' top) and both arms back where they started (each TCP within 5 cm of its start); 0.5: peeled open, the forceps on the drape and never touched, the pouch never on the tray; 0.25: peeled open at some point and the forceps never touched; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the forceps and both sheets still.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "reset_notes": "Seal a new pouch with the forceps inside and stand it in the holder; empty the bins.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the sheets are stiff 2 mm plates and their folded-out flaps rigid; the seal is a prismatic joint holding the sheets together against a 600 N/m spring, which the task file switches off once they have been pulled 12 mm apart; the film is drawn clear (an invisible collision plate with printed edges). Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-E3XTCX"
+}
