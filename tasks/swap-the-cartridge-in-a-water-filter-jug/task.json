@@ -1,0 +1,19 @@
+{
+  "title": "Change a water filter jug's cartridge: hold the jug down by its handle while the other hand pulls the old one out",
+  "category": "Societal relevance",
+  "keywords": [
+    "bimanual",
+    "household",
+    "water filter",
+    "hold-and-pull",
+    "insertion"
+  ],
+  "instruction": "Change the filter cartridge in the water jug: hold the jug down by its handle with one hand while the other pulls the old grey cartridge up out of its seat, and drop the old cartridge in the bin. Then put the new white cartridge with the blue cap into the seat and push it down until it is seated. Let go of everything and take both arms back to where they started.",
+  "context": "Changing the cartridge in a filter jug is a routine household chore; the tight seal lifts the light jug unless it is held down, so it takes both hands.",
+  "setup": "Station table, one fixed layout. A pale-blue polypropylene water filter jug (12 x 16 cm, 9 cm tall, 200 g, lid off, empty) stands at x 0.25, y 0.0 m, its spout toward the right arm and its handle toward the left arm, the handle's top bar 15 cm from the jug's middle. Inside, the white polypropylene floor of its top reservoir (5.6 cm up) has a round seat in its middle. In the seat is an old filter cartridge (grey polypropylene body 3.8 cm across with a dark grey cap, 6.3 cm tall, 80 g), wedged in: it takes about 2.5 N to pull out, more than the jug weighs. A new cartridge (white body, blue cap, same size) stands on the table at x 0.17, y -0.17 m, and a dark grey polypropylene waste bin (10 x 10 cm, 7 cm tall) at x 0.34, y -0.25 m.",
+  "scoring": "1.0 with the old cartridge in the bin, the new one seated in the jug (in the seat, within 4 mm of fully down), the jug upright on the table, let go (each TCP at least 4 cm from the jug's handle and both cartridges' caps) and both arms back where they started (each TCP within 5 cm of its start); 0.5 with the new cartridge seated and the old one out of the jug; 0.25 with the old cartridge pulled out of its seat (2 cm up) at some point; else 0.0. All but the pull-out are judged at the end. The trial ends early once the full score has held for 1 s with the jug and both cartridges still.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "fidelity": "Rigid bodies; the jug is smaller and shallower than a real one so the arms can lift a cartridge clear of it. A cartridge in the seat is held on the seat's axis by a sliding joint whose stick-slip spring stands for the seal's grip (about 2.5 N to move it, and it stays where it is left); 2 cm up it is free. A new cartridge lowered to within 2 cm of the seat, in line with it, is caught by the same kind of joint and pushed home. No water.",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-HU7KCQ"
+}
