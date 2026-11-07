@@ -1,0 +1,20 @@
+{
+  "title": "Flatten a curling poster: hold each curled end flat with one hand while the other sets a brass weight on it",
+  "category": "Societal relevance",
+  "keywords": [
+    "bimanual",
+    "home",
+    "holding a springy part flat",
+    "placing weights",
+    "poster"
+  ],
+  "instruction": "Flatten the poster: draw each curled end out by its rail until it lies flat, and hold it there while the other hand sets a brass weight on it, one weight on each end. Then let go and take both arms back to where they started.",
+  "context": "A poster, map or drawing that has been rolled up curls back as soon as it is let go, so laying one out takes one hand holding an end flat while the other puts something heavy on it; the same holds for any springy sheet that must stay put (a mat, a rolled drawing, a wall chart).",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A paper poster 32 cm wide, printed with a landscape, its middle 28 cm forward on the centre line: a flat middle 9 cm long and at each end three folds (3, 3 and 5.5 cm) that curl up 105 degrees in all toward the middle, each end wrapped round a round beech hanging rail 1.8 cm thick and 33 cm long; laid flat, the poster runs from 12 to 44 cm forward. (2) Two brass weights, 500 g each, 4.4 cm across and 3.5 cm tall with a 2 cm knob on top, standing 21 cm forward and 22 cm left and right of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end. An end is held flat when each of its three panels lies within 12 degrees of the table, its rail's underside is within 6 mm of the table, and a weight stands upright (within 15 degrees) on its outer panel (the one under the rail, or within 3.5 cm inward of it), down on the poster. 1.0 with both ends held flat, each by its own weight, and both arms back where they started (each TCP within 5 cm of its start); 0.5 with both ends held flat; 0.25 with one end held flat; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the poster and both weights still.",
+  "run_limit": "1200 steps (60 s at 20 Hz)",
+  "reset_notes": "Both ends curled up again, both weights back beside the poster.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the paper is rigid panels joined by hinges whose springs (0.0016-0.005 N m per degree) curl each end up 105 degrees; each rail turns freely in the poster's hem. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-NXLP3B"
+}
