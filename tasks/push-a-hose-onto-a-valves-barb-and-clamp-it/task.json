@@ -1,0 +1,19 @@
+{
+  "title": "Hold a loose valve by its lever while pushing a hose onto its barbed tail and sliding the hose clamp over the barb",
+  "category": "Impact on jobs",
+  "keywords": [
+    "bimanual",
+    "plumbing",
+    "hose",
+    "insertion",
+    "hold-and-act"
+  ],
+  "instruction": "Fit the green hose to the valve: hold the valve by its red lever with one hand, and with the other push the hose's end over the valve's barbed tail at least 2 cm, then slide the steel clamp along the hose until it sits over the barb. Then lift the valve by its lever to show the hose is on, set it back down, let go, and take both arms back to where they started.",
+  "context": "Pushing a hose onto a barbed fitting and clamping it is everyday work for plumbers, irrigation and machine fitters; the fitting has to be held against the push.",
+  "setup": "Station table, one fixed layout. A grey PVC ball valve (body 3 x 4.6 x 3 cm, 80 g) lies loose at x 0.32, y 0.03 m, its red PVC lever (11 cm) pointing toward the left arm and its barbed hose tail (12 mm across, 28 mm long, three ridges) toward the right arm. In line with the barb, its end 3.5 cm from the barb's tip and 4.5 mm below its axis, a 30 cm length of green PVC garden hose (16 mm across, with a yellow stripe) lies in two notched pine rests; a stainless-steel worm-drive hose clamp (20 mm across, 9 mm wide) sits loose on it 9 cm from its end.",
+  "scoring": "1.0: the hose at least 2 cm onto the barb, the clamp over the barb (its middle 4 to 24 mm from the hose's end), the valve lifted at least 3 cm with the hose on it at some point after that, then back flat on the table and let go (each TCP at least 4 cm from the valve's lever, the hose's end and the clamp), and both arms back where they started (each TCP within 5 cm of its start). 0.5: the hose on and the clamp over the barb. 0.25: the hose at least 2 cm onto the barb. 0.0 otherwise. All but the lift are judged at the end. The trial ends early once the full score has held for 1 s with the valve, the hose and the clamp still.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "fidelity": "Rigid bodies; the hose is a rigid tube. The hose on the barb is a sliding joint switched on when the hose's end meets the barb's tip in line, held by a stick-slip grip of about 3 N; the clamp slides on the hose against about 1.5 N and passes over the barb (its band is solid). A clamp over the barb locks the hose on. The clamp is not tightened: sliding it into place stands for that.",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-FQ3WKA"
+}
