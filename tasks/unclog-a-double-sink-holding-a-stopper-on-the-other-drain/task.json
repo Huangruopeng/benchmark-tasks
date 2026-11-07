@@ -1,0 +1,22 @@
+{
+  "title": "Unclog a double sink: one hand holds a stopper down on the other drain while the other pumps the plunger",
+  "category": "Impact on jobs",
+  "keywords": [
+    "bimanual",
+    "plumbing",
+    "household maintenance",
+    "plunger",
+    "holding down",
+    "sequencing",
+    "putting tools back"
+  ],
+  "instruction": "Unclog the double sink. Both basins drain into one pipe, so a push of the plunger just blows water up out of the other basin's drain unless that drain is shut: with one hand, put the black stopper on the left basin's drain and hold it down there; with the other, pump the red plunger over the right basin's drain at least four times until the water drains away. Then lift the stopper off the drain and put it back on the worktop in front of the left basin, stand the plunger on the worktop in front of the right basin, and take both arms back to where they started.",
+  "context": "Plumbers, caretakers and householders clear blocked double sinks this way: the two basins share a waste pipe, so the second drain (or an overflow) has to be held shut for the plunger's push to reach the blockage instead of escaping.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A grey laminate worktop 4.5 cm high, from 14 to 35.5 cm forward and from 18 cm right to 18 cm left of the centre line, fixed, with a white ceramic double sink set in it: two basins 3.9 cm deep, each 11 cm (front to back, 20.5 to 31.5 cm forward) by 13 cm (the right from 15 to 2 cm right of the centre line, the left from 2 to 15 cm left of it), a steel strainer in the middle of each floor, a steel mixer tap behind. (2) Standing water 1.4 cm deep in both basins. (3) A plunger standing on the right basin's drain: a red rubber cup 4 cm across and 2 cm tall (60 g) on a beech handle 7.5 cm long with a round knob 2.2 cm across on top (30 g); the handle slides 1.2 cm down into the cup as the rubber squashes and springs back. (4) A black rubber sink stopper (3.6 cm across, 8 mm thick, 30 g) with a steel knob 2 cm tall, lying on the worktop 17 cm forward and 8.5 cm left of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged from the whole trial. A push: the plunger's handle pressed at least 8 mm into its cup (it must come back out to within 3 mm before the next one counts) while the cup stands on the right drain (within 1.2 cm of it, upright). The left drain shut: the stopper lying on it (within 1 cm, flat) with a gripper on its knob (within 2 cm). A push while the left drain is shut works the clog; four such pushes push it through and the right basin drains (3 s). A push while the left drain is open throws water up out of it; one while the stopper lies there unheld throws the stopper off. The left basin drains once the clog is through and its drain is open. 1.0: the clog pushed through, both basins drained, the stopper lying on the worktop in front of the left basin, the plunger standing on the worktop in front of the right basin, and both arms back where they started (each gripper's fingertip centre within 5 cm of its start), at the end; 0.5: the clog pushed through; 0.25: a push of the plunger over the right drain at some point; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the plunger and the stopper still.",
+  "run_limit": "1,000 steps (50 s at 20 Hz)",
+  "reset_notes": "Refill both basins, stand the plunger back on the right drain and lay the stopper back on the worktop.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: no water or air flows. The water is a see-through slab per basin that the task file lowers as the basin drains; the clog is a count of pushes made while the other drain is held shut; a push with it open throws up four 8 mm water beads (and lifts off an unheld stopper). The rubber cup's squash is a sprung slide between cup and handle. The sink is fixed. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.25; demo: 1.0",
+  "media": "M-SVMK6C"
+}
