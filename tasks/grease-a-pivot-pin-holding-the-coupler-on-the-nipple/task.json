@@ -1,0 +1,22 @@
+{
+  "title": "Grease a loader pivot: hold the push-on coupler on the nipple with one hand while the other pumps the pail's lever",
+  "category": "Impact on jobs",
+  "keywords": [
+    "bimanual",
+    "maintenance",
+    "grease gun",
+    "grease nipple",
+    "holding while the other hand pumps",
+    "hose",
+    "repeated stroke"
+  ],
+  "instruction": "Grease the loader pivot: take the grease coupler out of its holder cup and press it onto the grease nipple on top of the yellow pivot, holding it on (it is pushed off unless held) while your other hand pumps the grease pail's red-gripped lever down at least four full strokes; then pull the coupler off, put it back in its holder cup, and take both arms back to where they started.",
+  "context": "Mechanics, farmers and plant operators grease the pivot pins of loaders, excavators and machine tools every day. A push-on coupler is pushed off the nipple by the grease pressure, so one hand holds it on while the other pumps the gun or pail pump.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A loader arm's pivot, fixed to the table: a dark steel base plate 12 by 10 cm and 1 cm thick, centred 30 cm forward and 8 cm right; on it a yellow-painted steel lug 5 cm front to back, 4 cm wide and 5 cm tall, with a 20 mm steel pin through it from side to side 3 cm above the table (zinc washers, cotter pins, and the arm's two yellow steel side plates on it); on the lug's top a 2.4 cm steel boss whose top is 6.6 cm above the table, and on it a brass grease nipple (hex and ball head) whose top is 8.5 cm above the table. (2) A grease pail, fixed: red-painted steel with a yellow band and a black lid, 13 cm across and 8.5 cm tall, centred 37 cm forward and 20 cm left, with a lever pump on its lid: a steel column, a black pump head, and a steel lever pivoted 12 cm above the table, 12.5 cm long, pointing toward the arms and standing 15 degrees up, with a red rubber grip pad (3 by 2.8 by 1.6 cm) at its end, about 23.5 cm forward, 20 cm left and 15 cm above the table; a spring holds it up, and it presses down 26 degrees at most. (3) A 12 mm black rubber hose, 32 cm long, from the pail's brass outlet over the table to (4) a zinc-plated steel push-on grease coupler (90 g): a nozzle 3.3 cm across with a 2.6 cm mouth, a black knurled grip sleeve 2.4 cm across and 4 cm tall above it, and a brass elbow at its top where the hose comes in; it stands upright in (5) a steel holder cup, 7.2 cm across inside and 3 cm tall, centred 24 cm forward on the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged from the whole trial. Seated: the coupler's mouth on the nipple's boss (within 9 mm of the nipple's axis and 3 mm of the boss's top, tilted less than 20 degrees). A shot: the lever pressed down past 18 degrees while the coupler is seated; the lever must come back up to within 10 degrees of its rest before the next press counts. Greased: at least four shots (a dab of grease shows at the pin's bushing for each of the first four). In its holder: the coupler's mouth inside the holder cup (within 3.2 cm of its middle, below its rim) and tilted less than 40 degrees. 1.0: greased, the coupler in its holder at the end and both arms back where they started (each gripper's fingertip centre within 5 cm of its start); 0.5: greased at some point; 0.25: the coupler seated on the nipple at some point; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the coupler still.",
+  "run_limit": "1,200 steps (60 s at 20 Hz)",
+  "reset_notes": "Stand the coupler back upright in its holder cup with the hose lying as at the start; wipe the grease off the pivot; let the lever spring back up.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: no grease flows. While the coupler sits on the nipple, the task file pushes it up off the nipple with 2.5 N, standing for the grease pressure on a push-on coupler; each lever stroke pressed while it is seated counts as a shot, and the first four show a drawn dab of grease at the pin. The hose is five stiff segments on ball joints; the pail and the pivot are fixed. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-XKJNWK"
+}
