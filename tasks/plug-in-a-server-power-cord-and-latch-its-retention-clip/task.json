@@ -1,0 +1,21 @@
+{
+  "title": "Hold a server's power plug fully home by its cord with one hand while the other swings its retention latch shut",
+  "category": "Impact on AI timelines",
+  "keywords": [
+    "bimanual",
+    "data centre",
+    "power cord",
+    "cable retention",
+    "latch",
+    "holding against a spring"
+  ],
+  "instruction": "Power up the server's power supply and lock its cord in: with one hand push the black plug fully into the power inlet by its cord and keep it there (the light above the inlet turns green); with the other swing the retention latch round by its orange knob until its hook closes behind the plug and clicks shut; then let go of both, the latch holding the plug in, and take both arms back to where they started.",
+  "context": "Data-centre technicians plug in and secure thousands of power cords; a cord that is not fully home or not latched works loose and drops a server. The stiff cord pushes a plug back out unless it is held, and the retention latch only closes behind a plug that is all the way in.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A server power supply unit, a dark-grey painted steel box 15 cm deep, 18 cm wide and 7 cm tall, from 42 to 57 cm forward and from 7 cm right of the centre line to 11 cm left of it, its back face toward the arms, fixed in place. On that face: a black plastic inlet bezel 4.4 by 3.2 cm, standing 1 cm proud, its middle on the centre line 3.5 cm above the table; a red power light 2 cm above and 4.5 cm right of it; a fan grille to its left. (2) In the inlet, a black PVC power plug (2.6 cm wide, 2 cm tall, 4 cm long) on a thick, stiff black PVC cord 1 cm across, 120 g together. The cord runs straight back toward the arms for 17 cm, 3.5 cm above the table, then down to the table. The plug sits 1.5 cm short of fully in: the stiff cord pushes it back out there (with 3.75 N when it is fully in) whenever it is let go. (3) A stainless-steel retention latch beside the inlet, 2.6 cm left of the centre line, hinged about the vertical on a bracket 2.5 cm in front of the face: an arm 3.1 cm long with a hook 3.4 cm long at its end and an orange plastic knob 1.3 cm across and 3 cm tall on top. It starts swung open, its arm pointing left and a little toward the arms (25 degrees round from lying along the face), and stays wherever it is left. Swung a quarter turn round (90 degrees), its arm lies along the plug's left side and its hook across behind the plug, which only fits there when the plug is fully in. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end of the trial. Home: the plug within 5 mm of fully in (the power light is green while it is). Shut: the latch swung at least 86 degrees round with the plug home, where it clicks and is held (it opens again only if pulled back under 70 degrees). 1.0: the plug home and the latch shut, each gripper's fingertip centre (TCP) at least 4 cm from the plug, the cord where the demo holds it and the latch's knob, and both arms back where they started (each TCP within 5 cm of its start); 0.5: the plug home and the latch shut; 0.25: the plug pushed home at some point; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the plug and the latch still.",
+  "run_limit": "900 steps (45 s at 20 Hz)",
+  "reset_notes": "Swing the latch back open (25 degrees) and let the plug spring back out.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the plug slides on a prismatic joint, pushed back out by a spring standing in for the stiff cord, which is rigid up to where it drops to the table. The latch is a hinge with a spring whose hold the task file moves to where it is left; its click is the task file stiffening that spring at 90 degrees. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-9YVTHU"
+}
