@@ -1,0 +1,20 @@
+{
+  "title": "Juice half a lemon: hold a light hand juicer still by its handle while the other hand twists the lemon on its cone",
+  "category": "Societal relevance",
+  "keywords": [
+    "bimanual",
+    "kitchen",
+    "twisting",
+    "holding a light object still",
+    "citrus juicer"
+  ],
+  "instruction": "Juice the lemon half: hold the juicer still by the end of its handle with one hand, and with the other twist the lemon half to and fro on the juicer's cone until it is squeezed dry and its juice is in the bowl. Then lift the squeezed lemon off and put it on the blue saucer, let go of the handle, and take both arms back to where they started.",
+  "context": "Squeezing citrus on a hand reamer is everyday kitchen work, and a light plastic juicer on a smooth worktop turns with the fruit unless the other hand holds it; the same holds for any light object worked by twisting (a jar, a pepper mill, a pipe fitting).",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A white plastic citrus juicer, 150 g, on a smooth worktop: a bowl 13 cm across and 3.5 cm deep with a ribbed cone 4 cm tall in its middle, its middle 30 cm forward and 10 cm right of the centre line, and a flat handle, 1.8 cm wide, running 11.5 cm out from the bowl to the left. (2) Half a lemon, 6 cm across, 70 g, cut side down on the cone. (3) A blue porcelain saucer, 11 cm across, 22 cm forward and 26 cm right of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end. Juice: drops in the juicer's bowl (inside its wall, below its rim), counted only with the juicer upright within 15 degrees. 1.0 with at least 8 drops in the bowl, the lemon half off the cone and on the saucer (its middle within 4.3 cm of the saucer's middle, down on it), each gripper's fingertip centre (TCP) at least 4 cm from the lemon, and both arms back where they started (each TCP within 5 cm of its start); 0.5 with at least 8 drops in the bowl; 0.25 with at least 3; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the juicer, the lemon and the juice still.",
+  "run_limit": "900 steps (45 s at 20 Hz)",
+  "reset_notes": "A fresh lemon half on the cone and an empty, dry bowl.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the lemon is rigid, held on the cone by a joint that turns only against a set grip (0.1 N m) and stays where it is left; the juice is 10 small beads, one let into the bowl for every 25 degrees the lemon has turned against the juicer, and after the tenth the lemon comes free. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-V9FZB9"
+}
