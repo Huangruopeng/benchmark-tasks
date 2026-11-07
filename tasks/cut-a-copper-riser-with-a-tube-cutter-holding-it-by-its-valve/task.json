@@ -1,0 +1,21 @@
+{
+  "title": "Cut a copper riser with a tube cutter while the other hand holds it still by its valve, then bin the offcut",
+  "category": "Impact on jobs",
+  "keywords": [
+    "bimanual",
+    "plumbing",
+    "tube cutter",
+    "copper pipe",
+    "holding against a drag torque",
+    "repeated swing"
+  ],
+  "instruction": "Cut the copper riser at the pencil mark with the tube cutter, swinging it back and forth around the pipe until the top piece comes free (the riser turns in its stand unless you hold it still by its brass valve); then drop the cut-off piece in the blue scrap bucket and take both arms back to where they started.",
+  "context": "Plumbers and HVAC technicians cut copper pipe to length with a tube cutter every day. The cutter's wheel and rollers grip the pipe, so a pipe that is free to turn just turns with the cutter: one hand holds the pipe while the other works the cutter round it.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A cast-iron plumber's bench stand, base 12 by 12 cm, centred 27 cm forward on the centre line, with a collar round the riser's foot in which the riser turns freely. (2) Standing in it, a short riser of 22 mm copper pipe, from 1.2 to 12.5 cm above the table: a copper tee 5 cm above the table carries a 22 mm copper branch 11 cm to the left, ending in a brass ball valve (body 3 cm front to back, 2 cm wide and 3 cm tall, red lever) whose middle is 13.2 cm left of the centre line; riser, branch and valve weigh 300 g. At its top the riser ends in a brass male adapter with a 2 cm hex (its top 14.1 cm above the table); a pencil mark rings the pipe 9.5 cm above the table, and the 3 cm of pipe above it with the adapter (60 g) is the piece to cut off. (3) A red die-cast tube cutter (150 g) clamped on the riser at the mark: its frame, cutting wheel and two rollers round the pipe, its feed screw and knob pointing to the right, ending in a flat black grip block 1.6 cm wide, 2 cm long and 2 cm tall whose middle is 11 cm right of the riser's axis, 9.5 cm above the table. The wheel and rollers drag on the pipe, so a riser left free turns with the cutter; the pipe is cut through once the cutter has turned 720 degrees on it, back and forth added up. (4) A blue polypropylene scrap bucket, inside 12 by 12 cm and 6 cm tall, centred 20 cm forward and 25 cm right of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end of the trial. Turned: how far the cutter has turned on the riser (relative to it), added up over the trial whichever way it went. Cut through: turned at least 720 degrees (the top piece then rests loose on the cut and lifts off). In the bucket: the cut-off piece's middle inside the bucket, below its rim. 1.0: cut through, the cut-off piece in the bucket and both arms back where they started (each gripper's fingertip centre within 5 cm of its start); 0.5: cut through at some point; 0.25: turned at least 360 degrees at some point; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the cut-off piece still.",
+  "run_limit": "1,400 steps (70 s at 20 Hz)",
+  "reset_notes": "Stand a new uncut riser in the stand's collar with the cutter clamped at the mark; empty the bucket.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the cutter rides on a hinge round the pipe whose damping (0.3 N m s/rad) stands for the drag of its wheel and rollers; no metal is removed: once the cutter has turned 720 degrees on the pipe in all, the task file loosens the joint holding the top piece on, and frees it once lifted 2 cm. The riser turns in its collar on a nearly free hinge. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-XH5FEJ"
+}
