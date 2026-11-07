@@ -1,0 +1,21 @@
+{
+  "title": "Flip a pancake: hold the light pan still by its handle while the other hand turns the pancake over with a turner",
+  "category": "Societal relevance",
+  "keywords": [
+    "bimanual",
+    "kitchen",
+    "cooking",
+    "tool use",
+    "holding a light object still",
+    "pancake"
+  ],
+  "instruction": "Flip the pancake: hold the frying pan still by its handle with one hand, and with the other take the turner, slide its blade under the pancake's right edge and lift that edge up and over, so the pancake turns over onto its other side in the pan. Then put the turner back on its rest, let go of the pan, and take both arms back to where they started.",
+  "context": "Turning food over in a pan is everyday cooking, and a light pan on a smooth hob slides away from a spatula pushed under the food unless the other hand holds its handle; the same holds for scraping or lifting anything out of a loose container.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A flat black glass hob, 34 x 40 cm and 1.2 cm tall, its middle 31 cm forward and 2 cm left of the centre line. (2) A dark non-stick aluminium frying pan, 28 cm across with a 2.5 cm wall, 600 g, on the hob, its middle 31 cm forward on the centre line, its black handle 17 cm long pointing left. (3) A pancake, 8 cm across and 1.3 cm thick, golden side up and browned side down, in the pan 2 cm right of its middle. (4) A steel turner (a spatula with a cranked neck: a beech handle 14 cm long, a neck dropping 4.5 cm and a 6 x 7 cm blade), its blade on the worktop and its handle on a small white ceramic rest, pointing forward, its handle's middle 18.5 cm forward and 23.5 cm right of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end. Flipped: the pancake's golden side faces down (its axis within 37 degrees of straight down). In the pan: the pancake's middle within 12 cm of the pan's middle and within 1.2 cm of its floor (lying on it, not leaning on the wall), with the pan still on the hob and upright. On its rest: the turner's handle middle within 3 cm of where it started, turned less than 15 degrees, down on its rest. 1.0 when the pancake is flipped and in the pan, the turner is on its rest and both arms are back where they started (each TCP within 5 cm of its start); 0.5 when the pancake is flipped and in the pan; 0.25 when it is flipped anywhere; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the pancake, the pan and the turner still.",
+  "run_limit": "900 steps (45 s at 20 Hz)",
+  "reset_notes": "The pancake golden side up in the pan, the turner back on its rest.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the pancake is a rigid disc; it rests on a hidden base 4.8 cm across, so a thin blade can get under its edge; the pan slides on the glass hob with friction 0.06-0.07. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-ZEJVMT"
+}
