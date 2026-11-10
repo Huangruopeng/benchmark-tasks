@@ -1,0 +1,21 @@
+{
+  "title": "Light an emergency glow stick: bend it with both hands until its inner vial snaps, shake it, lay it in the tray",
+  "category": "Other",
+  "keywords": [
+    "bimanual",
+    "bending",
+    "glow stick",
+    "emergency light",
+    "shaking",
+    "putting an object down"
+  ],
+  "instruction": "Light the glow stick: pick it up out of its packet with both hands, one near each end, and bend it in the middle until the glass vial inside snaps. Then straighten it, shake it back and forth three times so that it lights up all along, lay it in the black tray, and take both arms back to where they started.",
+  "context": "An emergency glow stick is lit by bending it until the thin glass vial inside cracks, then shaking it to mix the two liquids; it needs a hand on each half to bend, and it is a common first step in a power cut, at a campsite or at a roadside.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A blue cardboard packet with yellow printed bands, 6 cm front to back and 35 cm wide, 3 mm thick, centred 28 cm forward on the centre line, fixed; at its middle a raised card cradle 12 cm wide and 14.5 mm high with two card rails 12 mm high along it, 2.5 cm apart. (2) Lying in the cradle along the table's width, its middle 28 cm forward on the centre line, an unlit 30 cm emergency glow stick (40 g): a clear PE tube 19 mm across filled with pale yellow-green liquid around a thin glass vial, with white end caps and a hanging loop on its left cap; the tube bends at its middle. (3) A black slate serving tray 9 cm front to back and 40 cm wide, 6 mm thick, with a 12 mm high, 1 cm wide rim, from 35 to 44 cm forward and centred on the centre line, fixed. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged from the whole trial. The vial snaps once the stick is bent 30 degrees or more at its middle (the angle between its two halves); a bright spot then shows at the bend. After the snap, every stroke of the stick's middle at least 2.5 cm one way and then at least 0.8 cm back counts; six strokes (three shakes back and forth) light it all along, and it stays lit. The stick lies in the tray when both halves lie inside the tray's rim, no more than 1.2 cm above lying flat on its floor. 1.0: the stick lit, lying in the tray and both arms back where they started (each gripper's fingertip centre within 5 cm of its start), at the end; 0.5: the stick lit; 0.25: the vial snapped; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the stick still.",
+  "run_limit": "1200 steps (60 s at 20 Hz)",
+  "reset_notes": "Put a fresh, unlit glow stick in the packet's cradle, along the table's width with its loop to the left.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the stick is two rigid halves joined at its middle by a sprung hinge (it bends only there, and only in its own plane); the glass vial and the liquids are not simulated: the snap, the shaking and the glow are rules in the task file, and the glow is shown as a change of colour. The packet and the tray are fixed. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-CT4NRR"
+}
