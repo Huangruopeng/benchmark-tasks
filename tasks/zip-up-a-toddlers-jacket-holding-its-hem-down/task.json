@@ -1,0 +1,21 @@
+{
+  "title": "Zip up a toddler's jacket lying on the table: hold it by its hem, push the zip's pin into the box, pull the zip up",
+  "category": "Societal relevance",
+  "keywords": [
+    "bimanual",
+    "dressing",
+    "childcare",
+    "separating zip",
+    "holding something still",
+    "pushing and pulling small parts"
+  ],
+  "instruction": "Zip up the red jacket: hold the jacket still by the drawcord toggle at its hem with one hand. With the other, push the zip's pin, by its black tab, up into the box at the bottom of the zip, then take the slider's pull and pull the zip all the way up to the collar. Then let go and take both arms back to where they started.",
+  "context": "Closing a separating zip, on a child's coat or anyone's jacket, takes both hands: the pin has to be pushed into the box while the bottom of the zip is held, and the slider only runs up while the jacket is held down against its pull. Carers, parents and dressing aids do this many times a day.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) Lying open on the table, front up, its hem toward the arms, a toddler's red polyester fleece jacket (250 g, 1.6 cm thick lying flat): its body from 10.5 to 32.5 cm forward and 30 cm wide, centred on the centre line, with a darker red collar, hem band and cuffs, two side pockets and its sleeves lying out to either side toward the hem. (2) Down its middle a separating zip with navy tapes and metal teeth: its slider (with a stiff black moulded pull 2.2 cm tall) rests on the box at the bottom of the left front, 13.4 cm forward; the pin at the bottom of the right front's tape sticks out below the hem, its black moulded tab (1.2 cm long, 8 mm thick, 2 cm tall) about 7 cm forward and 4.5 mm right of the centre line; the zip runs 16.7 cm up to its top stop under the collar. (3) The hem's black drawcord comes out at the left side seam to a black cord lock standing on the table beside the hem, 1.6 cm across and 2.4 cm tall, 12 cm forward and 17.5 cm left of the centre line. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged from the whole trial. The pin is in once pushed at least 1.7 cm up (of 2.2 cm), into place beside the box; it then stays in. The pin takes about 2.5 N to push and the slider about 2.6 N to pull; the slider will not move until the pin is in. The zip is pulled as far as the slider has moved up the jacket; it is zipped all the way up when the slider is within 1.5 cm of the top stop (at least 15.2 cm up). 1.0: the pin in, the zip pulled all the way up and both arms back where they started (each gripper's fingertip centre within 5 cm of its start), at the end; 0.5: the pin in and the zip pulled at least half way up; 0.25: the pin in; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the jacket and the slider still.",
+  "run_limit": "1200 steps (60 s at 20 Hz)",
+  "reset_notes": "Unzip the jacket fully, pull the pin out of the box, and lay the jacket open and flat, front up, hem toward the arms, with the drawcord's cord lock standing on the table at the left end of the hem.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the jacket is one rigid body lying flat; the slider and the pin run on straight slides along it, each held where it is left by a spring that gives once pushed past it (about 2.6 N and 2.5 N); the zip's teeth do not mesh: the closed zip is drawn behind the slider as it goes up. The pulls stand up stiffly. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-TLDYEL"
+}
