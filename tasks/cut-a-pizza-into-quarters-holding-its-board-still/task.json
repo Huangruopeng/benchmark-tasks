@@ -1,0 +1,22 @@
+{
+  "title": "Cut a pizza into quarters with a pizza wheel, holding its board still by the handle with the other hand",
+  "category": "Societal relevance",
+  "keywords": [
+    "bimanual",
+    "kitchen",
+    "cooking",
+    "pizza wheel",
+    "holding an object still",
+    "cutting",
+    "tool use"
+  ],
+  "instruction": "Cut the pizza into quarters: hold the pizza board still by its handle with one hand. With the other, take the pizza wheel from its stand and run it across the pizza twice through the middle, pressing down so it cuts: once along the line from the back edge to the front edge and once along the line from the right edge to the left edge. Then put the pizza wheel back in its stand and take both arms back to where they started.",
+  "context": "Cutting a pizza is an everyday kitchen job that people with the use of only one hand struggle with: on a smooth worktop the board slides away with the wheel unless the other hand holds it.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A polished grey quartz worktop 1 cm thick, from 15 to 48 cm forward and from 29 cm right to 20 cm left of the centre line, fixed. (2) A round beech pizza board (0.55 kg), 21 cm across and 2.2 cm thick on four black rubber feet (6 mm), with a handle 2.4 cm wide sticking out 4.2 cm on its left side; its middle 33 cm forward and 6 cm right of the centre line. (3) On it, a pepperoni pizza 17 cm across and 6 mm thick, with a golden crust, tomato sauce, cheese, ten pepperoni slices and basil leaves. (4) A pizza wheel (0.12 kg): a black handle 10 cm long and 1.6 cm square with a red end, and a steel cutting wheel 6.4 cm across on a steel neck at its front, standing in (5) a beech stand 15 x 5 cm, its wheel in a slot at the front and its handle's back end in a cradle; the handle's middle 29.5 cm forward and 22.5 cm right of the centre line, fixed. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Cutting is a rule: each cut line (front-to-back and right-to-left through the pizza's middle) is 8 segments 2 cm long. A segment is cut once the wheel's lowest edge passes within 1.2 cm of its middle along the line and 1.4 cm across it, while the wheel presses on the pizza (its edge within 5 mm of the pizza's top) and the board moved less than 1.5 mm and turned less than 0.75 degrees in that control step; cut segments show as dark lines. 1.0: both lines cut all the way across, the pizza wheel back in its stand (its handle's middle within 2.5 cm of its place and 1.5 cm of its height, pointing the way it started), the board flat on the worktop, and both arms back where they started (each gripper's fingertip centre within 5 cm of its start); 0.5: both lines cut; 0.25: one line cut; else 0.0. Judged at the end of the trial, which ends at the run limit, or once the full score has held for 1 s with the board and the pizza wheel still.",
+  "run_limit": "900 steps (45 s at 20 Hz)",
+  "reset_notes": "Put the pizza wheel back in its stand and the board in its place; the cut lines disappear at every reset.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: cutting is a rule (see scoring) and the cut lines are drawn shapes; the pizza is a rigid disc and the wheel does not turn: it slides on the pizza, dragging the board the way a rolling, cutting wheel does. The polished worktop has a friction of 0.1. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-77LTZM"
+}
