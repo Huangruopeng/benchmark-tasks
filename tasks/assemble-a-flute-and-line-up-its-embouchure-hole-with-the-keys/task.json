@@ -1,0 +1,22 @@
+{
+  "title": "Put a flute together: push the head joint into the body, turn it to line up the embouchure hole with the keys",
+  "category": "Other",
+  "keywords": [
+    "bimanual",
+    "assembly",
+    "musical instrument",
+    "flute",
+    "insertion",
+    "rotational alignment",
+    "putting an object down"
+  ],
+  "instruction": "Put the flute together: take the body out of the case with one hand and the head joint with the other, push the head joint's tenon all the way into the socket at the end of the body, and turn the head joint until the hole in its lip plate lines up with the keys. Then lay the assembled flute on the open lid of the case, keys up, and take both arms back to where they started.",
+  "context": "Before playing, a flutist puts the flute together: the head joint is pushed into the body and turned so that its embouchure hole (the hole in the lip plate the player blows across) lines up with the keys. It takes both hands: one holds the body while the other pushes and turns the head joint.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) An open flute case, fixed: a black case 15.5 cm front to back and 52 cm wide, from 17.5 to 33 cm forward and from 22 cm right to 30 cm left of the centre line, 3.6 cm tall, lined with blue velvet, with two rows of slots; its lid lies open flat behind it, from 33.2 to 44 cm forward, 1.6 cm thick, velvet side up, inside a 1.2 cm black rim, with three velvet cradles 1.2 cm tall along a line 38 cm forward (at 13 cm right, 0 and 20 cm left of the centre line). (2) Lying in the case's front row, keys up, on two velvet saddles (their tops 2.2 cm above the table), the flute's body and foot (0.14 kg, 3/4 of full size): a silver tube 34 cm long and 1.5 cm across with eight key cups along its top, a key rod along its side and roller keys at its foot; its socket (barrel, 1.85 cm across) points to the right, its mouth 22.2 cm forward and 6 cm right of the centre line. (3) Lying in the back row on two saddles, the head joint (0.05 kg): a silver tube 16.5 cm long and 1.5 cm across with a 2.5 cm tenon (1.35 cm across) at its left end, a crown at its right end, and a lip plate with an oval embouchure hole 11 cm from the tenon's tip; the tenon's tip is 28.4 cm forward and 0.8 cm right of the centre line, and the head joint lies turned 45 degrees about its own axis, the lip plate facing up and away from the arms. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "Judged at the end of the trial. The head joint is all the way in when its tenon has been caught in the body's socket (its tip within 8 mm of the socket's axis, in the socket's mouth, the two parts' axes within 12 degrees) and pushed at least 2.2 cm in (of 2.5 cm); pulled more than 4 mm back out of the mouth, it is apart again. The embouchure hole lines up with the keys when the head joint is turned within 16 degrees of them about the flute's axis. The flute lies on the open lid when the middles of both its parts are over the lid, no more than 3 cm above its velvet, with the keys within 45 degrees of facing straight up. 1.0: the head joint all the way in and lined up, the flute lying keys up on the lid and both arms back where they started (each gripper's fingertip centre within 5 cm of its start); 0.5: the head joint all the way in and lined up; 0.25: the head joint all the way in; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with both parts still.",
+  "run_limit": "1200 steps (60 s at 20 Hz)",
+  "reset_notes": "Take the flute apart and lay the body (keys up) and the head joint (turned 45 degrees, lip plate up and away from the arms) back in their rows in the case.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the flute is 3/4 size and its keys are drawn only. The fit is modelled: once the tenon's tip is in the socket's mouth, the task file switches on a joint that keeps the head joint on the body's axis and lets it slide in against about 2 N and turn against up to 0.06 N m, staying where it is left; the two parts never collide. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-X2F4Q4"
+}
