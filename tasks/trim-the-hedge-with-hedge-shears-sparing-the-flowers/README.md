@@ -1,4 +1,4 @@
-# Trim three overgrown shoots off a box hedge with two-handed hedge shears, without cutting the flowers
+# Trim three overgrown shoots off a box hedge with hedge shears, without cutting the flowers
 
 A cedar planter trough on the table holds a small clipped box hedge. Three overgrown green shoots stick up out of the
 front of the hedge; behind them, in the back row, grow a pink and an orange flower. On a rubber mat in front of the
@@ -42,6 +42,11 @@ where the rubber bumpers meet, to 50 degrees open).
 Importing `bodykit.py` hooks `yam_arena.scene` when the simulator starts, without changing yam_arena, gives `score()`
 each body's own pose, and lets the task file act on the simulation after every control step.
 
+In a real trial the cut is judged by observation, not by blade angles: a shoot counts once its top has come away
+within 1.8 cm of its cut height, and a flower is cut if its stem is severed anywhere above the hedge. The simulation's
+blade-angle rule (opened 20 degrees round the stem, closed to 6 degrees on it) only stands in for severing, which the
+rigid stems cannot do by contact; a real shoot cut cleanly with a smaller blade movement counts the same.
+
 ## Run and score a trial
 
 The scorer is `task_score`: 1.0 when `success()` (full score, which includes both arms back where they started, with
@@ -55,7 +60,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=trim_the_hedge_with_hedge_shears_sparing_the_flowers.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Trim the hedge with the hedge shears: pick them up off the mat with both hands, one on each handle, and cut off the three tall green shoots sticking up out of the hedge, opening the blades round each shoot just above the hedge and closing them to snip it off. Do not cut the flowers. Then lay the shears back on the mat, closed, and take both arms back to where they started." \
+  --instruction "Trim the three tall green shoots off the box hedge with the hedge shears, cutting each just above the hedge, without cutting the flowers. Then leave the shears lying closed on the mat and take both arms back to where they started." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/shears-dream
 ```
 
@@ -69,7 +74,7 @@ let go and go back to where they started:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=trim_the_hedge_with_hedge_shears_sparing_the_flowers.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Trim the hedge with the hedge shears: pick them up off the mat with both hands, one on each handle, and cut off the three tall green shoots sticking up out of the hedge, opening the blades round each shoot just above the hedge and closing them to snip it off. Do not cut the flowers. Then lay the shears back on the mat, closed, and take both arms back to where they started." \
+  --instruction "Trim the three tall green shoots off the box hedge with the hedge shears, cutting each just above the hedge, without cutting the flowers. Then leave the shears lying closed on the mat and take both arms back to where they started." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/shears-demo
 ```
 
@@ -86,7 +91,7 @@ between open blades), whether the shears lie on the mat, where each TCP is and w
 
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (169 s on the clock, with Dream answering in 0.81 s on average), and about 2 minutes for the scripted demo (690 steps, 34.5 s of simulated time, 119 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 7 minutes for a Dream-1 trial of 1,200 steps (396 s on the clock, with Dream answering in 0.55 s on average), and about 3 minutes for the scripted demo (690 steps, 34.5 s of simulated time, 198 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 

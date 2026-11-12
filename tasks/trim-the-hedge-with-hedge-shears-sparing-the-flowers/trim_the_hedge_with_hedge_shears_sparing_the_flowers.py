@@ -3,10 +3,10 @@ out of the front of the hedge; behind them, in the back row, grow two flowers, a
 rubber mat in front of the planter lie a pair of hedge shears, closed: two long steel blades on a pivot bolt, each
 blade forged in one piece with a wooden handle, the two handles splaying back toward the arms.
 
-Task: trim the hedge. Pick the shears up with both hands, one on each handle, and snip off the three shoots: open the
-blades round each shoot at the hedge's top and close them to cut it off. Do not cut the flowers. Then lay the shears
-back on the mat, closed, and take both arms back to where they started. The pivot turns freely, so the blades open
-and close only when the two handles are moved against each other: one hand on one handle cannot snip.
+Task: trim the three shoots off just above the hedge with the shears, without cutting the flowers, then leave the
+shears lying closed on the mat and take both arms home. The pivot turns freely, so the blades open and close only when
+the two handles are moved against each other: one hand on one handle cannot snip. A real trial judges severing by
+observation; here a stem counts as severed when the blades close on it as the scoring describes.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=trim_the_hedge_with_hedge_shears_sparing_the_flowers.py \\
            --instruction "..." --scorer task_score ...
@@ -366,9 +366,10 @@ def _follow(env) -> None:
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def score(objects) -> float:
-    """0.0 once a flower has been cut. Otherwise 1.0 with all three shoots cut, the shears lying closed on the mat and
-    both arms back where they started, at the end; 0.5 with all three shoots cut; 0.25 with at least one cut; else
-    0.0. (A cut stays cut.)"""
+    """0.0 once a flower has been severed. Otherwise 1.0 with all three shoots severed at their cut height, the shears
+    lying closed on the mat and both arms back where they started, at the end; 0.5 with all three shoots severed; 0.25
+    with at least one; else 0.0. (Severed stays severed; here a stem is severed when the blades, opened 20 degrees round
+    it, close to 6 degrees on it; a real trial observes severing directly.)"""
     if any(_EP["flower_cut"]):
         return 0.0
     n = sum(_EP["cut"])
