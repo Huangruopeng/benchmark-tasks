@@ -2,10 +2,10 @@
 pointing back toward the arms. In it are six dumplings (24 mm beads) in their cooking water (twenty 5 mm beads). In
 front of the stove is a fixed sink basin. The pan, the lid and the beads are loose.
 
-Task: drain the water into the sink but keep every dumpling in the pan: hold the lid on with one hand, slid back a
-little so that a narrow gap opens at the front rim, while the other hand lifts the pan by its handle and tips it forward
-over the sink; then set the pan back on the stove. Tipped with the lid loose, the lid slides off and the dumplings follow
-the water.
+Task: drain the water into the sink but keep every dumpling in the pan, then set the pan back on the stove. Tipped with
+the lid loose, the lid slides off and the dumplings follow the water, so one hand holds the lid slid back a little (a
+narrow gap at the front rim) while the other tips the pan by its handle. The 20 water beads stand for 300 ml of water
+(15 ml each); a real trial weighs the water drained.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=drain_a_pot_through_a_lid_held_ajar.py \\
            --instruction "..." --scorer task_score ...
@@ -173,9 +173,9 @@ def _new_episode() -> None:
 
 
 def score(objects) -> float:
-    """0 unless the pan ends standing upright on the stove. Otherwise 1.0 with at least 16 of the 20 water beads in the
-    sink and all 6 dumplings in the pan; 0.5 with at least 10 in the sink and at least 5 dumplings in the pan; 0.25 with at
-    least 5 in the sink and all 6 dumplings in the pan; else 0."""
+    """0 unless the pan ends standing upright on the stove. Otherwise 1.0 with at least 16 of the 20 water beads (240 of
+    300 ml) in the sink and all 6 dumplings in the pan; 0.5 with at least 10 (150 ml) in the sink and at least 5
+    dumplings in the pan; 0.25 with at least 5 (75 ml) in the sink and all 6 dumplings in the pan; else 0."""
     t = _tally(objects)
     if _DEBUG["on"]:  # DRAIN_DEBUG=1: one line a second (at 20 Hz) on stderr
         _DEBUG["calls"] += 1

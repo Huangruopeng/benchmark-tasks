@@ -1,4 +1,4 @@
-# Drain a pan of dumplings into the sink with both hands, holding the lid ajar
+# Drain the water off a pan of dumplings into the sink, keeping every dumpling in the pan
 
 A saucepan of dumplings in their cooking water (beads) stands on a stove block with its lid on. One arm holds the lid
 slid slightly back, so that a narrow gap opens at the front rim, while the other lifts the pan by its handle and tips
@@ -32,7 +32,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=drain_a_pot_through_a_lid_held_ajar.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Drain the water into the sink but keep the dumplings in the pan: hold the lid slightly ajar with one hand while the other tips the pan over the sink by its handle, then set the pan back on the stove." \
+  --instruction "Drain the water from the pan into the sink but keep all the dumplings in the pan, then set the pan back on the stove." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/drain-dream
 ```
 
@@ -47,7 +47,7 @@ back against the sag of its soft wrist joints, so that the lid stays where the r
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=drain_a_pot_through_a_lid_held_ajar.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Drain the water into the sink but keep the dumplings in the pan: hold the lid slightly ajar with one hand while the other tips the pan over the sink by its handle, then set the pan back on the stove." \
+  --instruction "Drain the water from the pan into the sink but keep all the dumplings in the pan, then set the pan back on the stove." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/drain-demo
 ```
 
@@ -63,9 +63,17 @@ for log in ~/yam-eval/drain-dream/*.json; do inspect-robots video "$log"; done
 Set `DRAIN_DEBUG=1` to print what the score is built from (water beads in the sink and in the pan, dumplings in the
 pan, how far the pan is tipped, where the lid sits on it) once a second.
 
+## A real trial
+
+A 16 cm steel saucepan (inside 11 cm across, 7.5 cm deep) with a flat lid and a straight handle, 300 ml of tap water
+and six cooked potato gnocchi or mini dumplings about 2.5 cm across, on a stove block in front of a sink. Weigh the
+pan with its contents before and after (1 g per ml) to get the volume drained: 240 ml for full credit, 150 ml and
+75 ml for the partial tiers, as the simulation's 16, 10 and 5 of its 20 water beads (15 ml each). Count the dumplings
+left in the pan, and check the pan stands back on the stove.
+
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (177 s on the clock, with Dream answering in 0.81 s on average), and about 2 minutes for the scripted demo (616 steps, 30.8 s of simulated time, 105 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 7 minutes for a Dream-1 trial of 1,200 steps (419 s on the clock, with Dream answering in 0.62 s on average), and about 4 minutes for the scripted demo (616 steps, 30.8 s of simulated time, 228 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
