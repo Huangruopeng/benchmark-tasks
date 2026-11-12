@@ -1,0 +1,22 @@
+{
+  "title": "Take the magnets off a planning whiteboard, wipe it holding it still, then put each magnet back in its own square",
+  "category": "Other",
+  "keywords": [
+    "bimanual",
+    "memory",
+    "spatial memory",
+    "office",
+    "whiteboard",
+    "holding an object still",
+    "long horizon"
+  ],
+  "instruction": "Take the three magnets off the whiteboard and lay them in its pen tray. Then wipe all the old marker off the board with the eraser, holding the board still with your other hand, and put the eraser back in the pen tray. Then put each magnet back in the same square of the grid it was in at the start, and take both arms back to where they started.",
+  "context": "Planning boards use magnets to mark where each job stands; when the board is wiped, every magnet has to go back to its square or the plan is lost. Once the magnets are in the tray and the board is wiped, nothing on the board shows their places, so only memory does.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A smooth oak-laminate desk top 6 mm thick, from 9.5 to 45.5 cm forward and 24.5 cm to each side, with a low oak rail (1.4 cm wide, 2 cm tall, 40 cm long) fixed across it at 43 to 44.5 cm forward. (2) On it, a planning whiteboard (0.6 kg) standing on rubber feet with its far edge against the rail: a white enamelled steel writing surface in an anodised aluminium frame, 27 cm front to back, 36 cm across and 1 cm thick, the frame 1.2 cm wide and 4 mm proud of the surface, its middle 29.5 cm forward on the centre line. Thin blue lines divide the surface into three rows of three squares (7.3 cm front to back, 11.2 cm across), under a header strip along the far edge with a green, an amber and a grey tab, one per column, and a small coloured dot in each row. An aluminium pen tray, 6.1 cm wide and 1.1 cm deep inside and 30 cm long, runs along the near edge. (3) Old marker notes: ten short blue and black strokes in two lines 5.8 cm apart, across the middle and right columns. (4) Three round push-pin magnets (12 g each) of red, blue and yellow ABS: a disc 3 cm across and 7 mm thick with a knob 1.3 cm across and 2 cm tall on top. Each stands in a different square; which three depends on the seed (with the default seed, red in the far left square, blue in the near middle one, yellow in the near right one). (5) A whiteboard eraser (60 g), 11 cm long and 4.8 cm wide: a dark wool-felt pad under a blue ABS block with a black handle ridge 9 cm long, 1.8 cm wide and 2.2 cm tall on top, 4.6 cm tall in all, lying lengthwise in the right part of the pen tray. The layout is the same in every trial except which squares the magnets stand in, as in the screenshot.",
+  "scoring": "A mark is rubbed off once the eraser's felt has passed 6 cm over it, flat on the board, while the board stays still and all three magnets lie in the pen tray; the board is wiped once every mark is off. A magnet is in a square when it stands upright on the surface with its middle at least 4 mm inside the square's lines. 1.0: the board wiped and, at the end, every magnet back in the square it stood in at the start, the eraser back in the pen tray and both arms back where they started (each gripper's fingertip centre within 5 cm of its start); 0.75: the board wiped and, at the end, two or three magnets in their own squares; 0.5: the board wiped and, at the end, one magnet in its own square; 0.25: the board wiped; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the board, the magnets and the eraser still.",
+  "run_limit": "2400 steps (120 s at 20 Hz)",
+  "reset_notes": "Put the magnets back in the squares the seed gives, the eraser in the pen tray and the board in its place, and redraw the marker notes.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). Simplified: the magnets' pull on the steel is not modelled (they rest by weight and friction); the marker notes are thin strokes, each hidden once rubbed off. The board's rubber feet are a hold of up to 1.2 N each way across the desk that slips beyond that, and the board cannot turn; the felt grips the board with a friction of 1.0. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-CM6UPJ"
+}
