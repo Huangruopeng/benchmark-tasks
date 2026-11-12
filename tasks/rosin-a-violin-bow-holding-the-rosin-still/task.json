@@ -1,0 +1,21 @@
+{
+  "title": "Rosin a violin bow: hold the rosin still with one hand and draw the bow's hair across it with the other",
+  "category": "Other",
+  "keywords": [
+    "bimanual",
+    "music",
+    "violin",
+    "holding an object still",
+    "tool use",
+    "stroking"
+  ],
+  "instruction": "Rosin the violin bow. Pick the bow up by its black frog and draw its hair back and forth across the rosin cake while your other hand holds the rosin's holder still on the table by its grip, until the hair is coated white along most of its length; you may slide the rosin to a new spot between strokes. Then lay the bow back down on the green cloth beside the violin and take both arms back to where they started.",
+  "context": "A violinist rosins the bow before playing: without rosin the hair slides over the strings without a sound. Rosin is a small, light cake that travels with the hair unless held, so the job takes both hands.",
+  "setup": "A table in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A black piano-lacquered top 6 mm thick, from 10 to 30 cm forward, from 38 cm right to 40 cm left of the centre line, fixed. (2) A green wool-felt cloth 8 mm thick, from 29 to 57 cm forward, from 37 cm right to 45 cm left of the centre line, fixed. (3) On the cloth, a full-size violin (0.45 kg) lying face up along the table, fixed: a varnished maple body 35.5 cm long with two bouts (20.5 and 16.6 cm across) and ribs 3.2 cm tall, an ebony fingerboard 27 cm long, pegbox and scroll, an ebony tailpiece, a maple bridge and four strings, 58 cm long in all, its body's middle 45 cm forward on the centre line. (4) The bow (60 g), full size, lying hair down on the cloth along the table, 32 cm forward, its frog 30 cm right of the centre line and its tip toward the left: an ebony frog 4.6 cm long, 1.4 cm wide and 2.6 cm tall with a pearl eye and a silver ferrule, a screw button behind it, a round pernambuco stick tapering from 8.4 to 5.8 mm with a slight camber to its ivory-faced head, 75 cm long in all and balancing 23.5 cm from the button's end, and a ribbon of pale horsehair 1.1 cm wide running 66 cm from the frog to the head. (5) A cake of amber rosin 5 cm across, standing 5 mm proud of a beech holder 9.6 cm long, 5.2 cm wide and 1 cm thick with a raised grip (1.2 cm wide, 4.4 cm long, 1.4 cm tall) across its front end (50 g in all), on the lacquer 22.4 cm forward and 11 cm left of the centre line, the cake at the holder's back end. The layout is the same in every trial, as in the screenshot.",
+  "scoring": "The hair is scored in 12 equal lengths of 5.5 cm. A length is coated once the rosin cake has passed 10 cm along under it in all, counting only while the hair lies on the cake (the cake's top within 2.5 mm below to 3 mm above the hair's underside, and the hair over the cake) and the rosin's holder moved less than 1.5 mm since the last control step. The bow is laid down when its frog and head both lie on the cloth, level within 20 degrees. 1.0: at least 8 of the 12 lengths coated and, at the end, the bow laid down on the cloth and both arms back where they started (each gripper's fingertip centre within 5 cm of its start); 0.75: 8 coated and the bow laid down on the cloth at the end; 0.5: 8 coated; 0.25: at least 3 coated; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the bow and the rosin still.",
+  "run_limit": "1500 steps (75 s at 20 Hz)",
+  "reset_notes": "Lay the bow back on the cloth and the rosin in its place, and clean the hair.",
+  "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz control). The bow is one rigid body (its hair does not stretch or splay); the hair is drawn in 12 lengths that turn white to report rubbing that physically happened (rosin dust is not simulated). The violin is fixed. The lacquer has a friction of 0.06, so the holder slides at about 0.03 N; the hair grips the rosin at about 0.95. Cameras 1280 x 704 (Dream-1 sees 320 x 176).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-96RZLV"
+}
