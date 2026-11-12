@@ -22,8 +22,9 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from bodykit import Body, BoxShape, CylShape, SphereShape, allow_matrix_grips, on_reset, plate, rotation  # noqa: E402
-from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN  # noqa: E402
+from bodykit import (Body, BoxShape, CylShape, SphereShape, allow_matrix_grips, as_numpy, on_reset, on_step,  # noqa: E402
+                     plate, rotation)
+from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
 from yam_arena.task_file import TABLE_TOP, Cylinder  # noqa: E402
 
@@ -59,6 +60,10 @@ SHAKE_TIP = math.radians(60)  # ... and, while tipped past SHAKE_TIP, moved back
 TURNS = 4  # at least this many changes of direction,
 LEG = 0.02  # each after a leg of at least this much (tipping it over and back alone makes at most one such turn)
 HALF_LOST = 2
+# Capped and held: the cap seated on the tin (its disc on the rim: its centre within SEAT_R of the tin's axis and
+# within SEAT_Z of the rim along it, its axis within SEAT_TILT of the tin's) with a gripper's fingertip centre within
+# HELD of its knob. Tipping and shaking count only while the shaker is capped and held.
+SEAT_R, SEAT_Z, SEAT_TILT, HELD = 0.008, 0.008, math.radians(12), 0.05
 UPRIGHT = math.radians(10)
 SUCCESS_HOLD_S = 1.0
 
@@ -126,13 +131,27 @@ BEAD_NAMES = [b.name for b in BEADS]
 
 # -- scoring --------------------------------------------------------------------------------------------------------
 
-_EPISODE = {"max_tip": 0.0, "turns": 0, "last": None, "s": 0.0, "ext": 0.0, "lo": 0.0, "hi": 0.0, "dir": 0}
+_EPISODE = {"max_tip": 0.0, "turns": 0, "last": None, "s": 0.0, "ext": 0.0, "lo": 0.0, "hi": 0.0, "dir": 0,
+            "tcps": None, "seat": None}
 
 
 @on_reset
 def _new_episode() -> None:
-    _EPISODE.update(max_tip=0.0, turns=0, last=None)
+    _EPISODE.update(max_tip=0.0, turns=0, last=None, tcps=None, seat=None)
     _restart_stroke()
+
+
+@on_step
+def _follow_hands(env) -> None:
+    base = env.unwrapped
+    origin = as_numpy(base.scene.env_origins[0])
+    out = []
+    for arm in ("left_robot", "right_robot"):
+        robot = base.scene[arm]
+        i = next(j for j, n in enumerate(robot.body_names) if n == "gripper" or n.endswith("/gripper"))
+        g = as_numpy(robot.data.body_link_pose_w)[0][i]
+        out.append(g[:3] - origin + rotation(g[3:7]) @ np.array(TCP_OFFSET))
+    _EPISODE["tcps"] = out
 
 
 def _restart_stroke() -> None:
@@ -177,8 +196,17 @@ def _tally(objects) -> dict:
         in_cap = math.hypot(c[0], c[1]) < SKIRT_R_I and -SKIRT_H < c[2] < 0.0
         inside += in_tin or in_cap
     tip = _tilt(t_rot)
-    _EPISODE["max_tip"] = max(_EPISODE["max_tip"], tip)
-    _track_shake(np.asarray(tin.pos, float) + t_rot[:, 2] * TIN_H / 2, t_rot[:, 2], tip)
+    cq = t_rot.T @ (np.asarray(cap.pos, float) - np.asarray(tin.pos, float))
+    seated = (math.hypot(float(cq[0]), float(cq[1])) <= SEAT_R and abs(float(cq[2]) - TIN_H) <= SEAT_Z
+              and float(t_rot[:, 2] @ c_rot[:, 2]) >= math.cos(SEAT_TILT))
+    knob = np.asarray(cap.pos, float) + c_rot[:, 2] * (DISC_T + KNOB_H / 2)
+    tcps = _EPISODE["tcps"]
+    held = tcps is not None and min(float(np.linalg.norm(t - knob)) for t in tcps) <= HELD
+    capped = seated and held
+    _EPISODE["seat"] = (math.hypot(float(cq[0]), float(cq[1])), float(cq[2]) - TIN_H, seated, held)
+    if capped:  # tipping and shaking count only while the cap is seated and held on
+        _EPISODE["max_tip"] = max(_EPISODE["max_tip"], tip)
+    _track_shake(np.asarray(tin.pos, float) + t_rot[:, 2] * TIN_H / 2, t_rot[:, 2], tip if capped else 0.0)
     return {"inside": inside, "lost": N_BEADS - inside, "tip": tip, "max_tip": _EPISODE["max_tip"],
             "turns": _EPISODE["turns"],
             "upright_on_table": tip < UPRIGHT and abs(tin.pos[2] - TOP) < 0.01}
@@ -202,8 +230,10 @@ _DEBUG = {"on": bool(os.environ.get("SHAKE_DEBUG")), "calls": 0}
 
 
 def score(objects) -> float:
-    """0 unless the tin ends standing upright on the table. Otherwise 1.0 if it was tipped 80 degrees or more and,
-    while tipped past 60 degrees, shaken back and forth along its axis (4 or more changes of direction, each after a leg
+    """0 unless the tin ends standing upright on the table. Tipping and shaking count only while the shaker is capped
+    and held: the cap seated on the tin (its disc's centre within 8 mm of the tin's axis and of its rim, tilted at most
+    12 degrees against it) with a gripper's fingertip centre within 5 cm of its knob. Otherwise 1.0 if it was so tipped
+    80 degrees or more and, while so tipped past 60 degrees, shaken back and forth along its axis (4 or more changes of direction, each after a leg
     of 2 cm or more), with none of the 12 beads lost (outside both the tin and the cap); 0.5 if so shaken with at most 2
     lost; 0.25 if tipped 80 degrees but shaken less, with none lost; else 0."""
     t = _tally(objects)
@@ -214,7 +244,7 @@ def score(objects) -> float:
             gap = np.asarray(cap.pos) - (np.asarray(tin.pos) + rotation(tin.quat_xyzw)[:, 2] * TIN_H)
             print(f"[shake] t={_DEBUG['calls'] / 20:5.1f}s inside={t['inside']} tip={math.degrees(t['tip']):.0f}deg "
                   f"max_tip={math.degrees(t['max_tip']):.0f}deg turns={t['turns']} "
-                  f"cap_off_rim_cm={np.round(gap * 100, 1).tolist()} upright={t['upright_on_table']} "
+                  f"cap_off_rim_cm={np.round(gap * 100, 1).tolist()} seat={_EPISODE['seat']} upright={t['upright_on_table']} "
                   f"score={_points(t)}", file=sys.stderr, flush=True)
     return _points(t)
 

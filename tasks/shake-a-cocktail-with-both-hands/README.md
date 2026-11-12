@@ -1,4 +1,4 @@
-# Cap a cocktail shaker and shake it with both hands without spilling
+# Cap a cocktail shaker and shake it on its side without spilling
 
 A steel shaker tin holding 12 beads (the drink and ice) stands on the table; its cap rests on a post nearby. One arm
 puts the cap on the tin and keeps pressing it on, the other holds the tin, and together they tip the shaker onto its
@@ -33,7 +33,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=shake_a_cocktail_with_both_hands.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Put the cap on the shaker tin and keep holding it on with one hand, hold the tin with the other, shake the shaker back and forth on its side, then stand it back on the table without losing any beads." \
+  --instruction "Put the cap on the shaker tin and shake the shaker on its side, back and forth along its length, with the cap kept seated on the tin the whole time it is tipped; then stand it back upright on the table without losing any of the beads." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/shaker-dream
 ```
 
@@ -47,7 +47,7 @@ so the soft arms keep the cap pressed on:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=shake_a_cocktail_with_both_hands.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Put the cap on the shaker tin and keep holding it on with one hand, hold the tin with the other, shake the shaker back and forth on its side, then stand it back on the table without losing any beads." \
+  --instruction "Put the cap on the shaker tin and shake the shaker on its side, back and forth along its length, with the cap kept seated on the tin the whole time it is tipped; then stand it back upright on the table without losing any of the beads." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/shaker-demo
 ```
 
@@ -62,9 +62,17 @@ direction so far, where the cap is against the rim) once a second.
 
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (174 s on the clock, with Dream answering in 0.96 s on average), and about 2 minutes for the scripted demo (607 steps, 30.4 s of simulated time, 96 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 7 minutes for a Dream-1 trial of 1,200 steps (394 s on the clock, with Dream answering in 0.65 s on average), and about 3 minutes for the scripted demo (607 steps, 30.4 s of simulated time, 168 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
 None needed: with `-E object_jitter=0` the layout is fixed and the scripted demo is deterministic. With a nonzero
 `object_jitter`, the trial's seed sets how far the free objects (the tin, the cap and the beads) shift.
+
+## Changes in this revision
+
+- Tipping and shaking now count only while the shaker is capped and held: the cap seated on the tin (its disc's
+  centre within 8 mm of the tin's axis and of its rim, its axis within 12 degrees of the tin's) with a gripper's
+  fingertip centre within 5 cm of its knob. Leaving the cap on its post, or tipping the open tin mouth uphill, earns
+  nothing: every nonzero score needs the capped, held tipping.
+- The instruction states only the goal and its constraints; the category is Societal relatability.
