@@ -139,7 +139,7 @@ def _screw() -> Body:
                        quat_xyzw=Q0),
               BoxShape(tuple((R0 @ np.array([0.0065, 0.0, 0.003])).tolist()), (0.0035, 0.008, 0.006), ZINC,
                        quat_xyzw=Q0)]
-    return Body.build("screw", pos=tuple(_screw_at().tolist()), mass=0.008, shapes=shapes, friction=(0.06, 0.05),
+    return Body.build("screw", pos=tuple(_screw_at().tolist()), mass=0.0025, shapes=shapes, friction=(0.06, 0.05),
                       slick=True, color=ZINC, contact_offset=0.001)
 
 
