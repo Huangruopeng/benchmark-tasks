@@ -87,7 +87,7 @@ def _strut_a() -> Body:
                        yaw=math.pi / 4)]  # its tip, pointed (wedge-shaped seen from above)
     for z in (ZC - S / 2 + 0.0002, ZC + S / 2 - 0.0002):  # the slots' dark lines along the top and bottom
         shapes.append(BoxShape(at(cx + 0.010, A_Y, z), (A_X[1] - A_X[0] - 0.024, 0.006, 0.0006), DARK, collide=False))
-    return Body.build("strut_a", pos=tuple(o.tolist()), mass=0.15, shapes=shapes, friction=(0.6, 0.5), color=ALU)
+    return Body.build("strut_a", pos=tuple(o.tolist()), mass=0.19, shapes=shapes, friction=(0.6, 0.5), color=ALU)
 
 
 def _catch() -> Body:

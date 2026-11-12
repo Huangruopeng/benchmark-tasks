@@ -1,4 +1,4 @@
-# Snap two aluminium framing struts into a square corner, holding one still while pushing the other onto its connector
+# Snap two aluminium framing struts into a square corner on a push-in connector, and prove the joint by lifting the frame
 
 Two lengths of 20 mm square aluminium framing strut lie on the table: strut A runs away from the arms, a die-cast corner
 connector on its near end with its square peg pointing right and a spring catch on the peg; strut B lies to the right,
@@ -23,10 +23,10 @@ scored 0: strut A slid 3 cm away and turned 10 degrees ahead of the push, and st
 `bodykit.py`.
 
 - Strut A and its connector: one rigid body. The catch is a small block on a prismatic joint in the peg's top (a
-  `Slider` from `bodykit.py`), sprung up 2.5 mm above the peg; strut B's wall presses it down as B slides on, and it
+  `Slider` from `bodykit.py`), sprung up 3 mm above the peg (1.5 N per mm, 4.5 mm travel, its tip-side face bevelled 45 degrees); strut B's wall presses it down as B slides on, and it
   springs up into B's hole once B is fully on, so B can no longer come off.
-- Strut B: one rigid body with a 16 mm square socket in its end (the peg is 14 mm) and an 8 mm hole in the socket's top
-  wall.
+- Strut B: one rigid body with a 14 mm square socket 4.6 cm deep in its end (the peg is 11 mm) and an 8 mm slot across
+  the socket's top wall, 11 to 19 mm in from its end.
 - Fully on: strut B's end within 3 mm of strut A's side with the catch up. Square: the two struts' axes 90 degrees
   apart, within 3 degrees.
 - The jig: two fixed steel strips either side of strut B's end, 1.5 mm clear of it, that keep B's end in line with the
@@ -48,7 +48,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=snap_two_framing_struts_together_square.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Join the two aluminium struts into a corner: hold strut A (the one running away from you, with the connector on its near end) still with one hand, and with the other push strut B's hollow end straight along the jig onto the connector's peg until the catch snaps up into the hole in its wall, keeping the corner square. Then let go of strut A, lift strut B so the whole corner rises in one piece, set the frame down flat on the table clear of the jig, let go, and take both arms back to where they started." \
+  --instruction "Join strut B's hollow end onto the corner connector on strut A so that its catch locks and the corner is square, prove the joint by lifting the frame by strut B alone, then set the frame down flat on the table clear of the jig, let go, and take both arms back to where they started." \
   --scorer task_score --max-steps 900 --store-frames --log-dir ~/yam-eval/strut-dream
 ```
 
@@ -61,7 +61,7 @@ goes home; the right lifts strut B 7 cm, so the corner rises with strut A hangin
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=snap_two_framing_struts_together_square.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Join the two aluminium struts into a corner: hold strut A (the one running away from you, with the connector on its near end) still with one hand, and with the other push strut B's hollow end straight along the jig onto the connector's peg until the catch snaps up into the hole in its wall, keeping the corner square. Then let go of strut A, lift strut B so the whole corner rises in one piece, set the frame down flat on the table clear of the jig, let go, and take both arms back to where they started." \
+  --instruction "Join strut B's hollow end onto the corner connector on strut A so that its catch locks and the corner is square, prove the joint by lifting the frame by strut B alone, then set the frame down flat on the table clear of the jig, let go, and take both arms back to where they started." \
   --scorer task_score --max-steps 900 --store-frames --log-dir ~/yam-eval/strut-demo
 ```
 
@@ -78,7 +78,7 @@ each strut, and where each TCP is.
 
 ## Runtime per trial
 
-On one RTX 5090: about 2 minutes for a Dream-1 trial of 900 steps (147 s on the clock, with Dream answering in 0.86 s on average), and about 1 minute for the scripted demo (397 steps, 19.9 s of simulated time, 61 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 4 minutes for a Dream-1 trial of 900 steps (233 s on the clock, with Dream answering in 0.63 s on average), and about 2 minutes for the scripted demo (397 steps, 19.9 s of simulated time, 120 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
