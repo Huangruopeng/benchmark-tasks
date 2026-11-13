@@ -1,5 +1,5 @@
 """A quadcopter drone stands on its skids on the bench, its rear motor nearest the arms. That motor's orange propeller
-has a chipped blade. The propeller sits on a centring spigot on the motor's bell and is clamped by a red prop nut on
+has a chipped blade. The propeller sits on a 23 mm centring boss on the motor's bell and is clamped by a red prop nut on
 the motor's threaded shaft. The motor spins freely (it is switched off), so turning the nut just turns the nut, the
 propeller and the motor together, unless a hand holds the propeller still by a blade. A new propeller of the same kind,
 its printed side up, lies on a stand to the right; a blue bin for worn parts stands to the left; a small steel parts
@@ -25,7 +25,7 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from bodykit import (Body, BoxShape, CylShape, SphereShape, allow_matrix_grips, as_numpy, hinge,  # noqa: E402
+from bodykit import (Body, BoxShape, CylShape, SphereShape, allow_matrix_grips, as_numpy, hinge, segment,  # noqa: E402
                      on_reset, on_step, rotation, set_slide_target, set_thread_on, thread)
 from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
@@ -44,13 +44,15 @@ ARM_Z, ARM_T = TOP + 0.050, 0.016  # the arm tubes' centre height and thickness
 MOUNT_TOP = TOP + 0.063  # the motor mount plates' top (the bell turns just above it)
 Z_BELL = TOP + 0.087  # the bell's top face: the propeller's hub sits on it
 BELL_R, BELL_H = 0.016, Z_BELL - MOUNT_TOP - 0.001
-SPIGOT_R, BOSS_H, SPIGOT_TIP = 0.008, 0.011, 0.006  # the round centring spigot on the bell's top (its top narrower)
+SPIGOT_R, BOSS_H, CHAMFER = 0.0115, 0.011, 0.0025  # the round 23 mm centring boss on the bell's top, its top edge
+# chamfered 2.5 mm (over its top 3 mm) as a lead-in
 SHAFT_R, PILOT_R = 0.005, 0.0035  # the threaded shaft and the plain pilot above it
 
 # -- the propellers (10 x 4.5 inch class, 30 cm across) ---------------------------------------------------------------
 HUB_H = 0.016
 HUB_TOP = Z_BELL + HUB_H
-HOLE = 0.024  # the hub's hole (on the 16 mm spigot: the nut's clamp, not a key, makes the propeller turn the motor)
+HOLE = 0.024  # the hub's 24 mm centre hole: 0.5 mm of play on the 23 mm boss (the nut's clamp, not a key, makes the
+# propeller turn the motor)
 HUB_OUT = 0.036
 PROP_R = 0.150
 BLADE_SEGS = ((0.018, 0.060, 0.026, 0.008), (0.060, 0.110, 0.024, 0.007), (0.110, PROP_R, 0.020, 0.007))
@@ -75,7 +77,8 @@ MOTOR_DRAG = 1.0e-4  # N m per deg/s: the motor's bearings (it spins freely)
 CATCH_R, CATCH_TILT = 0.008, math.radians(10.0)  # a nut this close to the shaft's axis and upright catches the thread
 CATCH_S = LEN_ENG - 0.001  # once its bottom is this low above the hub's top (below where it lets go)
 SEATED_S = 0.0008
-TIGHT = 0.6 * PRELOAD  # tight: seated and turned on until the thread pulls it at least this far into its seat
+TIGHT_DEG = 16.0  # tight: seated, then turned on at least this far past where it first seated
+TIGHT = TIGHT_DEG / 360.0 * PITCH  # ... which the thread turns into a pull this far into its seat (0.6 mm)
 
 # -- the bin and the dish ---------------------------------------------------------------------------------------------
 BIN_C, BIN_IN, BIN_WALL = np.array([0.16, 0.0]), (0.120, 0.360), 0.035
@@ -88,7 +91,7 @@ RED, WHITE, GREEN, BLUE = (0.78, 0.10, 0.10), (0.92, 0.92, 0.92), (0.15, 0.65, 0
 YELLOW, DARK = (0.92, 0.78, 0.15), (0.05, 0.05, 0.05)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
-SEAT_XY, SEAT_Z, SEAT_TILT = 0.008, 0.004, 8.0  # the new propeller on the motor: hub this close, up within 8 degrees
+SEAT_XY, SEAT_Z, SEAT_TILT = 0.0015, 0.004, 8.0  # the new propeller on the boss: hub this close, up within 8 degrees
 HOME_WITHIN = 0.05
 SUCCESS_HOLD_S = 1.0
 
@@ -170,14 +173,18 @@ def _drone() -> Body:
 
 
 def _bell() -> Body:
-    """The rear motor's bell (it turns on the motor's bearings), with the centring spigot and the threaded shaft;
+    """The rear motor's bell (it turns on the motor's bearings), with the centring boss and the threaded shaft;
     origin on the axis at the bell's top face."""
     s = [CylShape((0.0, 0.0, -BELL_H / 2), BELL_R, BELL_H, MOTOR),
          CylShape((0.0, 0.0, -BELL_H + 0.004), BELL_R + 0.0005, 0.002, STEEL, collide=False),
          CylShape((0.0, 0.0, (BOSS_H - 0.003) / 2), SPIGOT_R, BOSS_H - 0.003, STEEL),
-         CylShape((0.0, 0.0, BOSS_H - 0.0015), SPIGOT_TIP, 0.003, STEEL),
+         CylShape((0.0, 0.0, BOSS_H - 0.0015), SPIGOT_R - CHAMFER - 0.001, 0.003, STEEL),
          CylShape((0.0, 0.0, (HUB_H + LEN_ENG) / 2), SHAFT_R, HUB_H + LEN_ENG, STEEL),
          CylShape((0.0, 0.0, HUB_H + LEN_ENG + 0.004), PILOT_R, 0.008, STEEL)]
+    for k in range(16):  # the boss's chamfer: bars sloping from its full radius to CHAMFER less over its top 3 mm
+        u = (math.cos(2 * math.pi * k / 16), math.sin(2 * math.pi * k / 16))
+        r0, r1 = SPIGOT_R - 0.001, SPIGOT_R - CHAMFER - 0.001  # bar centres: their outer faces 1 mm further out
+        s.append(segment((r0 * u[0], r0 * u[1], BOSS_H - 0.003), (r1 * u[0], r1 * u[1], BOSS_H - 0.0003), 0.002, STEEL))
     for k in range(4):  # the thread's grooves
         s.append(CylShape((0.0, 0.0, HUB_H + 0.0015 + k * 0.002), SHAFT_R + 0.0003, 0.0006, (0.45, 0.46, 0.48),
                           collide=False))
@@ -393,11 +400,11 @@ def _points(st) -> float:
 def score(objects) -> float:
     """Judged at the end, except "came off", which counts at any time. Came off: the nut was unscrewed off the end of
     the motor's thread at some point. 1.0: the nut came off, the chipped propeller lies in the blue bin, the new
-    propeller sits on the motor's spigot (its hub within 8 mm of the motor's axis and 4 mm of the bell's top, printed side
-    up within 8 degrees), the nut is screwed down on it and tight (seated within 0.8 mm and turned on until the thread
-    pulls it at least 0.6 mm into its seat), and both arms are back where they started (each gripper's fingertip
+    propeller sits on the motor's boss (its hub within 1.5 mm of the motor's axis and 4 mm of the bell's top, printed
+    side up within 8 degrees), the nut is screwed down on it and tight (seated within 0.8 mm, then turned on at least
+    16 degrees past where it first seated), and both arms are back where they started (each gripper's fingertip
     centre within 5 cm of its start); 0.5: the nut came off, the chipped propeller is in the bin, the new propeller sits
-    on the spigot and the nut has caught the thread; 0.25: the nut came off at some point; else 0.0."""
+    on the boss and the nut has caught the thread; 0.25: the nut came off at some point; else 0.0."""
     return _points(_status(objects))
 
 
@@ -591,7 +598,7 @@ def _right(t_left_holds: float, t_left_off: float, t_left_holds_new: float) -> t
             _w(0.6, h_s, FINGER_CLOSED, "take it", g),
             _w(1.0, h_s + [0.0, 0.0, 0.03], FINGER_CLOSED, "lift it off the stand", g),
             _w(2.2, h_m + [0.0, 0.0, LIFT_PROP], FINGER_CLOSED, "carry it over the motor", g),
-            _w(1.4, h_m + [0.0, 0.0, 0.003], FINGER_CLOSED, "set it on the motor's spigot", g),
+            _w(1.4, h_m + [0.0, 0.0, 0.003], FINGER_CLOSED, "set it on the motor's boss", g),
             _w(0.4, h_m + [0.0, 0.0, 0.003], FINGER_OPEN, "let go", g),
             _w(0.6, h_m + [0.0, 0.0, 0.05], FINGER_OPEN, "rise", g)]
     ev["new_set"] = _dur(out)

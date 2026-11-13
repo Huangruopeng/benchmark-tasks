@@ -1,15 +1,16 @@
-# Swap a drone's chipped propeller: hold the prop still while unscrewing its nut, then fit and tighten the new one
+# Replace a drone's chipped propeller with the new one and tighten its prop nut
 
 A quadcopter drone stands on its skids on the bench, its rear motor nearest the arms. That motor's orange propeller has
-a chipped blade. The propeller sits on the motor's bell, centred on a spigot, and is clamped down by a tall red prop
+a chipped blade. The propeller sits on the motor's bell, centred by its 24 mm hole on a 23 mm boss, and is clamped down by a tall red prop
 nut on the motor's threaded shaft. The motor is switched off and spins freely, so turning the nut alone just turns the
 nut, the propeller and the motor together. A new propeller of the same kind, printed side up, lies on a stand to the
 right; a blue bin for worn parts stands in front of the drone and a small steel parts dish to the right.
 
-The job: hold the chipped propeller still by a blade with one hand while the other unscrews the nut (anticlockwise)
-and lifts it off; put the chipped propeller in the blue bin; set the new propeller on the motor, printed side up,
-hold it still by a blade and screw the nut back on (clockwise) until it is tight; then take both arms back to where
-they started. The task is one task file,
+The instruction gives the goal: the new propeller on the motor, printed side up, its nut tight, the chipped one in the
+bin and both arms back. Done as in the demo: hold the chipped propeller still by a blade with one hand while the other
+unscrews the nut (anticlockwise) and lifts it off; put the chipped propeller in the blue bin; set the new propeller on
+the boss, printed side up, hold it still by a blade and screw the nut back on (clockwise) until it is tight; then take
+both arms back to where they started. The task is one task file,
 [`swap_a_drones_chipped_propeller_holding_the_prop_still.py`](swap_a_drones_chipped_propeller_holding_the_prop_still.py),
 for the `yam_arena` embodiment (scene, scoring and the scripted demo), plus [`bodykit.py`](bodykit.py), which it
 imports from the same folder.
@@ -34,14 +35,17 @@ motors not being serviced, with their propellers and nuts), the bin, the stand a
 of shapes from `bodykit.py`. The rear motor's bell, both propellers and the nut are rigid bodies.
 
 - **The motor:** the bell turns on a hinge (a `Hinge` from `bodykit.py`) about the motor's axis, with a light drag
-  (1e-4 N m per degree/s) for its bearings. The propeller is a loose part on its spigot: only friction under its hub
+  (1e-4 N m per degree/s) for its bearings. The propeller is a loose part on its boss (a 24 mm hole on a 23 mm boss, 0.5 mm of play; the boss's top edge is
+  chamfered as a lead-in): only friction under its hub
   and under the nut makes it turn the bell.
 - **The thread:** the nut sits on the shaft on a `Thread` joint from `bodykit.py` that keeps it on the shaft's axis
   and lets it slide along it, pulled by a spring (8,000 N/m, at most 4 N) toward a target. Turning on it is resisted
   by 0.15 N m s/rad of thread friction, which drags the free motor round with the nut. After every control step
   the task file measures how far the nut has turned against the bell and moves the target 13.5 mm per turn (a coarse
-  quick-release thread): anticlockwise lifts it, clockwise lowers it. A tight nut is pulled 1 mm (at most 1.5 mm)
-  below its seat, so it presses the hub down with 4 N. Turned anticlockwise until its bottom is 8 mm above the hub's
+  quick-release thread): anticlockwise lifts it, clockwise lowers it. Turned on past seating, the target goes below the seat, so
+  the nut presses the hub down (4 N at most): the score counts the nut tight once it has turned at least 16 degrees past
+  where it first seated (0.6 mm of target). This is the turn a paint line across nut and shaft shows in a real trial,
+  where the nut must also hold 0.5 N m on a torque screwdriver; the simulation does not model the torque itself. Turned anticlockwise until its bottom is 8 mm above the hub's
   top, the nut comes off the thread (the joint is switched off) and can be lifted away. Brought back over the shaft
   (within 8 mm of its axis, upright within 10 degrees, its bottom less than 7 mm above the hub's top), it catches the
   thread again. A nut just unscrewed must leave the shaft before it can catch again.
@@ -67,7 +71,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=swap_a_drones_chipped_propeller_holding_the_prop_still.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Replace the drone's chipped propeller with the new one on the stand. Hold the chipped propeller still by a blade with one hand while the other hand unscrews its red nut (anticlockwise) and lifts it off; put the chipped propeller in the blue bin; set the new propeller on the same motor, printed side up, then hold it still by a blade while you screw the nut back on (clockwise) until it is tight. Then take both arms back to where they started." \
+  --instruction "Replace the drone's chipped propeller with the new one from the stand, printed side up, with its nut tight; put the chipped propeller in the blue bin, then take both arms back to where they started." \
   --scorer task_score --max-steps 1300 --store-frames --log-dir ~/yam-eval/prop-dream
 ```
 
@@ -79,7 +83,7 @@ The scripted demo reaches full score:
    it up the thread. The nut comes off the thread; the right lifts it and sets it in the steel dish.
 3. The left lets go and draws back. The right takes the chipped propeller by its hub, lifts it off the shaft and drops
    it into the blue bin.
-4. The right takes the new propeller off its stand by its hub, carries it over the motor and sets it on the spigot;
+4. The right takes the new propeller off its stand by its hub, carries it over the motor and sets it on the boss;
    the left pinches its left blade.
 5. The right takes the nut from the dish, sets it over the shaft (it catches the thread) and screws it down in three
    strokes clockwise until it is tight.
@@ -88,7 +92,7 @@ The scripted demo reaches full score:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=swap_a_drones_chipped_propeller_holding_the_prop_still.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Replace the drone's chipped propeller with the new one on the stand. Hold the chipped propeller still by a blade with one hand while the other hand unscrews its red nut (anticlockwise) and lifts it off; put the chipped propeller in the blue bin; set the new propeller on the same motor, printed side up, then hold it still by a blade while you screw the nut back on (clockwise) until it is tight. Then take both arms back to where they started." \
+  --instruction "Replace the drone's chipped propeller with the new one from the stand, printed side up, with its nut tight; put the chipped propeller in the blue bin, then take both arms back to where they started." \
   --scorer task_score --max-steps 1300 --store-frames --log-dir ~/yam-eval/prop-demo
 ```
 
@@ -106,7 +110,7 @@ Set `PROP_DEBUG=1` to print what the score is built from twice a second:
 
 ## Runtime per trial
 
-On one RTX 5090: about 7 minutes for a Dream-1 trial of 1,300 steps (396 s on the clock, with Dream answering in 0.94 s on average), and about 5 minutes for the scripted demo (1,239 steps, 62.0 s of simulated time, 284 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 5 minutes for a Dream-1 trial of 1,300 steps (296 s on the clock, with Dream answering in 0.84 s on average), and about 3 minutes for the scripted demo (1,239 steps, 62.0 s of simulated time, 208 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
