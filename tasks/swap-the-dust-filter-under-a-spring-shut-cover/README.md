@@ -1,4 +1,4 @@
-# Swap a dust filter under a sprung cover: hold the cover open by its pedal while the other hand swaps the filter
+# Replace the dusty filter under a machine's spring-shut intake cover with the new filter
 
 A machine's air intake stands on the table: a fixed housing whose dust filter stands upright in a slot under a hinged
 cover. The cover is sprung shut; pressing down the pedal on its tail, which sticks out beyond the cover's hinge, swings
@@ -21,7 +21,7 @@ With one hand (the right doing its part as in the demo, the left never moving) t
 cover and both filters are loose rigid bodies made of shapes from `bodykit.py`.
 
 - The cover: one rigid plate with its pedal tail, on a hinge (a `Hinge` from `bodykit.py`) along the housing's left top
-  edge, up to 85 degrees open, with a spring that shuts it. Pressing the pedal down turns it up, like a pedal bin's lid.
+  edge, up to 88 degrees open, with a spring of 0.003 N m per degree (0.21 N m at 70 degrees) that shuts it. Pressing the pedal down turns it up, like a pedal bin's lid.
 - The filters: rigid panels with a tab on top; the slot and the holder hold them upright by rails at their ends.
 
 Importing `bodykit.py` hooks `yam_arena.scene` when the simulator starts, without changing yam_arena, gives `score()`
@@ -39,7 +39,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=swap_the_dust_filter_under_a_spring_shut_cover.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Swap the dust filter: with one hand press the pedal on the cover's tail down and keep it down, so the cover stays open; with the other lift the grey dirty filter out of its slot by its tab and drop it in the bin, then take the new white filter from its holder and lower it into the slot. Let the pedal up so the cover shuts, and take both arms back to where they started." \
+  --instruction "Replace the grey dusty filter in the machine's air intake with the new white filter, putting the old one in the bin. Leave the cover shut and take both arms back to where they started." \
   --scorer task_score --max-steps 1400 --store-frames --log-dir ~/yam-eval/filter-dream
 ```
 
@@ -52,7 +52,7 @@ springs shut. Both arms go back to where they started:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=swap_the_dust_filter_under_a_spring_shut_cover.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Swap the dust filter: with one hand press the pedal on the cover's tail down and keep it down, so the cover stays open; with the other lift the grey dirty filter out of its slot by its tab and drop it in the bin, then take the new white filter from its holder and lower it into the slot. Let the pedal up so the cover shuts, and take both arms back to where they started." \
+  --instruction "Replace the grey dusty filter in the machine's air intake with the new white filter, putting the old one in the bin. Leave the cover shut and take both arms back to where they started." \
   --scorer task_score --max-steps 1400 --store-frames --log-dir ~/yam-eval/filter-demo
 ```
 
@@ -68,7 +68,7 @@ TCP is from the pedal and the tabs.
 
 ## Runtime per trial
 
-On one RTX 5090: about 7 minutes for a Dream-1 trial of 1,400 steps (403 s on the clock, with Dream answering in 0.74 s on average), and about 2 minutes for the scripted demo (584 steps, 29.2 s of simulated time, 112 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 6 minutes for a Dream-1 trial of 1,400 steps (372 s on the clock, with Dream answering in 0.75 s on average), and about 3 minutes for the scripted demo (584 steps, 29.2 s of simulated time, 153 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
