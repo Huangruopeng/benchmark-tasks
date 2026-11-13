@@ -1,4 +1,4 @@
-# Change a robot's tool: hold a suction tool on its quick-change flange with one hand while the other locks the ring
+# Fit the blue suction-cup tool to a robot's manual quick-change flange and lock it on
 
 A robot arm, switched off for a tool change, reaches its wrist in low over the table, its tool flange facing the right
 arm. It has just parked its gripper tool in the aluminium tool rack beside it; in the rack's other slot waits a blue suction-cup
@@ -35,6 +35,24 @@ where they are put; the ring with its lever and the two tools are loose rigid bo
 Importing `bodykit.py` hooks `yam_arena.scene` when the simulator starts, without changing yam_arena, gives `score()`
 each body's own pose, and lets the task file act on the simulation after every control step.
 
+## Building it for a real trial
+
+The changer is of the manual locking-ring type used on small robots:
+
+- Robot side: a 64 mm steel flange on an ISO 9409-1-50-4-M6 wrist mount, with two 6 mm locating dowels in its face,
+  and a steel locking ring 88 mm across and 18 mm deep turning on it behind the face. The ring carries three internal
+  cam lugs at 120 degrees and the orange lever (11 cm toward the operator, then 6.3 cm along the flange's axis to a
+  45 x 30 mm rubber pad). A friction detent (about 0.1 N m) keeps the ring where it is left; it turns up to 35 degrees.
+- Tool side: a 60 mm, 8 mm thick steel plate with three lugs on its rim and two 6 mm holes for the dowels. With the
+  plate on the dowels and the ring open, turning the ring 25 degrees hooks its cam lugs over the plate's lugs and draws
+  the plate onto the face: the tool is locked and the wrist's light turns green. Turning it back below 15 degrees
+  releases it.
+- Tools: the blue suction-cup tool (120 g) and the grey two-finger gripper tool (140 g), each with a 16 mm square steel
+  handle on top, in an aluminium rack whose 1 cm lips hold them lying with their plates toward the flange.
+
+The simulation keeps the geometry and the lever operation but stands in for the dowels and cam lugs with a pose check
+and a fixed joint (see `task.json`'s fidelity).
+
 ## Run and score a trial
 
 The scorer is `task_score`: 1.0 when `success()` (full score, which includes both arms back where they started, with
@@ -48,7 +66,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=lock_a_tool_onto_a_robots_quick_change_flange.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Change the robot's tool to the blue suction-cup tool: with one hand take it from the rack by its handle and hold its plate flat against the robot's tool flange; with the other press the locking ring's lever down until the light on the robot turns green; then let go of both, leaving the tool hanging on the robot, and take both arms back to where they started." \
+  --instruction "Fit the blue suction-cup tool to the robot's tool flange and lock it on, leaving the gripper tool in the rack. Then let go of everything, with the tool hanging locked on the robot, and take both arms back to where they started." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/flange-dream
 ```
 
@@ -61,7 +79,7 @@ hanging on the robot, and both arms go back to where they started:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=lock_a_tool_onto_a_robots_quick_change_flange.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Change the robot's tool to the blue suction-cup tool: with one hand take it from the rack by its handle and hold its plate flat against the robot's tool flange; with the other press the locking ring's lever down until the light on the robot turns green; then let go of both, leaving the tool hanging on the robot, and take both arms back to where they started." \
+  --instruction "Fit the blue suction-cup tool to the robot's tool flange and lock it on, leaving the gripper tool in the rack. Then let go of everything, with the tool hanging locked on the robot, and take both arms back to where they started." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/flange-demo
 ```
 
@@ -78,7 +96,7 @@ tool's handle and the lever's pad.
 
 ## Runtime per trial
 
-On one RTX 5090: about 2 minutes for a Dream-1 trial of 1,200 steps (141 s on the clock, with Dream answering in 0.65 s on average), and about 1 minute for the scripted demo (394 steps, 19.7 s of simulated time, 87 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (180 s on the clock, with Dream answering in 0.69 s on average), and about 1 minute for the scripted demo (394 steps, 19.7 s of simulated time, 69 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
