@@ -38,7 +38,7 @@ TOP = TABLE_TOP[SCENE]
 # arms), y left --------------------------------------------------------------------------------------------------------
 BX, BY = 0.30, 0.0
 AXIS_Z = 0.045  # the barrel's axis above the table
-BAR_RI, BAR_T, BAR_L = 0.0065, 0.0015, 0.016  # the terminal's barrel: 13 mm inside, 16 mm long, its mouth at x = 0
+BAR_RI, BAR_T, BAR_L = 0.003, 0.0015, 0.016  # a 16 mm2 tube lug's barrel: 6 mm inside, 16 mm long, mouth at x = 0
 FLARE_L, FLARE_R = 0.008, 0.010  # a lead-in in front of the mouth, 2 cm wide at its front
 PIVOT = np.array([0.005, 0.065, AXIS_Z + 0.019])  # the lever's hinge, along x, left of the barrel
 ARM_X, ARM_Z = 0.024, 0.016  # the lever arm's cross-section
@@ -50,7 +50,7 @@ SPRING_TO, SPRING = -20.0, 0.06  # its spring pulls it toward -20 degrees, so it
 CLOSED_WITHIN = 1.5  # degrees: closed this far, the lever crimps
 
 # -- the cable; its frame: origin at the tip of the stripped end, the cable along -x --------------------------------
-STRIP_L, STRIP_R = 0.012, 0.003  # the bare copper end
+STRIP_L, STRIP_R = 0.016, 0.0025  # the bare end: 16 mm2 stranded copper, 5 mm across, stripped to the barrel's length
 CABLE_L, CABLE_R = 0.16, 0.004
 CABLE_MASS = 0.03
 REST_Y = 0.12  # the cable's rest, left of the crimper
@@ -61,11 +61,11 @@ COPPER, BLACK, RED, STEEL, DARK = (0.80, 0.50, 0.25), (0.08, 0.08, 0.09), (0.75,
     (0.20, 0.21, 0.23)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
-# a good crimp: the bare end this far into the barrel (at least half its 12 mm in, at most 2 mm of insulation) and
-# the cable within this angle of the barrel's axis
-DEPTH = (0.006, 0.014)
+# a good crimp: the bare end this far into the barrel (at least 13 of its 16 mm in: the insulation, too wide for the
+# barrel, meets the lead-in within 3 mm of its mouth) and the cable within this angle of the barrel's axis
+DEPTH = (0.013, 0.0165)
 ALIGN_DEG = 8.0
-INSERTED = 0.006
+INSERTED = 0.008
 RELEASED_DEG = 10.0  # the lever back open at least this far
 LET_GO = 0.04
 OUT = 0.04  # the cable's tip this far from the barrel's mouth: taken out of the crimper
@@ -88,7 +88,7 @@ def _crimper() -> Body:
         r1 = FLARE_R + BAR_T / 2
         shapes.append(plate((0.0, r * u[1], AXIS_Z + r * u[2]), (-FLARE_L, r1 * u[1], AXIS_Z + r1 * u[2]),
                             2 * r1 * math.tan(math.pi / n) + 0.001, BAR_T, u, STEEL))
-    return Body.build("crimper", pos=(BX, BY, TOP), mass=1.0, shapes=shapes, kinematic=True, friction=(0.6, 0.5),
+    return Body.build("crimper", pos=(BX, BY, TOP), mass=1.0, shapes=shapes, kinematic=True, friction=(0.25, 0.2), slick=True,
                       color=DARK)
 
 
@@ -113,7 +113,7 @@ HIDE = np.array([BX, BY + 0.05, TOP - 0.03])  # under the table
 
 def _terminal() -> Body:
     return Body.build("terminal", pos=tuple(TERM_AT.tolist()), mass=0.01, shapes=_terminal_shapes(BAR_RI, True),
-                      kinematic=True, friction=(0.6, 0.5), color=COPPER)
+                      kinematic=True, friction=(0.3, 0.25), slick=True, color=COPPER)  # tinned copper, smooth inside
 
 
 def _crimped() -> Body:
@@ -289,10 +289,10 @@ def _points(st) -> float:
 
 
 def score(objects) -> float:
-    """1.0 for a good crimp (the bare end 6 to 14 mm into the barrel and the cable within 8 degrees of its axis when
+    """1.0 for a good crimp (the bare end 13 to 16.5 mm into the barrel and the cable within 8 degrees of its axis when
     the lever closed) with the lever let go and back open, the cable taken out of the crimper with the terminal on it
     (its tip at least 4 cm from where the barrel's mouth was) and laid back on its rest, and both arms back where they
-    started; 0.5 for any crimp with the bare end in the barrel; 0.25 if the end was pushed at least 6 mm into the barrel
+    started; 0.5 for any crimp with the bare end in the barrel; 0.25 if the end was pushed at least 8 mm into the barrel
     at some point; else 0.0."""
     pts = _points(_status())
     if pts >= 1.0 and not (_on_rest(objects) and _arms_home()):
@@ -342,7 +342,7 @@ def success(objects) -> bool:
 GRIP_L = grip_rotation(0.0)  # straight down, fingers closing along y (across the cable, which runs along x)
 GRIP_R = grip_rotation(0.0)  # straight down, fingers closed, pressing the grip
 HOLD_AT = 0.055  # the left TCP this far back from the cable's tip
-IN_DEPTH = 0.010
+IN_DEPTH = 0.019  # aim 3 mm past full depth: the insulation stops the cable at the barrel's mouth
 PRESS = 0.015  # aim this far below the closed lever's grip (the arm gives; the spring pushes back about 5 N)
 SAG = 0.006  # the held cable hangs this far below the left TCP (the jaw pushes it toward the fingertips): aim above
 LEAD_S, LEAD_STEPS = 3.0, 15
@@ -398,7 +398,7 @@ def _left() -> tuple[list[Waypoint], float]:
             _w(0.8, pick, FINGER_CLOSED, "grip it", GRIP_L),
             _w(0.8, pick + [0.0, 0.0, 0.02], FINGER_CLOSED, "lift it off the rest", GRIP_L),
             _w(1.5, front, FINGER_CLOSED, "line it up with the barrel, 2 cm in front of the mouth", GRIP_L),
-            _w(1.5, held, FINGER_CLOSED, "push the bare end straight in, 1 cm deep", GRIP_L)]
+            _w(1.5, held, FINGER_CLOSED, "push the bare end straight in until the insulation meets the barrel", GRIP_L)]
     return out, sum(w.duration for w in out)
 
 
