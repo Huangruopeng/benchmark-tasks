@@ -53,6 +53,10 @@ F_MAX, F_SIDE, GAP0 = 20.0, 3.0, 0.008
 OFF = 0.02  # its rim this far from the plate: it is off
 BACK = 0.004  # once off, back within this: it has snapped back
 CLEAR = 0.05  # set down with its rim at least this far from the plate
+# Slid off, not peeled: while most of its face is still over the plate (share OVER_PEEL or more), lifting its face
+# PEEL_UP off the plate or tipping it PEEL_TILT degrees is peeling or prying it off: no credit at all. It may come away
+# only once slid to the edge, its face no more than EDGE_SHARE over the plate.
+OVER_PEEL, PEEL_UP, PEEL_TILT, EDGE_SHARE = 0.4, 0.003, 12.0, 0.5
 STEEL, DARK, RED, GREY = (0.62, 0.63, 0.66), (0.16, 0.16, 0.18), (0.80, 0.15, 0.12), (0.45, 0.46, 0.48)
 
 # -- a small steel nail on the table, right of the plate: brought within PICK of the magnet's face (once the magnet is
@@ -101,7 +105,7 @@ glue("nail_on", "magnet", "nail", anchor=tuple(NAIL0.tolist()))  # off until the
 
 def _fresh() -> dict:
     return {"off": False, "snapped": False, "best_slide": 0.0, "tcps": None, "gap": 0.0, "nail_on": False,
-            "nail_up": 0.0}
+            "nail_up": 0.0, "peeled": False, "at_edge": False, "max_tilt_on": 0.0, "max_up_on": 0.0}
 
 
 _EP = _fresh()
@@ -206,6 +210,14 @@ def _follow(env) -> None:
     _EP["gap"] = gap
     slide = float(abs((p_rot.T @ (m_pos - p_pos))[1] - (MY0 - PY)))
     _EP["best_slide"] = max(_EP["best_slide"], slide)
+    tilt = math.degrees(math.acos(max(-1.0, min(1.0, float(m_rot[:, 2] @ p_rot[:, 2])))))
+    if over >= OVER_PEEL and not _EP["off"]:  # most of its face still over the plate: it must stay flat on it
+        _EP["max_tilt_on"] = max(_EP["max_tilt_on"], tilt)
+        _EP["max_up_on"] = max(_EP["max_up_on"], up)
+        if up >= PEEL_UP or tilt >= PEEL_TILT:
+            _EP["peeled"] = True  # lifted or tipped off the face: peeled or pried, not slid
+    if over <= EDGE_SHARE and up < PEEL_UP and tilt < PEEL_TILT:
+        _EP["at_edge"] = True  # slid flat to the plate's edge
     if gap >= OFF:
         _EP["off"] = True
     elif _EP["off"] and gap <= BACK:
@@ -226,6 +238,7 @@ def _follow(env) -> None:
             tl, tr = _EP["tcps"]
             print(f"[mag] t={_DEBUG['steps'] / 20:5.1f}s plate={np.round(p_pos * 1000).astype(int).tolist()} "
                   f"magnet={np.round(m_pos * 1000).astype(int).tolist()} gap={gap * 1000:6.1f}mm pull={np.linalg.norm(f):5.2f}N "
+                  f"peeled={_EP['peeled']} at_edge={_EP['at_edge']} tilt_on={_EP['max_tilt_on']:4.1f} up_on={_EP['max_up_on'] * 1000:4.1f}mm "
                   f"off={_EP['off']} snapped={_EP['snapped']} let_go={st['let_go']} nail_on={_EP['nail_on']} "
                   f"nail_up={_EP['nail_up'] * 1000:5.1f}mm nail-face={np.round((n_pos - face) * 1000).astype(int).tolist()} "
                   f"left TCP={np.round(tl * 1000).astype(int).tolist()} "
@@ -239,6 +252,7 @@ def _status_from(m_pos, gap) -> dict:
     let_go = _EP["tcps"] is None or all(float(np.linalg.norm(t - (np.asarray(m_pos) + [0.0, 0.0, 0.02]))) >= LET_GO
                                         for t in _EP["tcps"])
     return {"gap": gap, "off": _EP["off"], "snapped": _EP["snapped"], "let_go": let_go,
+            "peeled": _EP["peeled"], "at_edge": _EP["at_edge"],
             "slid": _EP["best_slide"] >= SLID, "nail": _EP["nail_on"] and _EP["nail_up"] >= NAIL_UP}
 
 
@@ -249,8 +263,10 @@ def _status(objects) -> dict:
 
 
 def _points(st) -> float:
-    if st["snapped"]:
+    if st["snapped"] or st["peeled"]:
         return 0.0
+    if not st["at_edge"]:  # it came away without first being slid flat to the plate's edge
+        return 0.25 if st["slid"] and not st["off"] else 0.0
     if st["gap"] >= CLEAR and st["nail"]:
         return 1.0
     if st["gap"] >= OFF:
@@ -259,7 +275,9 @@ def _points(st) -> float:
 
 
 def score(objects) -> float:
-    """0.0 if the magnet, once off the plate, came back onto it (snapped back). Otherwise 1.0 with it at least 5 cm from
+    """0.0 if the magnet, once off the plate, came back onto it (snapped back), or if it was peeled or pried off: while
+    at least 40 % of its face was over the plate, its face lifted 3 mm off the plate or it tipped 12 degrees. Credit
+    for being off needs it slid flat to the plate's edge first (at most half its face over the plate). Otherwise 1.0 with it at least 5 cm from
     the plate and the nail picked up on it (at least 3 cm off the table), the plate let go (both TCPs at least 3 cm from
     it) and the other arm back where it started; 0.5 with it off the plate (at least 2 cm from it at the end); 0.25 if
     it was slid at least 2 cm along the plate at some point; else 0.0."""

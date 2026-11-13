@@ -1,4 +1,4 @@
-# Hold a steel plate down with one hand while the other slides a strong magnet off it, then pick up a nail with the magnet
+# Slide a strong magnet off a steel plate's end without it snapping back, then pick up a nail with it
 
 A strong pot magnet clings to a thin steel plate lying on the table. One hand presses the plate down; the other takes
 the magnet by its knob, slides it along the plate and off its end (it holds far too hard to lift straight off) and
@@ -48,7 +48,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=slide_a_strong_magnet_off_a_steel_plate_without_it_snapping_back.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Hold the steel plate down with one hand, and with the other slide the magnet off the plate's end by its knob and carry it well clear of the plate, without letting it snap back; then let go of the plate, pick up the steel nail on the table with the magnet and hold it up." \
+  --instruction "Take the pot magnet off the steel plate by sliding it flat off the plate's end (do not tip, pry or lift it off the face) and get it well clear without letting it snap back onto the plate. Then pick up the steel nail on the table with the magnet and hold it up, with the plate let go and the arm not holding the magnet back where it started." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/magnet-dream
 ```
 
@@ -61,7 +61,7 @@ it and turns it a quarter turn, the nail stuck on it:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=slide_a_strong_magnet_off_a_steel_plate_without_it_snapping_back.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Hold the steel plate down with one hand, and with the other slide the magnet off the plate's end by its knob and carry it well clear of the plate, without letting it snap back; then let go of the plate, pick up the steel nail on the table with the magnet and hold it up." \
+  --instruction "Take the pot magnet off the steel plate by sliding it flat off the plate's end (do not tip, pry or lift it off the face) and get it well clear without letting it snap back onto the plate. Then pick up the steel nail on the table with the magnet and hold it up, with the plate let go and the arm not holding the magnet back where it started." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/magnet-demo
 ```
 
@@ -77,8 +77,15 @@ how high, and where each gripper's TCP is) twice a second.
 
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (177 s on the clock, with Dream answering in 0.82 s on average), and about 1 minute for the scripted demo (436 steps, 21.8 s of simulated time, 61 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 6 minutes for a Dream-1 trial of 1,200 steps (385 s on the clock, with Dream answering in 0.74 s on average), and about 2 minutes for the scripted demo (436 steps, 21.8 s of simulated time, 121 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
 None needed: with `-E object_jitter=0` the layout is fixed, and the scripted demo follows fixed waypoints.
+
+## Changes in this revision
+
+- Peeling, prying or lifting the magnet straight off now earns nothing. While at least 40% of its face is over the
+  plate, its face lifting 3 mm off the plate or the magnet tipping 12 degrees latches a score of 0. Credit for getting
+  it off needs it first slid flat to the plate's end, with at most half its face over the plate.
+- The instruction states only the goal and its constraints; the category is Other.
