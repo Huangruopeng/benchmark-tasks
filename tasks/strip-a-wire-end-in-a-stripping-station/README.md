@@ -1,4 +1,4 @@
-# Strip 10 mm off a cable in a benchtop stripper, one hand working the cable and the other holding the blades shut
+# Strip 10 mm of insulation off a cable end in a lever-operated benchtop stripping station
 
 A steel benchtop wire-stripping station stands on the table: a block with a hole in its top, whose blades close round
 whatever is in the hole while its lever is held down. A short PVC-insulated cable with a plastic plug on one end stands upright in a holder
@@ -44,7 +44,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=strip_a_wire_end_in_a_stripping_station.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Take the cable by its plug and put its free end down into the stripping station's hole, 10 mm deep; with the other hand press the station's lever down and keep it down while the first hand pulls the cable straight back out; then let the lever up." \
+  --instruction "Strip 10 mm of insulation off the cable's free end in the stripping station, then let the station's lever back up and take your hands off it." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/strip-dream
 ```
 
@@ -56,7 +56,7 @@ it while the left pulls the cable straight up out of the hole. Then the right ri
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=strip_a_wire_end_in_a_stripping_station.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Take the cable by its plug and put its free end down into the stripping station's hole, 10 mm deep; with the other hand press the station's lever down and keep it down while the first hand pulls the cable straight back out; then let the lever up." \
+  --instruction "Strip 10 mm of insulation off the cable's free end in the stripping station, then let the station's lever back up and take your hands off it." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/strip-demo
 ```
 
@@ -72,7 +72,7 @@ is from the cable's end and from the lever's grip) twice a second.
 
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (180 s on the clock, with Dream answering in 0.91 s on average), and about 2 minutes for the scripted demo (514 steps, 25.7 s of simulated time, 105 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 4 minutes for a Dream-1 trial of 1,200 steps (260 s on the clock, with Dream answering in 0.68 s on average), and about 2 minutes for the scripted demo (514 steps, 25.7 s of simulated time, 147 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 

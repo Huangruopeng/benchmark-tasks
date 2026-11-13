@@ -43,7 +43,7 @@ ARM_X, ARM_Z = 0.024, 0.016
 ARM_END = -0.225  # the lever's arm reaches this far along y from the hinge (to the right)
 HANDLE_Y = -0.20  # the middle of its rubber grip, from the hinge: 23 cm right of the hole
 OPEN_DEG = 12.0
-SPRING_TO, SPRING = -20.0, 0.06  # pulled toward -20 degrees, so it rests on its open stop (about 5 N to hold it down)
+SPRING_TO, SPRING = -20.0, 0.06  # pulled toward -20 degrees, so it rests on its open stop (about 6 N at the grip to hold it down)
 CLOSED_WITHIN = 1.5  # degrees: the blades are closed
 OPENED = 4.0  # degrees: let up this far, they let go
 
