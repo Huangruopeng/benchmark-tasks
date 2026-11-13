@@ -1,7 +1,8 @@
-# Hold a portafilter level with one hand while the other tamps the coffee, then lock it into the espresso machine
+# Tamp the coffee in a portafilter level with a tamper, then lock the portafilter into an espresso machine's group head
 
 A portafilter filled with loose ground coffee rests on the counter, tipped on its spout and the end of its handle, in
-front of an espresso machine. One hand lifts the handle until the basket is level, its spout still on the counter, and
+front of an espresso machine. The instruction states only the goal: the coffee tamped level with the tamper, the
+portafilter locked in the group head. In the demo one hand lifts the handle until the basket is level, its spout still on the counter, and
 holds it there while the other hand presses the coffee down with a tamper. Then the portafilter goes up into the
 machine's group head, its two ears past the head's lips, and a turn of the handle sets the ears on the lips; both hands
 let go and the portafilter hangs locked in the head. The task is one task file,
@@ -20,6 +21,11 @@ tamper are rigid bodies made of several shapes from `bodykit.py`; the machine is
 - The ground coffee is a disc filling the basket, on a slider joint (a `Thread` from `bodykit.py`, switched on from
   the start) down the basket's axis. A spring holds it where it was last pressed: pressed more than 1 mm deeper, it
   stays there (springing back 1 mm when the tamper lifts). It never collides with the basket or the machine.
+- Tamping is credited only to the tamper: after every control step the task file checks where the tamper's base is
+  in the portafilter's frame, and counts the coffee's travel as tamped only while the base is on the coffee (centre
+  within 7 mm of the axis, underside within 4 mm of the coffee's surface) and the portafilter has not yet gone into
+  the group head (basket within 3 cm of the head's axis). Pressing the coffee with a gripper, or letting the head's
+  boss compress it, earns nothing; the tamper's tilt against the basket while it pressed must stay within 5 degrees.
 - The group head is a bayonet: two lips at its bottom with open sides between them, a ceiling above, and a stepped
   boss under the ceiling that goes into the basket's rim and centres it. The portafilter's ears pass up at the open
   sides; turned, they come over the lips, and let go, the portafilter hangs on them. The head is polished (low
@@ -42,7 +48,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=tamp_coffee_and_lock_the_portafilter.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Hold the portafilter level by its handle with one hand while the other tamps the ground coffee in its basket with the tamper. Then lock the portafilter into the espresso machine's group head: push it up into the head with its ears at the open sides and turn the handle toward you, then let go." \
+  --instruction "Tamp the ground coffee in the portafilter level with the tamper, then lock the portafilter into the espresso machine's group head, ready to brew, and let go of it." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/coffee-dream
 ```
 
@@ -55,7 +61,7 @@ head's axis, lets go and backs away:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=tamp_coffee_and_lock_the_portafilter.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Hold the portafilter level by its handle with one hand while the other tamps the ground coffee in its basket with the tamper. Then lock the portafilter into the espresso machine's group head: push it up into the head with its ears at the open sides and turn the handle toward you, then let go." \
+  --instruction "Tamp the ground coffee in the portafilter level with the tamper, then lock the portafilter into the espresso machine's group head, ready to brew, and let go of it." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/coffee-demo
 ```
 
@@ -66,12 +72,13 @@ for log in ~/yam-eval/coffee-dream/*.json; do inspect-robots video "$log"; done
 ```
 
 Set `COFFEE_DEBUG=1` to print what the score is built from (where the portafilter is and how tipped, how far the
-coffee is pressed and how level the basket was while it was pressed, where each gripper's TCP is, the handle's turn,
+coffee is pressed and how much of that the tamper did, whether the tamper is on the coffee and how square it is, how
+level the basket was while it was pressed, whether the portafilter has gone into the head, where each gripper's TCP is, the handle's turn,
 whether the portafilter is in the head and locked, and whether both hands have let go) twice a second.
 
 ## Runtime per trial
 
-On one RTX 5090: about 2 minutes for a Dream-1 trial of 1,200 steps (150 s on the clock, with Dream answering in 0.81 s on average), and about 1 minute for the scripted demo (574 steps, 28.7 s of simulated time, 75 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (165 s on the clock, with Dream answering in 0.69 s on average), and about 3 minutes for the scripted demo (574 steps, 28.7 s of simulated time, 158 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 

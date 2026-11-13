@@ -2,10 +2,11 @@
 of it, a portafilter (a basket filled level with loose ground coffee, a spout under it and a long handle) rests on its
 spout and on the end of its handle, tipped about 8 degrees; a tamper stands to the right.
 
-Task: hold the portafilter level by its handle with one hand while the other tamps the coffee down; then lock the
-portafilter into the group head (ears up past the head's two lips, a turn of the handle so that they rest on them) and
-let go. Resting on the counter, the basket is tipped, and a tamp is only good if it is pressed square into a level
-basket: one hand has to lift the handle and hold the basket level, on its spout, while the other presses the tamper.
+Task: tamp the coffee level with the tamper, then lock the portafilter into the group head (ears up past the head's
+two lips, a turn of the handle so that they rest on them) and let go. Resting on the counter, the basket is tipped,
+and a tamp is only good if it is pressed square into a level basket: the basket has to be held level while the
+tamper presses. Only pressing done by the tamper's base, square to the basket and before the portafilter goes into
+the group head, counts as tamping.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=tamp_coffee_and_lock_the_portafilter.py \\
            --instruction "..." --scorer task_score ...
@@ -72,7 +73,11 @@ STEEL, CHROME, BLACK, WOOD, COFFEE, HANDLE_C = (0.70, 0.71, 0.74), (0.80, 0.81, 
     (0.50, 0.33, 0.18), (0.30, 0.18, 0.10), (0.10, 0.10, 0.11)
 
 # -- scoring --------------------------------------------------------------------------------------------------------
-DEPTH_TAMPED = 0.006  # pressed at least 6 mm down
+DEPTH_TAMPED = 0.006  # pressed at least 6 mm down by the tamper
+TAMP_OFF = 0.007  # the tamper's base centre within this of the basket's axis (it is 8 mm narrower than the basket)
+TAMP_GAP = 0.004  # ... its underside within this of the coffee's surface (or pressing into it)
+TAMP_SQUARE = math.radians(5.0)  # ... and its axis within this of the basket's
+HEAD_NEAR = 0.03  # the portafilter has gone into the group head once its basket's axis is this close to the head's
 LEVEL_TILT = math.radians(5.0)  # the basket within 5 degrees of level whenever the coffee was being pressed down
 LOCK_TURN = (35.0, 60.0)  # degrees the handle is turned from where the ears pass up: the ears over the lips
 LOCK_OFF, LOCK_TILT = 0.006, math.radians(8.0)
@@ -167,7 +172,7 @@ thread("bed", "portafilter", "coffee", anchor0=(0.0, 0.0, BED_START), axis0=(0.0
 # and where the grippers are ---------------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"tcps": None, "set": 0.0, "depth": 0.0, "tilt": 0.0}
+    return {"tcps": None, "set": 0.0, "depth": 0.0, "tilt": 0.0, "tamped": 0.0, "square": True, "in_head_once": False}
 
 
 _EP = _fresh()
@@ -211,8 +216,20 @@ def _follow(env) -> None:
     b = as_numpy(base.scene["coffee"].data.root_link_pose_w)[0]
     pr = rotation(p[3:7])
     depth = _depth(p[:3] - origin, pr, b[:3] - origin)
+    pf_pos = p[:3] - origin
+    if math.hypot(pf_pos[0] - HX, pf_pos[1] - HY) <= HEAD_NEAR and pf_pos[2] >= Z0 - 0.02:
+        _EP["in_head_once"] = True  # gone (at least part way) into the group head: no tamping after this
+    t = as_numpy(base.scene["tamper"].data.root_link_pose_w)[0]
+    tq = pr.T @ (t[:3] - origin - pf_pos)  # the tamper base's underside centre, in the portafilter's frame
+    t_axis = rotation(t[3:7])[:, 2]
+    square = math.acos(max(-1.0, min(1.0, float(t_axis @ pr[:, 2]))))
+    tamper_on = (math.hypot(tq[0], tq[1]) <= TAMP_OFF and float(tq[2]) <= -max(_EP["depth"], depth) + TAMP_GAP
+                 and not _EP["in_head_once"])
     if depth > _EP["depth"] + 0.0002 and depth > 0.001:  # being pressed down: how level is the basket?
         _EP["tilt"] = max(_EP["tilt"], _tilt(pr))
+        if tamper_on:  # pressed by the tamper's base: tamping; was it square to the basket?
+            _EP["tamped"] = max(_EP["tamped"], depth)
+            _EP["square"] = _EP["square"] and square <= TAMP_SQUARE
     _EP["depth"] = max(_EP["depth"], depth)
     if depth > _EP["set"] + BED_SET:  # pressed further: it stays there (springing back by BED_SET)
         _EP["set"] = depth - BED_SET
@@ -225,7 +242,9 @@ def _follow(env) -> None:
             tl, tr = _EP["tcps"]
             grip = p[:3] - origin + pr @ np.array([0.0, GRIP_Y, HANDLE_Z])
             tb = pr.T @ (t[:3] - origin - (p[:3] - origin))  # the tamper's underside in the portafilter's frame
-            print(f"[coffee] t={_DEBUG['steps'] / 20:5.1f}s pf={np.round((p[:3] - origin) * 1000).astype(int).tolist()} "
+            print(f"[coffee] t={_DEBUG['steps'] / 20:5.1f}s tamped={_EP['tamped'] * 1000:4.1f}mm square={_EP['square']} "
+                  f"head={_EP['in_head_once']} tamper_on={tamper_on} sq={math.degrees(square):4.1f} "
+                  f"pf={np.round((p[:3] - origin) * 1000).astype(int).tolist()} "
                   f"tamper in pf={np.round(tb * 1000).astype(int).tolist()} "
                   f"tilt={math.degrees(_tilt(pr)):4.1f} (handle {math.degrees(math.asin(pr[2, 1])):+4.1f}) depth={depth * 1000:4.1f}mm (max {_EP['depth'] * 1000:4.1f}, "
                   f"tilt while pressed {math.degrees(_EP['tilt']):4.1f}) left TCP-grip="
@@ -255,8 +274,8 @@ def _status_from(pf_pos, pf_rot, bed_pos) -> dict:
             v = np.asarray(t, float) - a
             s = float(np.clip(v @ d, 0.0, HANDLE_L))
             let_go &= float(np.linalg.norm(v - s * d)) >= LET_GO and float(np.linalg.norm(t - pf_pos)) >= LET_GO
-    return {"depth": depth, "level": _EP["tilt"] <= LEVEL_TILT, "turn": turn, "in_head": in_head, "locked": locked,
-            "let_go": let_go}
+    return {"depth": depth, "tamped": _EP["tamped"], "level": _EP["tilt"] <= LEVEL_TILT and _EP["square"],
+            "turn": turn, "in_head": in_head, "locked": locked, "let_go": let_go}
 
 
 def _status(objects) -> dict:
@@ -265,7 +284,7 @@ def _status(objects) -> dict:
 
 
 def _points(st) -> float:
-    tamped = st["depth"] >= DEPTH_TAMPED
+    tamped = st["tamped"] >= DEPTH_TAMPED
     if tamped and st["level"] and st["locked"] and st["let_go"]:
         return 1.0
     if tamped and st["level"]:
@@ -274,9 +293,12 @@ def _points(st) -> float:
 
 
 def score(objects) -> float:
-    """1.0 with the coffee tamped at least 7 mm down, the basket within 5 degrees of level all the while it was being
-    pressed, the portafilter locked in the group head (ears over the lips) and both grippers let go; 0.5 with the
-    coffee tamped that far with the basket level; 0.25 with it tamped that far; else 0.0."""
+    """Tamped: the coffee pressed at least 6 mm down by the tamper, counting only pressing done with the tamper's base
+    on the coffee (its centre within 7 mm of the basket's axis, its underside within 4 mm of the coffee's surface)
+    before the portafilter has gone into the group head (its basket within 3 cm of the head's axis). Level: the
+    basket within 5 degrees of level whenever the coffee was being pressed down, and the tamper within 5 degrees of
+    square to the basket while it pressed. 1.0 with the coffee tamped, level, the portafilter locked in the group
+    head (ears over the lips) and both grippers let go; 0.5 tamped and level; 0.25 tamped; else 0.0."""
     return _points(_status(objects))
 
 
