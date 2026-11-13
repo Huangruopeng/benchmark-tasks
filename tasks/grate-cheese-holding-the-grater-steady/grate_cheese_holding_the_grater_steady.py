@@ -1,9 +1,10 @@
 """On the station table, a box grater stands on a cutting board, its grating face toward the right arm and a flat
 handle reaching left from its top; a block of cheese lies on the board to its right.
 
-Task: grate the cheese: hold the grater by its handle with one hand, and with the other rub the cheese up and down its
-grating face, pressed against it, so that the shreds fall inside the grater onto the board. The grater is light and
-tall: pressed from the side, unheld, it slides away or tips over.
+Task: grate the cheese onto the board on the box grater, put the cheese down, leave the grater standing on the board
+and take both arms home. The grater is light and tall: rubbed on its face unheld, it slides away or tips over, so one
+hand holds it by its handle while the other rubs the cheese up and down its grating face. Scored by how far the cheese
+is rubbed along the face (cumulative travel), which a real trial measures from video the same way.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=grate_cheese_holding_the_grater_steady.py \\
            --instruction "..." --scorer task_score ...
@@ -61,7 +62,7 @@ DRAG_K, DRAG_MAX = 60.0, 4.0  # the teeth bite: rubbing drags the grater along t
 # most N); an upstroke tips an unheld grater over
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
-FULL, HALF, SOME = 9, 5, 1  # shreds on the board
+FULL, HALF, SOME = 0.18, 0.10, 0.02  # m of cumulative rubbing along the face (one shred per 2 cm: 9, 5, 1 shreds)
 UPRIGHT = math.radians(20.0)
 SUCCESS_HOLD_S = 1.0
 HOME_WITHIN = 0.05  # each TCP this close to where it started: the arms are back home
@@ -219,28 +220,41 @@ def _follow(env) -> None:
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def _count(shreds, g_rot) -> int:
-    """Shreds lying on the board (fallen out of the grater or still inside it)."""
+    """Shreds lying on the board (fallen out of the grater or still inside it); for the debug print only."""
     return int(sum(abs(p[0] - BX) < BOARD[0] / 2 and abs(p[1] - BY) < BOARD[1] / 2 and p[2] < BOARD_TOP + 0.02
                    for p in shreds))
 
 
 def _points(shreds, g_rot) -> float:
-    n = _count(shreds, g_rot)
-    upright = math.acos(max(-1.0, min(1.0, float(g_rot[2, 2])))) < UPRIGHT
-    if n >= FULL and upright:
+    """By the cumulative rubbing along the face (counted only with the cheese's end on the face and the grater
+    standing): 1.0-tier at 18 cm, 0.5 at 10 cm, 0.25 at 2 cm."""
+    r = float(_EP.get("rubbed", 0.0))
+    if r >= FULL - 1e-9:
         return 1.0
-    if n >= HALF:
+    if r >= HALF - 1e-9:
         return 0.5
-    return 0.25 if n >= SOME else 0.0
+    return 0.25 if r >= SOME - 1e-9 else 0.0
+
+
+def _grater_standing(objects) -> bool:
+    """The grater standing on the board: within 20 degrees of upright, its foot on the board inside its edges."""
+    g = objects["grater"]
+    rot = rotation(g.quat_xyzw)
+    up = math.acos(max(-1.0, min(1.0, float(rot[2, 2])))) < UPRIGHT
+    p = g.pos
+    on = (abs(p[0] - BX) < BOARD[0] / 2 - G_X / 2 and abs(p[1] - BY) < BOARD[1] / 2 - G_Y / 2
+          and abs(p[2] - BOARD_TOP) < 0.01)
+    return bool(up and on)
 
 
 def score(objects) -> float:
-    """1.0 with at least 9 shreds of cheese on the board and the grater standing, the cheese put down and both arms back
-    where they started; 0.5 with at least 5 shreds; 0.25 with at least 1; else 0.0. (A shred falls inside the grater
-    for each 2 cm the cheese is rubbed up or down the grating face, pressed on it, with the grater standing.)"""
-    pts = _points([objects[n].pos for n in SHRED_NAMES], rotation(objects["grater"].quat_xyzw))
-    if pts >= 1.0 and not (_cheese_down(objects) and _arms_home()):
-        return 0.5  # grated, but the cheese not put down or the arms not back
+    """By the cumulative distance the cheese is rubbed up and down the grating face (its end on the face, within 4 mm
+    of it, with the grater standing; one shred falls inside the grater for each 2 cm): 1.0 with at least 18 cm rubbed
+    and, at the end, the grater standing on the board, the cheese put down and both arms back where they started; 0.5
+    with at least 10 cm rubbed (or 18 cm without that end state); 0.25 with at least 2 cm; else 0.0."""
+    pts = _points(None, None)
+    if pts >= 1.0 and not (_grater_standing(objects) and _cheese_down(objects) and _arms_home()):
+        return 0.5  # grated, but the end state not reached
     return pts
 
 
@@ -269,14 +283,15 @@ def _cheese_down(objects) -> bool:
 
 def success(objects) -> bool:
     """Full score with the shreds, the grater and the cheese still: the trial ends there."""
-    return score(objects) >= 1.0 and all(objects[n].resting() for n in SHRED_NAMES[:FULL] + ["grater", "cheese"])
+    dropped = SHRED_NAMES[:int(_EP.get("dropped", 0))]
+    return score(objects) >= 1.0 and all(objects[n].resting() for n in dropped + ["grater", "cheese"])
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
 # The left hand comes straight down on the grater's handle near its end and holds it. The right hand comes straight
 # down on the cheese, near its right end, lifts it and presses its left end against the grating face, then rubs it up
-# and down the face a few times, and puts it back down. Then the left lets go of the grater and both arms go back to
-# where they started, leaving the grated cheese on the board.
+# and down the face a few times, puts it back down and goes home. The left then lets go, takes the handle near its
+# root, lifts the grater 3 cm, stands it on the board 7 cm to the left (showing the grated cheese) and goes home too.
 
 GRIP_X = grip_rotation(-math.pi / 2)  # straight down, fingers closing along x (the left hand)
 GRIP_R = grip_rotation(math.pi / 2)  # the same for the right hand, turned the other way round (its wrist's range)
@@ -367,18 +382,33 @@ def _right() -> list[Waypoint]:
     return out
 
 
-def _left(release_at: float, total: float) -> list[Waypoint]:
+SET_ASIDE = 0.07  # after grating, the left hand lifts the grater this far to the left, off the shreds, to show them
+LIFT = 0.03
+
+
+def _left(release_at: float, right_home_at: float) -> list[Waypoint]:
     handle = np.array([GX, GY + G_Y / 2 + HANDLE[1] - 0.025, BOARD_TOP + 0.0005 + G_H + G_T - HANDLE[2] / 2 + 0.003])
+    root = handle + [0.0, -(HANDLE[1] - 0.045), 0.0]  # near the handle's root: a short lever to carry the grater by
     out = _lead_in("left", handle + [0.0, 0.0, 0.05], GRIP_X, "over the grater's handle")
     out += [_w(1.0, handle, FINGER_OPEN, "down round the handle", GRIP_X),
             _w(0.8, handle, FINGER_CLOSED, "hold the grater", GRIP_X)]
     t = sum(w.duration for w in out)
     out += [_w(max(release_at - t, 0.5), handle, FINGER_CLOSED, "hold it steady while the cheese is grated", GRIP_X),
             _w(0.5, handle, FINGER_OPEN, "let go", GRIP_X),
-            _w(1.0, handle + [0.0, 0.0, 0.05], FINGER_OPEN, "rise", GRIP_X)]
-    out += _go_home("left", handle + [0.0, 0.0, 0.05], GRIP_X, FINGER_OPEN)
+            _w(1.0, handle + [0.0, 0.0, 0.04], FINGER_OPEN, "rise", GRIP_X)]
     t = sum(w.duration for w in out)
-    out.append(_w(max(total - t, 0.5), out[-1].pos, FINGER_OPEN,
+    out += [_w(max(right_home_at - t, 0.5), root + [0.0, 0.0, 0.04], FINGER_OPEN,
+               "over the handle's root, once the right hand is home", GRIP_X),
+            _w(1.0, root, FINGER_OPEN, "down round the handle's root", GRIP_X),
+            _w(0.8, root, FINGER_CLOSED, "grip it", GRIP_X),
+            _w(1.2, root + [0.0, 0.0, LIFT], FINGER_CLOSED, "lift the grater off the shreds", GRIP_X),
+            _w(1.5, root + [0.0, SET_ASIDE, LIFT], FINGER_CLOSED, "carry it aside", GRIP_X),
+            _w(1.2, root + [0.0, SET_ASIDE, 0.002], FINGER_CLOSED, "stand it on the board beside the grated cheese",
+               GRIP_X),
+            _w(0.6, root + [0.0, SET_ASIDE, 0.002], FINGER_OPEN, "let go", GRIP_X),
+            _w(1.0, root + [0.0, SET_ASIDE, 0.05], FINGER_OPEN, "rise", GRIP_X)]
+    out += _go_home("left", root + [0.0, SET_ASIDE, 0.05], GRIP_X, FINGER_OPEN)
+    out.append(_w(LEAD_S, out[-1].pos, FINGER_OPEN,
                   "hold still: the trial ends once the full score has held 1 s with both arms home", out[-1].yaw))
     return out
 
@@ -386,6 +416,9 @@ def _left(release_at: float, total: float) -> list[Waypoint]:
 def demo():
     right = _right()
     put_down = sum(w.duration for w in right) - LEAD_S  # the cheese is down and the right hand on its way home
-    total = sum(w.duration for w in right) + LEAD_S + 3.0
-    right.append(_w(LEAD_S + 3.0, right[-1].pos, FINGER_OPEN, "wait at the start", right[-1].yaw))
-    return {"left": _left(put_down, total), "right": right}
+    right_home = sum(w.duration for w in right) + 0.3
+    left = _left(put_down, right_home)
+    total = sum(w.duration for w in left)
+    right.append(_w(max(total - sum(w.duration for w in right), 0.5), right[-1].pos, FINGER_OPEN, "wait at the start",
+                    right[-1].yaw))
+    return {"left": left, "right": right}
