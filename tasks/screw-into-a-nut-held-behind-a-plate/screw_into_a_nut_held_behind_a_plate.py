@@ -35,22 +35,22 @@ TOP = TABLE_TOP[SCENE]
 # -- the plate (a fixed bracket: an upright plate on a foot), square to the y axis, centred on the centre line -------
 HOLE_X, HOLE_Z = 0.26, TOP + 0.20  # the hole's centre
 PLATE_T, PLATE_W, PLATE_H = 0.008, 0.10, 0.25  # thick (along y), wide (along x), tall
-HOLE = 0.012  # a square hole, 12 mm: 3 mm round a 6 mm screw
+HOLE = 0.012  # a square hole, 12 mm: an M10 clearance hole (1 mm round the 10 mm shank)
 
 # -- the screw (origin at the centre of the head's underside; at the start it stands head up, so its shank runs along
 # its -z axis) and its holder ---------------------------------------------------------------------------------------
-HEAD_AF, HEAD_H = 0.016, 0.014  # hex head: across flats, tall
-SHANK_R, SHANK_L = 0.003, 0.020
-POINT_R, POINT_L = 0.0022, 0.003  # the last 3 mm of the shank narrower (a dog point)
+HEAD_AF, HEAD_H = 0.016, 0.0064  # M10 hex head (ISO 4017): across flats, tall
+SHANK_R, SHANK_L = 0.005, 0.020  # M10 x 20: its 10 mm major diameter
+POINT_R, POINT_L = 0.004, 0.003  # the last 3 mm of the shank narrower (a chamfered dog point, 8 mm)
 SCREW_MASS = 0.025
 HOLDER_XY, HOLDER_SIZE, HOLDER_BORE = (0.24, -0.12), (0.030, 0.030, 0.025), 0.011
 
 # -- the nut (origin at its centre; its axis is its z) and its stand. Nut and head are under 2 cm across (wider, both
 # fingers push at their 50 N cap and no longer centre the part), and the nut is long, so that a hand holds it round
 # its middle ---------------------------------------------------
-NUT_AF, NUT_T, NUT_BORE_R = 0.016, 0.030, 0.0045  # a long hex nut: across flats, long, the bore's inscribed radius
-NUT_SINK_R, NUT_SINK_D = 0.0065, 0.003  # a wider mouth (counterbore) 3 mm deep on each face: a lead-in for the screw
-NUT_MASS = 0.025
+NUT_AF, NUT_T, NUT_BORE_R = 0.017, 0.030, 0.0055  # an M10 coupling nut (DIN 6334): across flats, long, the plain bore's inscribed radius (11 mm, round the 10 mm shank)
+NUT_SINK_R, NUT_SINK_D = 0.0075, 0.003  # a wider mouth (counterbore) 3 mm deep on each face: a lead-in for the screw
+NUT_MASS = 0.040
 STAND_XY, STAND_SIZE = (0.24, 0.12), (0.030, 0.030, 0.025)  # a block with a peg through the nut's bore
 PEG_R, PEG_H = 0.0025, 0.003  # short and loose: it keeps the nut from being pushed far, never jams it
 
@@ -321,14 +321,14 @@ def _side_r(roll: float) -> np.ndarray:
 
 
 NUT_IN_HAND = 0.0  # the nut's centre at the TCP: gripped round its middle, its end face 2 mm past the fingertips
-HEAD_IN_HAND = 0.015  # the screw's head underside this far past the TCP (the head sits 1..15 mm past it)
+HEAD_IN_HAND = 0.015  # the screw's head underside this far past the TCP (the 6.4 mm head sits 8.6..15 mm past it)
 L_PICK = np.array(NUT.pos) + [0.0, 0.0, NUT_IN_HAND]
 R_PICK = np.array(SCREW.pos) + [0.0, 0.0, HEAD_IN_HAND]
 L_HOLD = np.array([HOLE_X, PLATE_T / 2 + NUT_T / 2 + NUT_IN_HAND, HOLE_Z])  # the nut flat on the plate's left face
 PRESS = 0.002  # the left hand aims this far into the plate, to keep the nut flat on it
 L_FIX = np.array([0.0, 0.0, 0.0])  # where the left hand misses by, holding the nut (sag): aim the other way
 R_FIX = np.array([0.0, 0.0, 0.0])  # ... and the right hand, holding the screw
-ROLL0, STROKE, STROKES = -math.pi / 2, math.pi, 5
+ROLL0, STROKE, STROKES = -math.pi / 2, math.pi, 6
 GAP_IN = 0.009  # pushed in, the head's underside stands this far off the plate (the tip 3 mm into the nut)
 OFF, ABOVE, BACK = 0.012, 0.05, 0.05
 LEAD_S, LEAD_STEPS = 3.0, 15
