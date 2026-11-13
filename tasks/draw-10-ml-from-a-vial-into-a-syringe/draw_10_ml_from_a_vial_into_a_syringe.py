@@ -1,12 +1,13 @@
-"""On the station table stands a medicine vial in a weighted holder, its rubber stopper up, and beside it a 20 ml
-syringe stands needle down in a syringe rack. The barrel is clear: the medicine drawn into it shows red below the
-plunger's dark rubber tip, against black marks every 2 ml and a red mark at 10 ml.
+"""On the station table stands a vented 50 ml vial of red-dyed water (a training liquid) in a weighted holder, its
+rubber stopper up, and beside it a 20 ml syringe with a 38 mm blunt fill needle stands needle down in a syringe rack.
+The barrel is clear: liquid drawn into it shows red below the plunger's dark rubber tip, against black marks every
+2 ml and a red mark at 10 ml.
 
-Task: draw 10 ml of the medicine into the syringe. One hand takes the syringe out of its rack by the barrel, pushes the
-needle down through the vial's stopper into the medicine and holds the syringe there; the other pulls the plunger up
-to the 10 ml mark. The needle holds in the stopper only lightly, and the plunger is stiffer to pull than that, so a
-syringe left hanging on the needle comes off with the plunger. Then the first hand pulls the needle out, stands the
-syringe back in its rack and lets go, and both arms go back to where they started.
+Task: draw 10 ml of the liquid into the syringe without drawing air, then stand the syringe back in its rack, let go
+of it and take both arms back to where they started. The needle holds in the stopper only lightly and the plunger is
+stiffer to pull than that, so the syringe has to be held in the stopper while the plunger is drawn. The vial's
+liquid level is tracked: it falls 0.84 mm per ml drawn, and only plunger travel with the needle's tip below the
+current level draws liquid.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=draw_10_ml_from_a_vial_into_a_syringe.py \\
            --instruction "..." --scorer task_score ...
@@ -38,8 +39,11 @@ TOP = TABLE_TOP[SCENE]
 VIAL_XY = (0.36, 0.0)
 ZS = TOP + 0.066  # the stopper's top
 OPENING = 0.008  # the stopper shows through the crimp cap's opening, this far from the axis
-D_LIQ = 0.007  # the needle's tip is in the medicine once this far below the stopper's top
-D_MAX = 0.022  # the needle can go no deeper (its hub on the cap)
+D_MAX = 0.035  # the needle can go no deeper (its hub on the cap)
+VIAL_R, GLASS_T = 0.021, 0.0015  # the 50 ml vial: outer radius, wall and floor thickness
+FLOOR_Z = TOP + 0.008 + GLASS_T  # the inside of the vial's floor
+AREA = math.pi * (VIAL_R - GLASS_T) ** 2  # inside cross-section, m^2 (11.9 cm^2)
+V0 = 50.0  # ml of liquid in the vial at the start
 
 # -- the syringe: 20 ml, standing needle down in its rack -------------------------------------------------------------
 RACK_XY = (0.27, -0.11)
@@ -48,7 +52,7 @@ CUP, CUP_H = 0.025, 0.014  # the rack's cup: inside width, height
 BAR_R, BAR_L, BOT_WALL = 0.011, 0.085, 0.003  # barrel: outer radius, length, end wall
 LIQ_R, PIST_R = 0.0097, 0.0099  # the medicine inside, the plunger's rubber tip and stem
 ML = 0.003183  # plunger travel per ml (10 mm inner radius)
-HUB_R, HUB_L, NEEDLE_L = 0.005, 0.010, 0.025
+HUB_R, HUB_L, NEEDLE_L = 0.005, 0.010, 0.038  # 18 G x 1.5 in blunt fill needle
 TIP_Z = -(HUB_L + NEEDLE_L)  # the needle's tip, in the syringe's frame (origin: the barrel's lower end)
 RUB_L, STEM_TOP, ROD, ROD_L = 0.006, 0.082, 0.012, 0.045  # plunger: rubber tip, stem inside, square rod outside
 THUMB_R = 0.016
@@ -76,17 +80,18 @@ def _vial() -> Body:
     """The vial and its holder; origin on the table under the vial's axis."""
     return Body.build("vial", pos=(VIAL_XY[0], VIAL_XY[1], TOP), mass=0.3, kinematic=True, color=AMBER, shapes=[
         BoxShape((0.0, 0.0, 0.004), (0.07, 0.07, 0.008), GREY),  # the weighted holder
-        CylShape((0.0, 0.0, 0.013), 0.019, 0.010, GREY),  # its collar
-        CylShape((0.0, 0.0, 0.034), 0.016, 0.052, AMBER),  # the glass
-        CylShape((0.0, 0.0, 0.032), 0.0163, 0.024, WHITE, collide=False),  # the label
-        CylShape((0.0, 0.0, 0.0315), 0.0165, 0.004, RED, collide=False),  # its red band
+        CylShape((0.0, 0.0, 0.013), 0.024, 0.010, GREY),  # its collar
+        CylShape((0.0, 0.0, 0.034), VIAL_R, 0.052, AMBER),  # the glass
+        CylShape((0.0, 0.0, 0.032), VIAL_R + 0.0003, 0.024, WHITE, collide=False),  # the label
+        CylShape((0.0, 0.0, 0.0315), VIAL_R + 0.0005, 0.004, RED, collide=False),  # its red band
         CylShape((0.0, 0.0, 0.0625), 0.009, 0.005, AMBER)])  # the neck
 
 
 def _vial_top() -> Body:
     """The crimp cap, with the rubber stopper showing through its opening; origin at the stopper's top."""
     shapes = [CylShape((0.0, 0.0, -0.0028), 0.0125, 0.005, ALU, collide=False),
-              CylShape((0.0, 0.0, -0.0003), OPENING + 0.0004, 0.0006, RUBBER, collide=False)]
+              CylShape((0.0, 0.0, -0.0003), OPENING + 0.0004, 0.0006, RUBBER, collide=False),
+              CylShape((0.0, 0.0105, 0.0012), 0.0022, 0.003, WHITE, collide=False)]  # the cap's filtered air vent
     w = (0.028 - 2 * OPENING) / 2  # the cap's rim, round the opening (collision only)
     for s in (-1.0, 1.0):
         shapes.append(BoxShape((s * (OPENING + w / 2), 0.0, -0.0028), (w, 0.028, 0.005), None))
@@ -166,7 +171,7 @@ thread("needle", "vial", "syringe", anchor0=(0.0, 0.0, ZS - TOP), axis0=(0.0, 0.
 
 def _fresh() -> dict:
     return {"on": False, "hold_n": 0.0, "hold_p": 0.0, "rec": 0.0, "liquid": 0.0, "air": 0.0, "wet": False,
-            "tcps": None, "s": {}}
+            "vial_ml": V0, "tcps": None, "s": {}}
 
 
 _EP = _fresh()
@@ -217,19 +222,23 @@ def _follow(env) -> None:
         elif abs(depth - _EP["hold_n"]) > SLIP_N:
             _EP["hold_n"] = depth
             set_slide_target("needle", depth)
-    in_med = _EP["on"] and depth >= D_LIQ
+    level = FLOOR_Z + _EP["vial_ml"] * 1e-6 / AREA  # the liquid's surface in the vial
+    in_med = _EP["on"] and float(tip[2]) < level  # the needle's tip below the liquid's surface
     _EP["wet"] = _EP["wet"] or in_med
-    total = max(pulled, 0.0) / ML  # ml drawn in: medicine if the tip was in it, else air
+    total = max(pulled, 0.0) / ML  # ml drawn in: liquid if the tip was in it, else air
     if total - _EP["rec"] > 0.05:
         if in_med:
             _EP["liquid"] += total - _EP["rec"]
+            _EP["vial_ml"] -= total - _EP["rec"]
         else:
             _EP["air"] += total - _EP["rec"]
         _EP["rec"] = total
-    elif _EP["rec"] - total > 0.05:  # pushed back: the needle end is down, so the medicine goes out first
+    elif _EP["rec"] - total > 0.05:  # pushed back: the needle end is down, so the liquid goes out first
         out = _EP["rec"] - total
         take = min(_EP["liquid"], out)
         _EP["liquid"] -= take
+        if _EP["on"]:
+            _EP["vial_ml"] += take  # back into the vial
         _EP["air"] = max(0.0, _EP["air"] - (out - take))
         _EP["rec"] = total
     _EP["tcps"] = _tcps(base, origin)
@@ -244,8 +253,12 @@ def _follow(env) -> None:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 10 == 0:
             tl, tr = _EP["tcps"]
-            print(f"[syringe] t={_DEBUG['steps'] / 20:5.1f}s depth={depth * 1000:6.1f}mm off={off * 1000:4.1f}mm "
+            print(f"[syringe] t={_DEBUG['steps'] / 20:5.1f}s depth={depth * 1000:6.1f}mm "
+                  f"under-surface={(level - float(tip[2])) * 1000:5.1f}mm vial={_EP['vial_ml']:4.1f}ml off={off * 1000:4.1f}mm "
                   f"tip-axis={np.round((tip[:2] - np.array(VIAL_XY)) * 1000, 1).tolist()} "
+                  f"tip-rack={np.round((tip - np.array([RACK_XY[0], RACK_XY[1], RACK_FLOOR])) * 1000, 1).tolist()} "
+                  f"end-rack={np.round((s_pos - np.array([RACK_XY[0], RACK_XY[1], RACK_FLOOR])) * 1000, 1).tolist()} "
+                  f"axis={np.round(s_rot[:, 2], 3).tolist()} "
                   f"tilt={tilt:4.1f} on={_EP['on']} pulled={pulled * 1000:5.1f}mm ({total:4.2f} ml) "
                   f"liquid={_EP['liquid']:4.2f} air={_EP['air']:4.2f} in_rack={in_rack} clear={clear} "
                   f"barrel={np.round(s_pos * 1000).astype(int).tolist()} "
@@ -275,11 +288,11 @@ def _points(s) -> float:
 
 
 def score(objects) -> float:
-    """1.0 with 10 ml of medicine in the syringe (9 to 11 ml, and no more than 1 ml of air), the needle out of the vial,
+    """1.0 with 10 ml of liquid in the syringe (9 to 11 ml, and no more than 1 ml of air), the needle out of the vial,
     the syringe standing in its rack and let go of (both TCPs at least 4 cm from its barrel and plunger) and both
     arms back where they started (each TCP within 5 cm of its start); 0.5 with that dose in the syringe wherever it
-    is; 0.25 if the needle's tip was in the medicine at some point; else 0.0. All but the last are judged at the
-    end."""
+    is; 0.25 if the needle's tip was below the vial's liquid surface at some point (the surface starts 14.6 mm below
+    the stopper's top and falls 0.84 mm per ml drawn); else 0.0. All but the last are judged at the end."""
     return _points(_status())
 
 
@@ -320,9 +333,16 @@ def _cols(x, z) -> np.ndarray:
 L_SIDE = _cols((-1.0, 0.0, 0.0), (0.0, -1.0, 0.0))  # level, pointing to the right (-y), fingers closing along x
 R_SIDE = _cols((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))  # level, pointing to the left (+y), fingers closing along x
 GRIP_UP = 0.032  # the left TCP this far above the barrel's lower end
-DEPTH = 0.019  # how deep the needle goes into the vial
+DEPTH = 0.033  # how deep the needle goes into the vial (its tip 10 mm under the surface once 10 ml is drawn)
 PULL = DOSE * ML + 0.0095  # how far the right pulls the plunger (a little extra: the hand lags)
 LEAD_S, LEAD_STEPS = 3.0, 15
+# Carried back from the vial, the syringe hangs tilted in the left hand (measured: its axis at (0.075, -0.122, 0.99),
+# 8.3 degrees, the left TCP 3, -3, 37 mm from the barrel's end): on the way to the rack the grip is turned back by 60%
+# of that (all of it is out of the arm's reach there), and aimed so the long needle's tip comes down over the rack's
+# bore; the cup's lead-in takes the barrel's end the last few millimetres.
+BACK_TILT = np.array([0.075, -0.122, 0.990])
+BACK_D = np.array([0.003, -0.003, 0.037])
+BACK_FRAC = 0.6
 LEFT_OFF = np.array([-0.003, -0.001, -0.005])  # where the lifted barrel sits off its planned place in the left hand
 # (measured: it slips a little down the fingers as it leaves the rack); aimed against
 
@@ -371,11 +391,27 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
     return Waypoint(t, tuple(float(v) for v in pos), finger, label, rot)
 
 
+def _upright(a, frac: float) -> np.ndarray:
+    """The rotation turning the unit vector along a toward +z by frac of the angle between them."""
+    a = np.asarray(a, float) / np.linalg.norm(a)
+    axis = np.cross(a, [0.0, 0.0, 1.0])
+    axis /= np.linalg.norm(axis)
+    t = frac * math.acos(float(a[2]))
+    k = np.array([[0.0, -axis[2], axis[1]], [axis[2], 0.0, -axis[0]], [-axis[1], axis[0], 0.0]])
+    return np.eye(3) + math.sin(t) * k + (1.0 - math.cos(t)) * k @ k
+
+
 def _left(release_at: float, total: float) -> tuple[list[Waypoint], float]:
     take = np.array([RACK_XY[0], RACK_XY[1], RACK_FLOOR + GRIP_UP])
     rack = take - LEFT_OFF
     vial = np.array([VIAL_XY[0], VIAL_XY[1], ZS - DEPTH - TIP_Z + GRIP_UP]) - LEFT_OFF
     high = 0.075  # carried this high above the rack's floor: the needle clears everything
+    turn = _upright(BACK_TILT, BACK_FRAC)
+    l_back = turn @ L_SIDE
+    after = turn @ (BACK_TILT / np.linalg.norm(BACK_TILT))  # the syringe's axis, turned back part way
+    tip_drop = HUB_L + NEEDLE_L  # the needle's tip, this far down the axis from the barrel's end
+    end = np.array([RACK_XY[0] + tip_drop * after[0], RACK_XY[1] + tip_drop * after[1], RACK_FLOOR + 0.004])
+    back = end + turn @ BACK_D  # the TCP: the needle's tip over the bore, the barrel's end in the cup
     side = np.array([0.0, 0.07, 0.0])
     out = _lead_in("left", take + side, L_SIDE, "beside the syringe in its rack", FINGER_OPEN)
     out += [_w(1.0, take, FINGER_OPEN, "in round the barrel", L_SIDE),
@@ -383,15 +419,17 @@ def _left(release_at: float, total: float) -> tuple[list[Waypoint], float]:
             _w(1.2, take + [0.0, 0.0, high], FINGER_CLOSED, "lift it out of the rack", L_SIDE),
             _w(2.0, [vial[0], vial[1], rack[2] + high], FINGER_CLOSED, "over the vial", L_SIDE),
             _w(1.0, vial + [0.0, 0.0, DEPTH + 0.02], FINGER_CLOSED, "the needle just over the stopper", L_SIDE),
-            _w(1.5, vial, FINGER_CLOSED, "push the needle through the stopper into the medicine", L_SIDE)]
+            _w(1.5, vial, FINGER_CLOSED, "push the needle through the stopper, its tip well under the liquid", L_SIDE)]
     in_at = sum(w.duration for w in out)
     out += [_w(max(release_at - in_at, 0.3), vial, FINGER_CLOSED, "hold the syringe still in the vial", L_SIDE),
             _w(1.2, [vial[0], vial[1], rack[2] + high], FINGER_CLOSED, "pull the needle out", L_SIDE),
-            _w(2.0, rack + [0.0, 0.0, high], FINGER_CLOSED, "over the rack", L_SIDE),
-            _w(1.5, rack + [0.0, 0.0, 0.004], FINGER_CLOSED, "stand it back in the rack", L_SIDE),
-            _w(0.5, rack + [0.0, 0.0, 0.004], FINGER_OPEN, "let go", L_SIDE),
-            _w(1.0, rack + side + [0.0, 0.0, 0.004], FINGER_OPEN, "draw back", L_SIDE)]
-    out += _go_home("left", rack + side + [0.0, 0.0, 0.004], L_SIDE, FINGER_OPEN)
+            _w(2.0, back + [0.0, 0.0, high - 0.004], FINGER_CLOSED, "over the rack, the syringe turned upright", l_back),
+            _w(1.0, back + [0.0, 0.0, 0.030], FINGER_CLOSED, "the needle down into the rack's bore", l_back),
+            _w(1.5, back, FINGER_CLOSED, "stand it back in the rack", l_back),
+            _w(0.5, back, FINGER_OPEN, "let go", l_back),
+            _w(0.6, back + [0.0, 0.03, 0.02], FINGER_OPEN, "draw back", l_back),
+            _w(0.8, back + side + [0.0, 0.0, 0.02], FINGER_OPEN, "clear of it", l_back)]
+    out += _go_home("left", back + side + [0.0, 0.0, 0.02], l_back, FINGER_OPEN)
     t = sum(w.duration for w in out)
     out.append(_w(max(total - t, 0.5), out[-1].pos, FINGER_OPEN,
                   "hold still: the trial ends once the full score has held 1 s with both arms home", out[-1].yaw))
