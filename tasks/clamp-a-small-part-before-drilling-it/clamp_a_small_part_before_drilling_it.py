@@ -1,4 +1,4 @@
-"""On the station table stands a small drill press over a drill table, an oiled steel plate. A light aluminium bar lies
+"""On the station table stands a small drill press over its table, which carries a waxed MDF spoil board. A light aluminium bar lies
 loose on the plate, its punch mark under the drill's bit; a screw hold-down clamp stands over the bar's right end.
 
 Task: one hand holds the bar in place while the other turns the clamp's knob down until its pad grips the bar. The
@@ -32,7 +32,7 @@ allow_matrix_grips()
 SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 
-# -- the drill table: an oiled steel plate (slick: the bar slides and turns on it easily) ------------------------------
+# -- the drill table's spoil board: waxed melamine-faced MDF (slick: the bar slides and turns on it easily) ----------
 PX, PY = (0.23, 0.33), (-0.15, 0.11)
 PT = TOP + 0.010  # its top
 DRILL_XY = np.array([0.28, 0.0])  # the bit's axis
@@ -57,7 +57,8 @@ PITCH = 0.008  # m per turn: a quick thread
 TRAVEL = 0.014
 SCREW_K, SCREW_D, SCREW_MAX = 3000.0, 20.0, 30.0
 THREAD_DRAG = 0.01  # N m s/rad
-TIGHT_N = 3.0  # the pad pressing on the bar with at least this force: clamped
+TIGHT_N = 6.0  # the pad pressing on the bar with at least this force, i.e. the knob turned a quarter turn (2 mm)
+# past the pad meeting the bar: clamped (the soft simulated spring presses 6 N there; a real hand-tight clamp ~100 N)
 
 # -- the drill: a column behind, a head over the bit, and the quill (bit, chuck, spindle, feed knob) sliding down in the
 # head on a return spring. Origin of the quill: the bit's tip
@@ -72,10 +73,11 @@ FEED_TRAVEL = 0.024
 FEED_K = 150.0  # N/m, the return spring
 QUILL_MASS = 0.1
 RUNNING = 0.003  # the quill this far down: the motor runs and the bit spins
-DRILL_DEPTH = 0.010  # the tip this far below the bar's top: drilled through (nearly)
+DRILL_DEPTH = 0.0135  # the tip this far below the bar's top: through the 12 mm bar, 1.5 mm into the spoil board
 
 STEEL, ALU, DARK, RED, BLACK, BRASS = (0.55, 0.57, 0.60), (0.80, 0.81, 0.83), (0.20, 0.21, 0.23), \
     (0.85, 0.12, 0.10), (0.05, 0.05, 0.05), (0.75, 0.62, 0.30)
+BOARD = (0.86, 0.85, 0.80)  # white melamine
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 SAFE = 0.05  # every gripper's TCP at least this far from the bit while it spins
@@ -85,10 +87,12 @@ SUCCESS_HOLD_S = 1.0
 
 
 def _plate() -> Body:
-    shapes = [BoxShape(((PX[0] + PX[1]) / 2, (PY[0] + PY[1]) / 2, 0.005), (PX[1] - PX[0], PY[1] - PY[0], 0.010), STEEL),
-              CylShape((*DRILL_XY, 0.0101), 0.006, 0.0004, BLACK, collide=False)]  # the hole under the bit
+    # a waxed melamine-faced MDF spoil board on the drill press's table: the bit drills through the bar into it
+    shapes = [BoxShape(((PX[0] + PX[1]) / 2, (PY[0] + PY[1]) / 2, 0.005), (PX[1] - PX[0], PY[1] - PY[0], 0.010), BOARD),
+              BoxShape(((PX[0] + PX[1]) / 2, (PY[0] + PY[1]) / 2, 0.0003), (PX[1] - PX[0] + 0.03, PY[1] - PY[0] + 0.03,
+                                                                            0.0006), DARK, collide=False)]  # the table
     return Body.build("plate", pos=(0.0, 0.0, TOP), mass=1.0, shapes=shapes, kinematic=True, friction=(0.05, 0.05),
-                      slick=True, color=STEEL)
+                      slick=True, color=BOARD)
 
 
 def _bar() -> Body:
@@ -306,7 +310,9 @@ def _points(s) -> float:
 
 
 def score(objects) -> float:
-    """1.0 with a hole drilled through the bar within 5 mm of its mark while it was clamped, no gripper's TCP within
+    """Clamped: the pad on the bar pressing at least 6 N (the knob a quarter turn past contact). Drilled: the bit's tip
+    13.5 mm below the bar's top, through the 12 mm bar into the spoil board.
+    1.0 with a hole drilled through the bar within 5 mm of its mark while it was clamped, no gripper's TCP within
     5 cm of the bit while it spun, the bar still clamped and the drill back up; 0.5 drilled so (safely) but the drill
     still down or the clamp loosened, or the bar clamped with its mark under the bit (within 5 mm) but not drilled yet;
     0.25 the bar clamped but off its mark, or clamped or drilled with a hand near the spinning bit; 0.0 otherwise, or
@@ -327,10 +333,11 @@ def success(objects) -> bool:
 # fingers closed, drilling through the mark, then lets it back up.
 
 PRESS_L = grip_rotation(0.0)  # straight down, fingers closed: pressing the bar
+L_PRESS = 0.008  # the left aims this far into the bar: the arm gives, pressing it down with a few newtons
 PRESS_Y = 0.065
 KNOB_IN_HAND = KNOB_Z[1] - 0.006  # the right TCP this far above the screw's origin: 6 mm below the knob's top
 STROKE = math.radians(90.0)
-STROKES = 3
+STROKES = 4
 TURN_S, RELEASE_S, BACK_S, REGRIP_S = 1.6, 0.4, 1.0, 0.5
 PRESS = 0.004  # aimed this far into what a closed hand presses on
 LEAD_S, LEAD_STEPS = 3.0, 15
@@ -417,11 +424,11 @@ def _right_drill(start: float) -> list[Waypoint]:
 
 
 def _left(release_at: float, total: float) -> list[Waypoint]:
-    press = np.array([DRILL_XY[0], PRESS_Y, BAR_TOP + 0.013 - PRESS])
+    press = np.array([DRILL_XY[0], PRESS_Y, BAR_TOP + 0.013 - L_PRESS])
     away = np.array([0.24, 0.22, BAR_TOP + 0.12])
     out = _lead_in("left", press + [0.0, 0.0, 0.04], PRESS_L, "over the bar's left part", FINGER_CLOSED)
-    out += [_w(1.0, press + [0.0, 0.0, PRESS], FINGER_CLOSED, "down onto it", PRESS_L),
-            _w(0.6, press, FINGER_CLOSED, "press it onto the plate: it holds the bar still", PRESS_L)]
+    out += [_w(1.0, press + [0.0, 0.0, L_PRESS], FINGER_CLOSED, "down onto it", PRESS_L),
+            _w(0.6, press, FINGER_CLOSED, "press it firmly onto the board: it holds the bar still", PRESS_L)]
     t = sum(w.duration for w in out)
     out += [_w(max(release_at - t, 0.3), press, FINGER_CLOSED, "hold it while the clamp is tightened", PRESS_L),
             _w(0.8, press + [0.0, 0.0, 0.05], FINGER_CLOSED, "rise", PRESS_L),
