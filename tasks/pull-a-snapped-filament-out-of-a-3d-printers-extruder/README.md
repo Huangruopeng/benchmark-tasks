@@ -1,21 +1,37 @@
-# Clear a 3D printer's extruder: hold its tension lever down with one hand while the other pulls a snapped filament out
+# Clear a snapped piece of filament out of a 3D printer's extruder and leave the extruder ready to load
 
-The corner of a 3D printer stands on the table: a black aluminium frame beam with the stepper motor and the black
-extruder on it, the extruder's red tension lever lying on top, and a spool of orange filament on its holder behind. A
-13 cm piece of orange filament has snapped off inside the extruder: it sticks out of the extruder's inlet to the left,
-its broken tip held between the drive gear and the idler bearing that the lever's spring presses onto it. One hand
-presses the lever down by its pad and keeps it down, which lifts the idler off the filament; the other takes the piece
-where it sticks out and pulls it straight out of the inlet, then drops it in the grey scrap tray in front. The lever is
-let go and both arms go back to where they started. The task is one task file,
+The corner of a 3D printer stands on the table: a black aluminium frame beam with a NEMA 17 stepper motor and an
+aluminium-bodied lever extruder of the common MK8 type on it, the extruder's red tension lever lying on top, and a spool
+of orange filament on its holder behind. A 13 cm piece of standard 1.75 mm orange PLA filament has snapped off inside
+the extruder: it sticks out of the extruder's inlet to the left, its broken tip held in the nip between the brass drive
+gear and the idler bearing that the lever's spring presses onto it. The job is to get the piece out, drop it in the
+grey scrap tray in front, leave the lever back down where it rests, and take both arms back to where they started. The
+task is one task file,
 [`pull_a_snapped_filament_out_of_a_3d_printers_extruder.py`](pull_a_snapped_filament_out_of_a_3d_printers_extruder.py),
 for the `yam_arena` embodiment (scene, scoring and the scripted demo), plus [`bodykit.py`](bodykit.py), which it
 imports from the same folder.
 
-What it tests: holding a sprung lever down steadily with one hand while the other does the work; pulling a thin part
-straight out along its length; finishing the job (the piece in the tray, the lever let go, both hands back).
+What it tests: knowing that a lever extruder only lets go of the filament while its tension lever is held open, and
+doing it: one hand holds the sprung lever down steadily while the other pulls a thin part straight out along its
+length; then finishing the job (the piece in the tray, the lever let go, both hands back). The instruction names only
+the goal.
 
 Why two hands: the drive gear holds the piece until the lever is pressed down, and the lever springs back up as soon
-as it is let go; the pad is 16 cm from where the piece sticks out. With one hand (each arm doing its part of the demo alone, the other never moving) the demo scored 0 both ways: the left alone pulled the piece 6.7 mm before its fingers slid off it, and it sprang back into the drive gear; the right alone pressed the lever down, and the piece stayed where it was.
+as it is let go; the pad is 16 cm from where the piece sticks out. With one hand (each arm doing its part of the demo
+alone, the other never moving) the demo scored 0 both ways: the left alone pulled the piece a few millimetres before
+its fingers slid off it, and it sprang back into the drive gear; the right alone pressed the lever down, and the piece
+stayed where it was.
+
+## The real hardware
+
+A real trial uses the same parts: a NEMA 17 (42 mm) stepper with an aluminium-bodied lever extruder of the common MK8
+type for 1.75 mm filament (brass MK8 drive gear, 40 teeth, 11 mm across, 5 mm bore, on the motor shaft; a 623 idler
+bearing, 10 mm across, on the lever 1.2 cm from its pivot; a 2 mm filament bore from the inlet fitting through the nip
+to a PTFE tube, 4 mm outside and 2 mm bore). The lever's compression spring is chosen so that, with the lever's own
+weight helping, the pad needs about 0.85 N to start moving, 2.5 N to turn the lever 8 degrees (pad about 1.3 cm down),
+where the idler leaves the filament, and 5.1 N at its 20-degree stop. A 13 cm piece of 1.75 mm PLA weighs 0.39 g.
+Reset: snap a fresh 13 cm piece off the spool, feed it in through the inlet with the lever held open until its tip is
+3.5 cm past the centre line, and let the lever go.
 
 ## How it is modelled
 
@@ -25,6 +41,7 @@ loose rigid bodies made of shapes from `bodykit.py`.
 
 - The lever: a hinge about the left-right axis on top of the housing (a `Hinge` from `bodykit.py`), sprung down onto
   its stop; pressing its pad down turns it up to 20 degrees. Pressed past 8 degrees, the idler is off the filament.
+- The piece of filament: a rigid rod 1.75 mm across and 13 cm long, 0.39 g, as real PLA.
 - The piece in the extruder: a joint (a `Thread` from `bodykit.py`, switched on from the start) keeps it on the
   filament path, free to slide along it, pulled by a stiff spring (4,000 N/m) toward a target the task file sets after
   every control step. While the lever is up and the piece's tip is still between the drive gear and the idler, the
@@ -49,7 +66,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=pull_a_snapped_filament_out_of_a_3d_printers_extruder.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "A piece of orange filament has snapped off inside the 3D printer's extruder. Press the extruder's red tension lever down by its pad with one hand and keep it down, and with the other hand pull the broken piece straight out of the extruder's inlet; then drop the piece in the grey scrap tray, let the lever go, and take both arms back to where they started." \
+  --instruction "A piece of orange filament has snapped off inside the 3D printer's extruder. Take the broken piece out of the extruder and drop it in the grey scrap tray, leave the extruder's tension lever back down where it normally rests, and take both arms back to where they started." \
   --scorer task_score --max-steps 900 --store-frames --log-dir ~/yam-eval/filament-dream
 ```
 
@@ -61,7 +78,7 @@ the lever back up, and both arms go back to where they started:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=pull_a_snapped_filament_out_of_a_3d_printers_extruder.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "A piece of orange filament has snapped off inside the 3D printer's extruder. Press the extruder's red tension lever down by its pad with one hand and keep it down, and with the other hand pull the broken piece straight out of the extruder's inlet; then drop the piece in the grey scrap tray, let the lever go, and take both arms back to where they started." \
+  --instruction "A piece of orange filament has snapped off inside the 3D printer's extruder. Take the broken piece out of the extruder and drop it in the grey scrap tray, leave the extruder's tension lever back down where it normally rests, and take both arms back to where they started." \
   --scorer task_score --max-steps 900 --store-frames --log-dir ~/yam-eval/filament-demo
 ```
 
@@ -77,7 +94,7 @@ path, where it is and whether it lies in the tray, where each TCP is and the fin
 
 ## Runtime per trial
 
-On one RTX 5090: about 2 minutes for a Dream-1 trial of 900 steps (138 s on the clock, with Dream answering in 0.79 s on average), and about 1 minute for the scripted demo (362 steps, 18.1 s of simulated time, 77 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 2 minutes for a Dream-1 trial of 900 steps (104 s on the clock, with Dream answering in 0.61 s on average), and about 1 minute for the scripted demo (361 steps, 18.1 s of simulated time, 83 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 

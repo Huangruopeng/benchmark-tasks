@@ -49,7 +49,8 @@ OPEN_DEG = 8.0  # pressed down past 8 degrees, the idler is off the filament
 LEVER_MAX_DEG = 20.0
 RELEASED_DEG = 4.0
 # -- the snapped piece of filament: along y, its broken tip inside the extruder past the drive gear --------------------
-FIL_R, FIL_L = 0.003, 0.130
+FIL_R, FIL_L = 0.000875, 0.130  # standard 1.75 mm PLA filament, 13 cm
+FIL_MASS = 0.0004  # 13 cm of 1.75 mm PLA (1.24 g/cm^3): 0.39 g
 TIP_Y0 = EY - 0.035
 FIL_MID0 = np.array([EX, TIP_Y0 + FIL_L / 2, PATH_Z])
 FREE_AT = (GEAR_Y + 0.008) - TIP_Y0  # pulled this far, the tip is past the drive gear: nothing grips it any more
@@ -77,7 +78,7 @@ def _printer() -> Body:
         BoxShape((hx / 2 + 0.052, 0.0, pz - 0.010), (0.020, 0.34, 0.020), ALU),  # the frame beam (2020 extrusion)
         CylShape((0.0, hy / 2 + 0.006, pz), 0.006, 0.012, BLACK, axis="Y", collide=False),  # the inlet fitting
         CylShape((0.0, hy / 2 + 0.0115, pz), 0.0045, 0.002, BRASS, axis="Y", collide=False),
-        CylShape((-hx / 2 - 0.001, GEAR_Y - EY, pz), 0.009, 0.002, BRASS, axis="X", collide=False),  # drive gear
+        CylShape((-hx / 2 - 0.001, GEAR_Y - EY, pz), 0.0055, 0.002, BRASS, axis="X", collide=False),  # MK8 drive gear
         CylShape((0.0, -hy / 2 - 0.005, pz), 0.004, 0.010, PTFE, axis="Y", collide=False),  # PTFE tube out ...
         CylShape((0.065, -hy / 2 - 0.010, pz), 0.004, 0.130, PTFE, axis="X", collide=False),  # ... back ...
         CylShape((0.130, -hy / 2 - 0.010, (pz + 0.25) / 2), 0.004, 0.25 - pz, PTFE, collide=False),  # ... up
@@ -110,7 +111,7 @@ def _lever() -> Body:
     arm0, arm1 = 0.006, -(LEVER_LEN + PAD[1] / 2)
     shapes = [BoxShape((0.0, (arm0 + arm1) / 2, 0.0), (0.014, arm0 - arm1, 0.006), RED),
               BoxShape((0.0, -LEVER_LEN, 0.004), PAD, RED),
-              CylShape((0.0, -0.012, -0.012), 0.006, 0.006, (0.75, 0.76, 0.78), axis="X", collide=False),  # idler
+              CylShape((0.0, -0.012, -0.012), 0.005, 0.004, (0.75, 0.76, 0.78), axis="X", collide=False),  # 623 idler
               BoxShape((0.0, -0.012, -0.007), (0.008, 0.008, 0.010), RED, collide=False),
               CylShape((0.0, -0.030, -0.010), 0.004, 0.014, (0.70, 0.70, 0.72), collide=False)]  # the spring
     for k in range(3):  # ridges on the pad
@@ -121,12 +122,12 @@ def _lever() -> Body:
 
 
 def _piece() -> Body:
-    """The snapped piece of orange PLA filament (drawn 6 mm thick so a gripper can hold it), its broken tip inside."""
+    """The snapped piece of orange PLA filament (standard 1.75 mm, 13 cm, 0.39 g), its broken tip inside."""
     shapes = [CylShape((0.0, 0.0, 0.0), FIL_R, FIL_L, ORANGE, axis="Y"),
               CylShape((0.0, -FIL_L / 2 + 0.002, 0.0), FIL_R * 0.8, 0.004, (0.90, 0.42, 0.05), axis="Y",
                        collide=False)]
-    return Body.build("filament", pos=tuple(FIL_MID0), mass=0.03, shapes=shapes, friction=(1.2, 1.1), color=ORANGE,
-                      damping=(0.3, 1.0))
+    return Body.build("filament", pos=tuple(FIL_MID0), mass=FIL_MASS, shapes=shapes, friction=(1.2, 1.1), color=ORANGE,
+                      damping=(0.3, 6.0))
 
 
 def _tray() -> Body:
