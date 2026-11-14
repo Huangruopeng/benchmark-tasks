@@ -2,9 +2,11 @@
 handle reaching left from its top; a block of cheese lies on the board to its right.
 
 Task: grate the cheese onto the board on the box grater, put the cheese down, leave the grater standing on the board
-and take both arms home. The grater is light and tall: rubbed on its face unheld, it slides away or tips over, so one
-hand holds it by its handle while the other rubs the cheese up and down its grating face. Scored by how far the cheese
-is rubbed along the face (cumulative travel), which a real trial measures from video the same way.
+and take both arms home. The grater is light and tall: pressed on its face unheld, it slides away or tips over, so one
+hand holds it by its handle while the other presses the cheese on its grating face and rubs it down across the teeth.
+Scored by the grated mass: in the simulation, the length of the strokes made with the cheese's end measurably pressed
+on the perforated face (PhysX contact force, normal to the face) and sliding down across the teeth, converted to grams
+at a stated rate; in a real trial, the grated cheese weighed on a kitchen scale.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=grate_cheese_holding_the_grater_steady.py \\
            --instruction "..." --scorer task_score ...
@@ -21,8 +23,9 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+import bodykit  # noqa: E402
 from bodykit import Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, on_reset, on_step, rotation  # noqa: E402
-from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
+from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, PHYSICS_DT, TCP_OFFSET  # noqa: E402
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
 
@@ -42,8 +45,12 @@ GX, GY = 0.30, 0.0
 G_X, G_Y, G_H, G_T = 0.080, 0.070, 0.130, 0.002  # across (x), across (y), tall, wall
 HANDLE = (0.016, 0.100, 0.015)  # across, long (+y from the top's left edge), tall
 GRATER_MASS = 0.18
-FACE_Z = (0.020, 0.115)  # the grating area on the face, from the foot
-STEEL, HOLE, CHEESE_C, BOARD_C, HANDLE_C = (0.78, 0.79, 0.81), (0.25, 0.25, 0.27), (0.98, 0.82, 0.30), \
+FACE_Z = (0.020, 0.115)  # the perforated (grating) area on the face, from the foot
+HOLE = (0.008, 0.004)  # each cutting hole: wide (across the face), tall
+ROW_PITCH = 0.0095  # the rows of holes, staggered: two rows together cut the whole width once
+COL_PITCH = 0.016  # holes in a row
+HOLES_X = 0.028  # the perforated area reaches this far either side of the face's middle
+STEEL, HOLE_C, CHEESE_C, BOARD_C, HANDLE_C = (0.78, 0.79, 0.81), (0.25, 0.25, 0.27), (0.98, 0.82, 0.30), \
     (0.80, 0.66, 0.46), (0.10, 0.10, 0.11)
 
 # -- the cheese: a block, along y ---------------------------------------------------------------------------------------
@@ -51,18 +58,22 @@ CHEESE = (0.024, 0.060, 0.035)  # across (x), long (y), tall
 CHEESE_MASS = 0.05
 CX0, CY0 = 0.30, -0.14
 
-# -- the shreds: parked out of sight; each 2 cm the cheese is rubbed along the face (pressed on it) drops one inside the
-# grater, behind the face, at the cheese's height ---------------------------------------------------------------------
-N_SHREDS = 12
-SHRED = (0.004, 0.004, 0.012)
-PER_SHRED = 0.020  # m of rubbing per shred
-ON_FACE = 0.004  # the cheese's end within this of the face's outer side: rubbing on it
+# -- grating: credited only while the cheese's end is pressed on the perforated face and slides down across the teeth ---
+PRESS_N = 3.0  # N: the contact force between the cheese and the grater, normal to the face, at least this (PhysX)
+END_GAP = (-0.003, 0.005)  # the middle of the cheese's end this near the face's surface (m): its end, not a side,
+# is what touches
+G_PER_CM = 0.25  # g of cheese grated per cm of pressed downstroke: a coarse face shaves a ~0.57 mm layer off the
+# cheese's 8.4 cm2 end for every two staggered rows (1.9 cm) it crosses, at 0.99 g/cm3
+FULL_G, HALF_G, SOME_G = 5.0, 2.5, 0.5  # g grated: the score tiers (20, 10 and 2 cm of pressed downstroke)
+
+# -- the shreds: parked out of sight; each 0.5 g grated drops one inside the grater, behind the face, at the cheese's
+# height (a visual cue only: the score uses the grated mass) ---------------------------------------------------------
+N_SHREDS = 14
+SHRED = (0.003, 0.006, 0.028)  # 0.5 cm3: about 0.5 g of cheese
+G_PER_SHRED = 0.5
 PARK = (0.30, 0.0, TOP + 1.5)  # a closed box high above the scene, out of the cameras' view
-DRAG_K, DRAG_MAX = 60.0, 4.0  # the teeth bite: rubbing drags the grater along the stroke at the cheese (N per m/s, at
-# most N); an upstroke tips an unheld grater over
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
-FULL, HALF, SOME = 0.18, 0.10, 0.02  # m of cumulative rubbing along the face (one shred per 2 cm: 9, 5, 1 shreds)
 UPRIGHT = math.radians(20.0)
 SUCCESS_HOLD_S = 1.0
 HOME_WITHIN = 0.05  # each TCP this close to where it started: the arms are back home
@@ -73,16 +84,24 @@ def _board() -> Body:
                       shapes=[BoxShape((0.0, 0.0, BOARD[2] / 2), BOARD, BOARD_C)])
 
 
+def _hole_centres() -> list[tuple[float, float]]:
+    """(across, up) of every cutting hole: 10 staggered rows, 4 and 3 holes, over the perforated area."""
+    out = []
+    for i in range(int(round((FACE_Z[1] - FACE_Z[0]) / ROW_PITCH))):
+        z = FACE_Z[0] + ROW_PITCH / 2 + i * ROW_PITCH
+        xs = (-1.5, -0.5, 0.5, 1.5) if i % 2 == 0 else (-1.0, 0.0, 1.0)
+        out += [(k * COL_PITCH, z) for k in xs]
+    return out
+
+
 def _grater() -> Body:
     hx, hy = G_X / 2, G_Y / 2
     shapes = [BoxShape((s * (hx - G_T / 2), 0.0, G_H / 2), (G_T, G_Y, G_H), STEEL) for s in (-1.0, 1.0)]
     shapes += [BoxShape((0.0, s * (hy - G_T / 2), G_H / 2), (G_X - 2 * G_T, G_T, G_H), STEEL) for s in (-1.0, 1.0)]
     shapes += [BoxShape((0.0, 0.0, G_H + G_T / 2), (G_X, G_Y, G_T), STEEL),
                BoxShape((0.0, hy + HANDLE[1] / 2 - 0.004, G_H - HANDLE[2] / 2 + G_T), HANDLE, HANDLE_C)]
-    for i in range(5):  # the grating's holes, drawn on the face
-        for j in range(4):
-            shapes.append(BoxShape((-0.027 + j * 0.018, -hy - 0.0003, FACE_Z[0] + 0.01 + i * 0.019), (0.009, 0.0004, 0.005),
-                                   HOLE, collide=False))
+    for x, z in _hole_centres():  # the cutting holes, drawn on the face
+        shapes.append(BoxShape((x, -hy - 0.0003, z), (HOLE[0], 0.0004, HOLE[1]), HOLE_C, collide=False))
     return Body.build("grater", pos=(GX, GY, BOARD_TOP + 0.0005), mass=GRATER_MASS, shapes=shapes, friction=(0.5, 0.4),
                       color=STEEL, com=(0.0, 0.01, 0.06))
 
@@ -95,17 +114,17 @@ def _cheese() -> Body:
 def _park() -> Body:
     """A closed box where the shreds wait, out of sight."""
     w, t = 0.05, 0.004
-    shapes = [BoxShape((0.0, 0.0, t / 2), (w, w, t), HOLE), BoxShape((0.0, 0.0, w - t / 2), (w, w, t), HOLE)]
-    shapes += [BoxShape((s * (w / 2 - t / 2), 0.0, w / 2), (t, w, w), HOLE) for s in (-1.0, 1.0)]
-    shapes += [BoxShape((0.0, s * (w / 2 - t / 2), w / 2), (w, t, w), HOLE) for s in (-1.0, 1.0)]
-    return Body.build("shred_store", pos=PARK, mass=1.0, shapes=shapes, kinematic=True, color=HOLE)
+    shapes = [BoxShape((0.0, 0.0, t / 2), (w, w, t), HOLE_C), BoxShape((0.0, 0.0, w - t / 2), (w, w, t), HOLE_C)]
+    shapes += [BoxShape((s * (w / 2 - t / 2), 0.0, w / 2), (t, w, w), HOLE_C) for s in (-1.0, 1.0)]
+    shapes += [BoxShape((0.0, s * (w / 2 - t / 2), w / 2), (w, t, w), HOLE_C) for s in (-1.0, 1.0)]
+    return Body.build("shred_store", pos=PARK, mass=1.0, shapes=shapes, kinematic=True, color=HOLE_C)
 
 
 def _shreds() -> list[Body]:
     out = []
     for i in range(N_SHREDS):
-        dx, dy = (i % 4 - 1.5) * 0.008, (i // 4 - 1.0) * 0.010
-        out.append(Body.build(f"shred_{i:02d}", pos=(PARK[0] + dx, PARK[1] + dy, PARK[2] + 0.005), mass=0.0003,
+        dx, dy = (i % 5 - 2.0) * 0.008, (i // 5 - 1.0) * 0.012
+        out.append(Body.build(f"shred_{i:02d}", pos=(PARK[0] + dx, PARK[1] + dy, PARK[2] + 0.005), mass=0.0005,
                               shapes=[BoxShape((0.0, 0.0, SHRED[2] / 2), SHRED, CHEESE_C)], friction=(0.6, 0.5),
                               damping=(0.2, 0.5), color=CHEESE_C))
     return out
@@ -116,11 +135,29 @@ SHREDS = _shreds()
 OBJECTS = [BOARD_B, STORE, GRATER, CHEESE_B, *SHREDS]
 SHRED_NAMES = [s.name for s in SHREDS]
 
+# -- contact sensing: the cheese and the grater report their contacts ------------------------------------------------
+_PATHS: dict = {}
+_author_plain = bodykit._author_sliders
 
-# -- followed after every control step: the rubbing, the shreds, the grippers -------------------------------------------
+
+def _author_sliders(stage, prim_path: str, spec) -> None:
+    _author_plain(stage, prim_path, spec)
+    if spec.name in ("cheese", "grater"):
+        from pxr import PhysxSchema
+
+        prim = stage.GetPrimAtPath(f"{prim_path}/body")
+        PhysxSchema.PhysxContactReportAPI.Apply(prim).CreateThresholdAttr(0.0)
+        _PATHS[spec.name] = f"{prim_path}/body"
+
+
+bodykit._author_sliders = _author_sliders
+
+
+# -- followed after every control step: the pressed strokes, the shreds, the grippers -----------------------------------
 
 def _fresh() -> dict:
-    return {"rubbed": 0.0, "dropped": 0, "last_z": None, "tcps": None}
+    return {"stroke": 0.0, "dropped": 0, "last_z": None, "tcps": None, "view": None, "view_err": "",
+            "fn_max": 0.0, "near": 0.0, "near_z": None, "pressed_steps": 0}
 
 
 _EP = _fresh()
@@ -134,6 +171,29 @@ def _new_episode() -> None:
     _DEBUG["steps"] = 0
 
 
+def _np(a) -> np.ndarray:
+    if hasattr(a, "numpy") and not hasattr(a, "detach"):
+        return np.asarray(a.numpy(), float)
+    return as_numpy(a)
+
+
+def _contact_force():
+    """The contact force on the cheese from the grater (world, N), from PhysX's rigid-contact view; None until the
+    view exists."""
+    if _EP["view"] is None and not _EP["view_err"] and len(_PATHS) == 2:
+        try:
+            from isaaclab_physx.physics import PhysxManager
+
+            sim = PhysxManager.get_physics_sim_view()
+            _EP["view"] = sim.create_rigid_contact_view([_PATHS["cheese"]], filter_patterns=[[_PATHS["grater"]]],
+                                                        max_contact_data_count=0)
+        except Exception as e:  # noqa: BLE001
+            _EP["view_err"] = repr(e)[:300]
+    if _EP["view"] is None:
+        return None
+    return _np(_EP["view"].get_contact_force_matrix(dt=PHYSICS_DT)).reshape(-1, 3).sum(axis=0)
+
+
 def _tcps(base, origin) -> list[np.ndarray]:
     out = []
     for arm in ("left_robot", "right_robot"):
@@ -144,18 +204,30 @@ def _tcps(base, origin) -> list[np.ndarray]:
     return out
 
 
-def _on_face(g_pos, g_rot, c_pos, c_rot):
-    """(rubbing?, the cheese's height on the face): the cheese's end against the grating face, within its area."""
+def _end_on_face(g_pos, g_rot, c_pos, c_rot):
+    """(gap, where): the middle of whichever end of the cheese is nearer the grating face, in the grater's frame, and
+    how far it stands off the face's outer surface (negative: pushed into it)."""
     best = None
-    for sx in (-1.0, 1.0):  # the cheese's two ends; whichever is nearer the face
+    for sx in (-1.0, 1.0):
         end = np.asarray(c_pos, float) + c_rot @ np.array([0.0, sx * CHEESE[1] / 2, CHEESE[2] / 2])
         v = g_rot.T @ (end - np.asarray(g_pos, float))
-        gap = -G_Y / 2 - v[1]  # how far it stands off the face's outer side (negative: pressed in)
+        gap = -G_Y / 2 - v[1]
         if best is None or gap < best[0]:
-            best = (gap, v)
-    gap, v = best
-    rubbing = gap <= ON_FACE and abs(v[0]) < G_X / 2 and FACE_Z[0] - 0.01 < v[2] < FACE_Z[1] + 0.02
-    return rubbing, float(v[2])
+            best = (float(gap), v)
+    return best
+
+
+def _standing(g_pos, g_rot) -> bool:
+    """The grater standing on the board: within 20 degrees of upright, its foot on the board inside its edges."""
+    up = math.acos(max(-1.0, min(1.0, float(g_rot[2, 2])))) < UPRIGHT
+    on = (abs(g_pos[0] - BX) < BOARD[0] / 2 - G_X / 2 and abs(g_pos[1] - BY) < BOARD[1] / 2 - G_Y / 2
+          and abs(g_pos[2] - BOARD_TOP) < 0.01)
+    return bool(up and on)
+
+
+def grated_g() -> float:
+    """The grated mass so far (g): the pressed downstroke length (cm) at G_PER_CM."""
+    return float(_EP.get("stroke", 0.0)) * 100.0 * G_PER_CM
 
 
 def _drop(base, origin, g_pos, g_rot, z) -> None:
@@ -166,22 +238,12 @@ def _drop(base, origin, g_pos, g_rot, z) -> None:
     asset = base.scene[name]
     pose = as_numpy(asset.data.root_link_pose_w)[0].copy()
     jitter = ((_EP["dropped"] % 3) - 1) * 0.012
-    p = g_pos + g_rot @ np.array([jitter, -G_Y / 2 + 0.010, min(max(z, FACE_Z[0]), FACE_Z[1]) - 0.01])
+    p = g_pos + g_rot @ np.array([jitter, -G_Y / 2 + 0.010, min(max(z, FACE_Z[0]), FACE_Z[1] - 0.02) - 0.01])
     pose[:3] = p + origin
     t = torch.tensor(pose, dtype=torch.float32, device=asset.device).view(1, 7)
     asset.write_root_pose_to_sim(t)
     asset.write_root_velocity_to_sim(torch.zeros(1, 6, dtype=torch.float32, device=asset.device))
     _EP["dropped"] += 1
-
-
-def _drag(asset, g_rot, f_up: float, z: float) -> None:
-    """Pull the grater along the face (its own z) by f_up, at the face where the cheese rubs, until the next step."""
-    import torch
-
-    f = torch.tensor([0.0, 0.0, f_up], dtype=torch.float32, device=asset.device).view(1, 1, 3)
-    at = torch.tensor([0.0, -G_Y / 2, z], dtype=torch.float32, device=asset.device).view(1, 1, 3)
-    asset.permanent_wrench_composer.set_forces_and_torques(forces=f, torques=torch.zeros_like(f), positions=at,
-                                                           is_global=False)
 
 
 @on_step
@@ -192,67 +254,64 @@ def _follow(env) -> None:
     c = as_numpy(base.scene["cheese"].data.root_link_pose_w)[0]
     g_pos, g_rot, c_pos, c_rot = g[:3] - origin, rotation(g[3:7]), c[:3] - origin, rotation(c[3:7])
     _EP["tcps"] = _tcps(base, origin)
-    rubbing, z = _on_face(g_pos, g_rot, c_pos, c_rot)
-    upright = math.acos(max(-1.0, min(1.0, float(g_rot[2, 2])))) < UPRIGHT
-    drag = 0.0
-    if rubbing and _EP["last_z"] is not None:
-        dz = z - _EP["last_z"]
-        drag = float(np.clip(DRAG_K * dz * 20.0, -DRAG_MAX, DRAG_MAX))
-        if upright:
-            _EP["rubbed"] += abs(dz)
-            while _EP["dropped"] < N_SHREDS and _EP["rubbed"] >= (_EP["dropped"] + 1) * PER_SHRED:
-                _drop(base, origin, g_pos, g_rot, z)
-    _EP["last_z"] = z if rubbing else None
-    _drag(base.scene["grater"], g_rot, drag, z)
+    f = _contact_force()
+    fn = 0.0 if f is None else float(np.dot(f, -g_rot[:, 1]))  # pressing on the face: along its outward normal
+    gap, v = _end_on_face(g_pos, g_rot, c_pos, c_rot)
+    z = float(v[2])
+    on_holes = END_GAP[0] <= gap <= END_GAP[1] and abs(v[0]) <= HOLES_X and FACE_Z[0] <= z <= FACE_Z[1]
+    standing = _standing(g_pos, g_rot)
+    pressed = bool(on_holes and fn >= PRESS_N and standing)
+    _EP["fn_max"] = max(_EP["fn_max"], fn)
+    if pressed:
+        _EP["pressed_steps"] += 1
+    if pressed and _EP["last_z"] is not None and z < _EP["last_z"]:  # pressed at both ends of the step, moving down
+        _EP["stroke"] += _EP["last_z"] - z
+        while _EP["dropped"] < N_SHREDS and grated_g() >= (_EP["dropped"] + 1) * G_PER_SHRED:
+            _drop(base, origin, g_pos, g_rot, z)
+    _EP["last_z"] = z if pressed else None
+    # for the record only (not scored): the earlier distance-only rule, the end's travel within 4 mm of the face
+    near = gap <= 0.004 and abs(v[0]) < G_X / 2 and FACE_Z[0] - 0.01 < z < FACE_Z[1] + 0.02
+    if near and _EP["near_z"] is not None and standing:
+        _EP["near"] += abs(z - _EP["near_z"])
+    _EP["near_z"] = z if near else None
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
-        if _DEBUG["steps"] % 10 == 0:
-            shreds = [as_numpy(base.scene[n].data.root_link_pose_w)[0][:3] - origin for n in SHRED_NAMES]
+        if _DEBUG["steps"] % 5 == 0:
             tl, tr = _EP["tcps"]
-            print(f"[grate] t={_DEBUG['steps'] / 20:5.1f}s grater={np.round(g_pos * 1000).astype(int).tolist()} "
-                  f"tilt={math.degrees(math.acos(max(-1.0, min(1.0, float(g_rot[2, 2]))))):4.1f} rubbing={rubbing} "
-                  f"cheese_z_on_face={z * 1000:5.0f}mm rubbed={_EP['rubbed'] * 100:5.1f}cm dropped={_EP['dropped']} "
-                  f"on_board={_count(shreds, g_rot)} left TCP={np.round(tl * 1000).astype(int).tolist()} "
-                  f"right TCP-cheese={np.round((tr - c_pos) * 1000).astype(int).tolist()} score={_points(shreds, g_rot)}",
+            fw = [round(float(x), 2) for x in f] if f is not None else _EP["view_err"] or None
+            print(f"[grate] t={_DEBUG['steps'] / 20:5.2f}s grater={np.round(g_pos * 1000).astype(int).tolist()} "
+                  f"tilt={math.degrees(math.acos(max(-1.0, min(1.0, float(g_rot[2, 2]))))):4.1f} "
+                  f"F={fw} Fn={fn:5.2f}N gap={gap * 1000:5.1f}mm x={v[0] * 1000:4.0f} z={z * 1000:4.0f}mm "
+                  f"pressed={pressed} stroke={_EP['stroke'] * 100:5.1f}cm grated={grated_g():4.2f}g "
+                  f"dropped={_EP['dropped']} near_rule={_EP['near'] * 100:5.1f}cm fn_max={_EP['fn_max']:5.1f} "
+                  f"left TCP={np.round(tl * 1000).astype(int).tolist()} "
+                  f"right TCP-cheese={np.round((tr - c_pos) * 1000).astype(int).tolist()} score={_points():.2f}",
                   file=sys.stderr, flush=True)
 
 
 # -- scoring --------------------------------------------------------------------------------------------------------
 
-def _count(shreds, g_rot) -> int:
-    """Shreds lying on the board (fallen out of the grater or still inside it); for the debug print only."""
-    return int(sum(abs(p[0] - BX) < BOARD[0] / 2 and abs(p[1] - BY) < BOARD[1] / 2 and p[2] < BOARD_TOP + 0.02
-                   for p in shreds))
-
-
-def _points(shreds, g_rot) -> float:
-    """By the cumulative rubbing along the face (counted only with the cheese's end on the face and the grater
-    standing): 1.0-tier at 18 cm, 0.5 at 10 cm, 0.25 at 2 cm."""
-    r = float(_EP.get("rubbed", 0.0))
-    if r >= FULL - 1e-9:
+def _points() -> float:
+    """By the grated mass: the 1.0-tier at 5 g, 0.5 at 2.5 g, 0.25 at 0.5 g."""
+    m = grated_g()
+    if m >= FULL_G - 1e-9:
         return 1.0
-    if r >= HALF - 1e-9:
+    if m >= HALF_G - 1e-9:
         return 0.5
-    return 0.25 if r >= SOME - 1e-9 else 0.0
+    return 0.25 if m >= SOME_G - 1e-9 else 0.0
 
 
 def _grater_standing(objects) -> bool:
-    """The grater standing on the board: within 20 degrees of upright, its foot on the board inside its edges."""
     g = objects["grater"]
-    rot = rotation(g.quat_xyzw)
-    up = math.acos(max(-1.0, min(1.0, float(rot[2, 2])))) < UPRIGHT
-    p = g.pos
-    on = (abs(p[0] - BX) < BOARD[0] / 2 - G_X / 2 and abs(p[1] - BY) < BOARD[1] / 2 - G_Y / 2
-          and abs(p[2] - BOARD_TOP) < 0.01)
-    return bool(up and on)
+    return _standing(np.asarray(g.pos, float), rotation(g.quat_xyzw))
 
 
 def score(objects) -> float:
-    """By the cumulative distance the cheese is rubbed up and down the grating face (its end on the face, within 4 mm
-    of it, with the grater standing; one shred falls inside the grater for each 2 cm): 1.0 with at least 18 cm rubbed
-    and, at the end, the grater standing on the board, the cheese put down and both arms back where they started; 0.5
-    with at least 10 cm rubbed (or 18 cm without that end state); 0.25 with at least 2 cm; else 0.0."""
-    pts = _points(None, None)
+    """By the grated mass (the cheese's end pressed on the perforated face with at least 3 N, measured contact force,
+    and sliding down across the teeth with the grater standing; 0.25 g per cm of such stroke): 1.0 with at least 5 g
+    grated and, at the end, the grater standing on the board, the cheese put down and both arms back where they
+    started; 0.5 with at least 2.5 g (or 5 g without that end state); 0.25 with at least 0.5 g; else 0.0."""
+    pts = _points()
     if pts >= 1.0 and not (_grater_standing(objects) and _cheese_down(objects) and _arms_home()):
         return 0.5  # grated, but the end state not reached
     return pts
@@ -289,17 +348,22 @@ def success(objects) -> bool:
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
 # The left hand comes straight down on the grater's handle near its end and holds it. The right hand comes straight
-# down on the cheese, near its right end, lifts it and presses its left end against the grating face, then rubs it up
-# and down the face a few times, puts it back down and goes home. The left then lets go, takes the handle near its
-# root, lifts the grater 3 cm, stands it on the board 7 cm to the left (showing the grated cheese) and goes home too.
+# down on the cheese, near its right end, lifts it and grates: it presses the cheese's left end on the grating face at
+# the top and rubs it down across the teeth, eases the press and brings it back up lightly, five times. Then it puts the
+# cheese back down and goes home. The left then lets go, takes the handle near its root, lifts the grater 3 cm, stands
+# it on the board 7 cm to the left (showing the grated cheese) and goes home too.
 
 GRIP_X = grip_rotation(-math.pi / 2)  # straight down, fingers closing along x (the left hand)
 GRIP_R = grip_rotation(math.pi / 2)  # the same for the right hand, turned the other way round (its wrist's range)
 CHEESE_GRIP_AT = -0.015  # the right hand holds the cheese this far right of its middle
 CHEESE_IN_HAND = 0.020  # the right TCP this far above the cheese's underside
-PRESS = 0.006  # aim the cheese's end this far into the face
-STROKE_Z = (0.028, 0.100)  # the cheese's underside travels between these heights above the grater's foot
-STROKES, STROKE_S = 6, 1.0
+PRESS = 0.050  # on a downstroke aim the cheese's end this far into the face (both arms give: it presses about 5 N)
+PRESS_UP = 0.010  # on the way back up only lightly (the return stroke grates nothing)
+LEAN = 0.035  # on each downstroke the left hand braces the grater, aimed this far toward the cheese (the arm gives)
+BRACE_EARLY = 0.1  # s: the brace starts this much before each press (the left arm lags)
+STROKE_Z = (0.025, 0.090)  # the cheese's underside travels between these heights above the grater's foot
+STROKES = 5
+IN_S, DOWN_S, OUT_S, UP_S = 0.3, 1.2, 0.2, 0.8
 LEAD_S, LEAD_STEPS = 3.0, 15
 
 
@@ -359,21 +423,22 @@ HELD_AT = LEAD_S + 1.0 + 0.8
 
 def _right() -> list[Waypoint]:
     rest = _cheese_tcp(CY0, BOARD_TOP + 0.0005)
-    on_face_y = GY - G_Y / 2 - CHEESE[1] / 2 + PRESS  # the cheese's middle with its end pressed into the face
-    off_y = on_face_y - 0.02
+    at_face_y = GY - G_Y / 2 - CHEESE[1] / 2  # the cheese's middle with its end just touching the face
+    off_y = at_face_y - 0.02
     z0, z1 = BOARD_TOP + STROKE_Z[0], BOARD_TOP + STROKE_Z[1]
     out = _lead_in("right", rest + [0.0, 0.0, 0.05], GRIP_R, "over the cheese")
     out += [_w(1.0, rest, FINGER_OPEN, "down round the cheese", GRIP_R),
             _w(0.8, rest, FINGER_CLOSED, "grip it", GRIP_R),
             _w(1.0, rest + [0.0, 0.0, 0.06], FINGER_CLOSED, "lift it", GRIP_R)]
     t = sum(w.duration for w in out)
-    out += [_w(max(HELD_AT - t, 0.3) + 1.5, _cheese_tcp(off_y, z1), FINGER_CLOSED, "beside the grating face, at the top",
-               GRIP_R),
-            _w(0.8, _cheese_tcp(on_face_y, z1), FINGER_CLOSED, "press it on the face", GRIP_R)]
-    for k in range(STROKES):
-        z = z0 if k % 2 == 0 else z1
-        out.append(_w(STROKE_S, _cheese_tcp(on_face_y, z), FINGER_CLOSED, "rub it down and up the face", GRIP_R))
-    out += [_w(0.8, _cheese_tcp(off_y, z1), FINGER_CLOSED, "off the face", GRIP_R),
+    out.append(_w(max(HELD_AT - t, 0.3) + 1.5, _cheese_tcp(off_y, z1), FINGER_CLOSED,
+                  "beside the grating face, at the top", GRIP_R))
+    for _ in range(STROKES):
+        out += [_w(IN_S, _cheese_tcp(at_face_y + PRESS, z1), FINGER_CLOSED, "press it on the face", GRIP_R),
+                _w(DOWN_S, _cheese_tcp(at_face_y + PRESS, z0), FINGER_CLOSED, "rub it down across the teeth", GRIP_R),
+                _w(OUT_S, _cheese_tcp(at_face_y + PRESS_UP, z0), FINGER_CLOSED, "ease the press", GRIP_R),
+                _w(UP_S, _cheese_tcp(at_face_y + PRESS_UP, z1), FINGER_CLOSED, "back up, lightly", GRIP_R)]
+    out += [_w(0.8, _cheese_tcp(off_y, z1), FINGER_CLOSED, "away from the face", GRIP_R),
             _w(1.5, rest + [0.0, 0.0, 0.03], FINGER_CLOSED, "back over its place", GRIP_R),
             _w(0.8, rest + [0.0, 0.0, 0.003], FINGER_CLOSED, "put it down", GRIP_R),
             _w(0.5, rest + [0.0, 0.0, 0.003], FINGER_OPEN, "let go", GRIP_R),
@@ -386,14 +451,22 @@ SET_ASIDE = 0.07  # after grating, the left hand lifts the grater this far to th
 LIFT = 0.03
 
 
-def _left(release_at: float, right_home_at: float) -> list[Waypoint]:
+def _left(press_at: float, release_at: float, right_home_at: float) -> list[Waypoint]:
     handle = np.array([GX, GY + G_Y / 2 + HANDLE[1] - 0.025, BOARD_TOP + 0.0005 + G_H + G_T - HANDLE[2] / 2 + 0.003])
     root = handle + [0.0, -(HANDLE[1] - 0.045), 0.0]  # near the handle's root: a short lever to carry the grater by
     out = _lead_in("left", handle + [0.0, 0.0, 0.05], GRIP_X, "over the grater's handle")
     out += [_w(1.0, handle, FINGER_OPEN, "down round the handle", GRIP_X),
             _w(0.8, handle, FINGER_CLOSED, "hold the grater", GRIP_X)]
     t = sum(w.duration for w in out)
-    out += [_w(max(release_at - t, 0.5), handle, FINGER_CLOSED, "hold it steady while the cheese is grated", GRIP_X),
+    lean = handle + [0.0, -LEAN, 0.0]
+    out.append(_w(max(press_at - BRACE_EARLY - t, 0.5), handle, FINGER_CLOSED, "hold the grater steady", GRIP_X))
+    for _ in range(STROKES):  # brace against each downstroke's press, in time with the right hand's strokes
+        out += [_w(IN_S, lean, FINGER_CLOSED, "brace it against the press", GRIP_X),
+                _w(DOWN_S, lean, FINGER_CLOSED, "hold it steady while the cheese is grated", GRIP_X),
+                _w(OUT_S, handle, FINGER_CLOSED, "ease the brace", GRIP_X),
+                _w(UP_S, handle, FINGER_CLOSED, "hold it steady", GRIP_X)]
+    t = sum(w.duration for w in out)
+    out += [_w(max(release_at - t, 0.5), handle, FINGER_CLOSED, "hold it while the cheese is put down", GRIP_X),
             _w(0.5, handle, FINGER_OPEN, "let go", GRIP_X),
             _w(1.0, handle + [0.0, 0.0, 0.04], FINGER_OPEN, "rise", GRIP_X)]
     t = sum(w.duration for w in out)
@@ -413,11 +486,21 @@ def _left(release_at: float, right_home_at: float) -> list[Waypoint]:
     return out
 
 
+def _starts(wps: list[Waypoint], label: str) -> float:
+    """When the first waypoint with this label starts."""
+    t = 0.0
+    for w in wps:
+        if w.label == label:
+            return t
+        t += w.duration
+    raise ValueError(label)
+
+
 def demo():
     right = _right()
     put_down = sum(w.duration for w in right) - LEAD_S  # the cheese is down and the right hand on its way home
     right_home = sum(w.duration for w in right) + 0.3
-    left = _left(put_down, right_home)
+    left = _left(_starts(right, "press it on the face"), put_down, right_home)
     total = sum(w.duration for w in left)
     right.append(_w(max(total - sum(w.duration for w in right), 0.5), right[-1].pos, FINGER_OPEN, "wait at the start",
                     right[-1].yaw))
