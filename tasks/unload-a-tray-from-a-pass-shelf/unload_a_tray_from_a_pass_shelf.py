@@ -2,11 +2,12 @@
 above it (its underside 21 cm up), both 20-24 cm wide and held by a back panel, open at the front and the sides. On the
 lower shelf rests a rimmed serving tray (36 x 20 cm), wider than the pass so its two side rims stick out to the left
 and right. In the middle of the tray, under the upper shelf, stands a soup bowl with a small side handle on its right,
-holding the soup: 15 orange beads (8 mm). To the right, a round placemat lies on the table. The tray, the bowl and the
+holding the soup: 150 ml of water in a real trial, here 15 orange beads (8 mm), each standing for 10 ml, with the
+rest of the soup's mass in the bowl. To the right, a round placemat lies on the table. The tray, the bowl and the
 beads are loose; the pass and the placemat are fixed.
 
-Task: with both hands on the tray's side rims, slide the tray out of the pass and set it down flat on the table without
-spilling the soup, then serve the bowl onto the placemat. The bowl cannot be reached under the upper shelf.
+Task: unload the tray from the pass without spilling the soup, leaving the tray lying flat on the table and the bowl
+standing on the blue placemat. The bowl cannot be reached under the upper shelf.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=unload_a_tray_from_a_pass_shelf.py \\
            --instruction "..." --scorer task_score ...
@@ -46,13 +47,18 @@ LUG_LEN, LUG_T, LUG_H, LUG_Z = 0.035, 0.008, 0.020, 0.040  # the handle: a fin o
 BOWL_MASS = 0.25
 
 BEAD_R, BEAD_MASS, N_BEADS = 0.004, 0.0015, 15
+# the real soup: 150 ml of water (1 g per ml), about 2.4 cm deep in the bowl; each bead stands for 10 ml of it, and the
+# soup's mass that the beads do not carry rides in the bowl's body, so the tray and the bowl carry the real load
+SOUP_ML, BEAD_ML = 150, 10
+SOUP_LOAD = SOUP_ML / 1000.0 - N_BEADS * BEAD_MASS  # kg, added to the bowl: 0.1275
 
 MAT_XY, MAT_R = (0.32, -0.26), 0.065
 
 WOOD, TRAY_C, BOWL_C, SOUP, MAT = (0.55, 0.38, 0.22), (0.20, 0.22, 0.25), (0.93, 0.93, 0.90), (0.93, 0.45, 0.10), (0.25, 0.45, 0.70)
 
 # -- scoring --------------------------------------------------------------------------------------------------------
-SPILL_FULL, SPILL_HALF = 1, 3
+SPILL_FULL_ML, SPILL_HALF_ML = 10, 30  # at most this much soup spilled for 1.0, and for 0.5 or 0.25
+SPILL_FULL, SPILL_HALF = SPILL_FULL_ML // BEAD_ML, SPILL_HALF_ML // BEAD_ML  # in beads out of the bowl: 1 and 3
 ON_MAT = 0.04  # the bowl's centre within this of the placemat's centre
 UPRIGHT, TIPPED = math.radians(15), math.radians(45)
 SUCCESS_HOLD_S = 1.0
@@ -84,7 +90,8 @@ def _bowl() -> Body:
         shapes.append(plate((r * u[0], r * u[1], BOWL_FLOOR), (r * u[0], r * u[1], BOWL_FLOOR + BOWL_H),
                             2 * r * math.tan(math.pi / n) + 0.001, BOWL_T, u, BOWL_C))
     shapes.append(BoxShape((0.0, -(BOWL_R_I + BOWL_T + LUG_LEN / 2 - 0.001), LUG_Z), (LUG_T, LUG_LEN, LUG_H), BOWL_C))
-    return Body.build("bowl", pos=(TRAY_XY[0], TRAY_XY[1], BOWL_Z0), mass=BOWL_MASS, shapes=shapes, friction=(0.6, 0.5),
+    return Body.build("bowl", pos=(TRAY_XY[0], TRAY_XY[1], BOWL_Z0), mass=BOWL_MASS + SOUP_LOAD, shapes=shapes,
+                      friction=(0.6, 0.5),
                       color=BOWL_C)
 
 
@@ -173,9 +180,9 @@ _DEBUG = {"on": bool(os.environ.get("TRAY_DEBUG")), "calls": 0}
 
 def score(objects) -> float:
     """0 if the bowl is ever tipped 45 degrees or ends tilted 15 degrees or more. Otherwise 1.0 with the bowl on the
-    placemat, the tray flat on the table and at most 1 of the 15 beads out of the bowl; 0.5 with the tray flat on the
-    table and at most 3 beads out (the bowl not served); 0.25 with the tray pulled wholly out in front of the shelf and at
-    most 3 beads out; else 0."""
+    placemat, the tray flat on the table and at most 1 of the 15 beads (10 ml) out of the bowl; 0.5 with the tray flat on
+    the table and at most 3 beads (30 ml) out, whether or not the bowl is on the placemat; 0.25 with the tray pulled
+    wholly out in front of the shelf and at most 3 beads out; else 0."""
     t = _tally(objects)
     if _DEBUG["on"]:  # TRAY_DEBUG=1: one line a second (at 20 Hz) on stderr
         _DEBUG["calls"] += 1
