@@ -2,10 +2,10 @@
 which opens at the back into a short chute; six more lie on the tray's main floor, kept out of the trough by a low
 divider. Beside the tray stands an empty square amber vial with a wide mouth.
 
-Task: pour the ten counted tablets, and only those, into the vial. As pharmacy staff are taught, one hand holds the vial
-up to the tray's chute (off the counter, so no tablet bounces out) while the other lifts the tray by its grip fin and
-tips it back, so the counted tablets slide down the trough and out of the chute; the extra ones stay behind on the
-tray's floor. Too many or too few in the vial is a miscount.
+Task: put the ten counted tablets, and only those, into the vial, with the vial off the table while they go in; the six
+others stay on the tray's counting area (its floor left of the divider) and no tablet is spilt. Too many or too few in
+the vial is a miscount. Credit counts only the ten tablets that started in the trough; any of the six extras in the vial
+at any moment, or any tablet on the table or the floor at any moment, scores 0 for the whole trial.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=pour_ten_counted_tablets_into_a_held_vial.py \\
            --instruction "..." --scorer task_score ...
@@ -61,7 +61,11 @@ EXTRA_SPOTS = [(x, y) for x in (0.020, -0.010) for y in (0.002, 0.014, 0.026)]
 BLUE, AMBER, WHITE = (0.16, 0.42, 0.72), (0.62, 0.32, 0.06), (0.96, 0.96, 0.94)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
-HELD_UP = 0.02  # the vial's underside at least this far off the table when the first tablet goes in
+HELD_UP = 0.02  # the vial's underside at least this far off the table each time a tablet goes in
+ON_TRAY_Z = RIM_H + 0.005  # on the tray: a tablet's centre at most this far above the tray's underside (rims 1.5 cm)
+ON_TABLE = 0.01  # spilt: a tablet outside the vial and the tray with its centre at most 1 cm above the table (or lower)
+EXTRAS = len(EXTRA_SPOTS)  # 6
+HALF_FROM = 5  # 0.5 needs at least this many counted tablets in the vial
 SUCCESS_HOLD_S = 1.0
 
 
@@ -114,10 +118,12 @@ TABLET_NAMES = [t.name for t in TABLETS]
 OBJECTS = [TRAY, VIAL, *TABLETS]
 
 
-# -- followed after every control step: when the first tablet goes into the vial, and where the vial was then ----------
+# -- followed after every control step: where the vial is as each tablet goes in, and the latches ---------------------
 
 def _fresh() -> dict:
-    return {"first_in": False, "held_up": False, "underside_then": None}
+    # latches, never reset within a trial: a tablet went in with the vial's underside under 2 cm up; an extra was in
+    # the vial; a tablet was down on the table or the floor
+    return {"first_in": False, "underside_then": None, "n_in": 0, "low_pour": False, "extra_in": False, "spilt": False}
 
 
 _EP = _fresh()
@@ -132,24 +138,48 @@ def _new_episode() -> None:
 
 
 def _where(t_pos, tray_pos, tray_rot, vial_pos, vial_rot) -> str:
-    v = vial_rot.T @ (np.asarray(t_pos, float) - vial_pos)
+    """'vial'; 'flat' (on the tray's counting area: its floor left of the divider); 'trough' (on the tray right of the
+    divider: the trough and the chute); or 'out'."""
+    p = np.asarray(t_pos, float)
+    v = vial_rot.T @ (p - vial_pos)
     if max(abs(v[0]), abs(v[1])) < VIAL_R - VIAL_T and -0.002 < v[2] < VIAL_H + 0.004:
         return "vial"
-    w = tray_rot.T @ (np.asarray(t_pos, float) - tray_pos)
-    if -HALF_L - CHUTE_L <= w[0] <= HALF_L and -HALF_W <= w[1] <= HALF_W and -0.004 < w[2] < 0.03:
-        return "tray"
+    w = tray_rot.T @ (p - tray_pos)
+    if not 0.0 < w[2] < ON_TRAY_Z:  # between the tray's underside and 5 mm above its rims
+        return "out"
+    if -HALF_L <= w[0] <= HALF_L and -HALF_W <= w[1] <= HALF_W:
+        return "flat" if w[1] > DIV_Y else "trough"
+    if -HALF_L - CHUTE_L <= w[0] < -HALF_L and -HALF_W <= w[1] <= DIV_Y + WALL_T / 2:
+        return "trough"  # in the chute
     return "out"
 
 
 def _counts(t_positions, tray_pos, tray_rot, vial_pos, vial_rot) -> dict:
-    """Where the tablets are (in TABLET_NAMES order: the 10 counted ones first, then the extras)."""
-    out = {"vial": 0, "tray": 0, "out": 0, "extras_in": 0}
+    """Where the tablets are (in TABLET_NAMES order: the 10 counted ones first, then the 6 extras). 'in': counted
+    tablets in the vial; 'extras_in': extras in the vial; 'extras_flat': extras on the counting area; 'out': tablets
+    neither in the vial nor on the tray; 'down': those of them on the table or the floor."""
+    out = {"in": 0, "extras_in": 0, "extras_flat": 0, "out": 0, "down": 0}
     for i, p in enumerate(t_positions):
         w = _where(p, tray_pos, tray_rot, vial_pos, vial_rot)
-        out[w] += 1
-        if w == "vial" and i >= COUNTED:
-            out["extras_in"] += 1
+        if w == "vial":
+            out["in" if i < COUNTED else "extras_in"] += 1
+        elif w == "flat" and i >= COUNTED:
+            out["extras_flat"] += 1
+        elif w == "out":
+            out["out"] += 1
+            out["down"] += int(p[2] <= TOP + ON_TABLE)
     return out
+
+
+def _latch(c: dict, vial_z: float) -> None:
+    n = c["in"] + c["extras_in"]
+    if n > _EP["n_in"]:  # a tablet went in: where was the vial?
+        if not _EP["first_in"]:
+            _EP["first_in"], _EP["underside_then"] = True, round(float(vial_z - TOP), 4)
+        _EP["low_pour"] = _EP["low_pour"] or bool(vial_z - TOP < HELD_UP)
+    _EP["n_in"] = n
+    _EP["extra_in"] = _EP["extra_in"] or c["extras_in"] > 0
+    _EP["spilt"] = _EP["spilt"] or c["down"] > 0
 
 
 @on_step
@@ -165,10 +195,7 @@ def _follow(env) -> None:
     vial_pos, vial_rot = pose("vial")
     tabs = [pose(n)[0] for n in TABLET_NAMES]
     c = _counts(tabs, tray_pos, tray_rot, vial_pos, vial_rot)
-    if c["vial"] > 0 and not _EP["first_in"]:
-        _EP["first_in"] = True
-        _EP["underside_then"] = float(vial_pos[2] - TOP)
-        _EP["held_up"] = _EP["underside_then"] >= HELD_UP
+    _latch(c, vial_pos[2])
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 10 == 0:
@@ -176,28 +203,35 @@ def _follow(env) -> None:
             tilt = math.degrees(math.atan2(tray_rot[2, 0], tray_rot[0, 0]))  # tipped back: positive
             print(f"[tab] t={_DEBUG['steps'] / 20:5.1f}s tray={np.round(tray_pos * 1000).astype(int).tolist()} tilt={tilt:5.1f} "
                   f"vial={np.round(vial_pos * 1000).astype(int).tolist()} tip-vial={np.round((tip - vial_pos) * 1000).astype(int).tolist()} "
-                  f"counts={c} first_in={_EP['first_in']} underside_then={_EP['underside_then']} "
-                  f"score={_points(c, _EP['held_up'])}", file=sys.stderr, flush=True)
+                  f"counts={c} latches={_EP} score={_points(c)}", file=sys.stderr, flush=True)
 
 
 # -- scoring --------------------------------------------------------------------------------------------------------
 
-def _points(c: dict, held_up: bool) -> float:
-    if c["vial"] == COUNTED and c["extras_in"] == 0 and c["out"] == 0 and held_up:
+def _points(c: dict) -> float:
+    # 0 for the whole trial: an extra ever in the vial, a tablet ever on the table or the floor; at the end, a tablet
+    # neither in the vial nor on the tray, or fewer than all 6 extras on the counting area
+    if _EP["extra_in"] or _EP["spilt"] or c["extras_in"] or c["out"] or c["extras_flat"] < EXTRAS:
+        return 0.0
+    if c["in"] == COUNTED and _EP["first_in"] and not _EP["low_pour"]:
         return 1.0
-    if COUNTED - 1 <= c["vial"] <= COUNTED + 1:
+    if c["in"] >= HALF_FROM:  # 5 to 9 counted tablets in the vial, or all 10 but some went in low
         return 0.5
-    return 0.25 if c["vial"] >= 1 else 0.0
+    return 0.25 if c["in"] >= 1 else 0.0
 
 
 def score(objects) -> float:
-    """1.0 with the 10 counted tablets in the vial and none of the 6 extras, none spilt, and the vial held up off the
-    table (its underside 2 cm up) when the first one went in; 0.5 with 9 to 11 tablets in the vial; 0.25 with at least
-    1; else 0.0."""
+    """Only the 10 counted tablets (those that started in the trough) earn credit, and only on a clean trial: any of the
+    6 extras in the vial at any moment, or any tablet on the table or the floor at any moment, scores 0, as does a
+    tablet that ends neither in the vial nor on the tray, or an extra that ends off the tray's counting area. On a clean
+    trial: 1.0 with all 10 counted tablets in the vial and the vial held up off the table (its underside at least 2 cm
+    up) each time a tablet went in; 0.5 with 5 to 9 of them in the vial, or all 10 but some went in with the vial lower;
+    0.25 with 1 to 4; else 0.0."""
     tray, vial = objects["tray"], objects["vial"]
     c = _counts([objects[n].pos for n in TABLET_NAMES], np.asarray(tray.pos, float), rotation(tray.quat_xyzw),
                 np.asarray(vial.pos, float), rotation(vial.quat_xyzw))
-    return _points(c, _EP["held_up"])
+    _latch(c, float(vial.pos[2]))
+    return _points(c)
 
 
 def success(objects) -> bool:
@@ -219,13 +253,14 @@ GRIP_R = grip_rotation(0.0)  # straight down, fingers closing along y (left and 
 VIAL_IN_HAND = 0.015  # the right TCP this far below the vial's rim
 POUR_TILT, CARRY_TILT = math.radians(22.0), math.radians(6.0)
 VIAL_AT = np.array([0.178, 0.013])  # where the held vial's middle should be
-VIAL_UP = 0.034  # aim the held vial's underside this high (the arm gives about 6 mm under it)
+VIAL_UP = 0.044  # aim the held vial's underside this high (measured: the arm's give and the chute resting on the
+# vial lower it by about 1.3 cm while it pours, to about 3.2 cm: well over the 2 cm rule)
 VIAL_AIM = np.array([-0.008, 0.024])  # the held vial's middle from the right TCP (measured: the 5 cm grip does not
 # centre the bottle, and the arm comes up short)
 # The loaded arm tips the tray past the planned 22 degrees and lowers it, which puts the chute's lip about 1.7 cm
 # further forward and 1 cm lower than planned: aim it that much back and up, and 1 cm more toward the vial's middle.
 LIP_OVER = VIAL_AT + np.array([-0.027, 0.004])
-LIP_Z = TOP + 0.091
+LIP_Z = TOP + 0.101
 LEAD_S, LEAD_STEPS = 3.0, 15
 
 
