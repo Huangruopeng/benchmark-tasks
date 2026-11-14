@@ -40,7 +40,8 @@ Color = tuple[float, float, float]
 @dataclass(frozen=True)
 class BoxShape:
     """A box in the body frame: ``centre`` and ``size`` (m), turned ``yaw`` (rad) about the body's z axis, or, when
-    ``quat_xyzw`` is given, rotated by that quaternion instead."""
+    ``quat_xyzw`` is given, rotated by that quaternion instead. ``color=None``: collision only, not rendered (any
+    shape)."""
 
     centre: tuple[float, float, float]
     size: tuple[float, float, float]
@@ -210,7 +211,9 @@ class Hinge:
     """A revolute joint between two Bodies, about a line through ``anchor`` (world, m, at the start) along ``axis``
     ("X", "Y" or "Z"; the bodies start unrotated). ``limits_deg`` bounds the turn of ``body1`` against ``body0``;
     ``break_force`` (N) and ``break_torque`` (N m), if given, make PhysX break the joint for good once exceeded.
-    ``body0`` must come before ``body1`` in OBJECTS: the joint is authored when ``body1`` is spawned."""
+    ``body0`` must come before ``body1`` in OBJECTS: the joint is authored when ``body1`` is spawned. ``body1`` may
+    start rotated (its ``start_xyzw``) if its origin is on the hinge line at ``anchor``. ``spring`` (N m per degree)
+    pulls ``body1`` toward ``target_deg``; ``damping`` (N m per degree/s) resists turning (a stiff or a damped hinge)."""
 
     name: str
     body0: str
@@ -220,9 +223,14 @@ class Hinge:
     limits_deg: tuple[float, float] | None = None
     break_force: float | None = None
     break_torque: float | None = None
+    spring: float = 0.0
+    damping: float = 0.0
+    target_deg: float = 0.0
 
 
 _HINGES: list[Hinge] = []
+_HINGE_PATHS: dict[str, str] = {}
+_HINGE_ATTRS: dict[str, tuple] = {}
 _BREAKABLE_PATHS: list[str] = []  # authored joints that can break, re-armed at every reset
 
 
@@ -245,13 +253,25 @@ def _author_hinges(stage, prim_path: str, spec) -> None:
         joint.CreateBody0Rel().SetTargets([f"{parent}/{h.body0}/body"])
         joint.CreateBody1Rel().SetTargets([f"{prim_path}/body"])
         joint.CreateLocalPos0Attr(Gf.Vec3f(*(np.asarray(h.anchor, float) - np.asarray(b0.pos, float)).tolist()))
-        joint.CreateLocalPos1Attr(Gf.Vec3f(*(np.asarray(h.anchor, float) - np.asarray(b1.pos, float)).tolist()))
+        if b1.start_xyzw is not None:  # its origin is on the hinge line; the hinge's 0 is body1 unrotated
+            joint.CreateLocalPos1Attr(Gf.Vec3f(0.0, 0.0, 0.0))
+        else:
+            joint.CreateLocalPos1Attr(Gf.Vec3f(*(np.asarray(h.anchor, float) - np.asarray(b1.pos, float)).tolist()))
         joint.CreateLocalRot0Attr(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
         joint.CreateLocalRot1Attr(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
         joint.CreateAxisAttr(h.axis)
         if h.limits_deg is not None:
             joint.CreateLowerLimitAttr(float(h.limits_deg[0]))
             joint.CreateUpperLimitAttr(float(h.limits_deg[1]))
+        _HINGE_PATHS[h.name] = f"{prim_path}/{h.name}"
+        _HINGE_ATTRS.pop(h.name, None)
+        if h.spring or h.damping:
+            drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular")  # USD angular drives take degrees
+            drive.CreateTypeAttr("force")
+            drive.CreateStiffnessAttr(float(h.spring))
+            drive.CreateDampingAttr(float(h.damping))
+            drive.CreateTargetPositionAttr(float(h.target_deg))
+            drive.CreateMaxForceAttr(1.0e6)
         if h.break_force is not None:
             joint.CreateBreakForceAttr(float(h.break_force))
             _BREAKABLE_PATHS.append(f"{prim_path}/{h.name}")
@@ -259,6 +279,27 @@ def _author_hinges(stage, prim_path: str, spec) -> None:
             joint.CreateBreakTorqueAttr(float(h.break_torque))
             if f"{prim_path}/{h.name}" not in _BREAKABLE_PATHS:
                 _BREAKABLE_PATHS.append(f"{prim_path}/{h.name}")
+
+
+def set_hinge_drive(name: str, target_deg: float | None = None, spring: float | None = None,
+                    damping: float | None = None) -> None:
+    """Move a sprung :class:`Hinge`'s target (degrees) and/or change its spring (N m/deg) and damping (N m s/deg), e.g.
+    to lock it where it is; every reset puts them back."""
+    if name not in _HINGE_ATTRS:
+        from isaaclab.sim.utils.stage import get_current_stage
+        from pxr import UsdPhysics
+
+        drive = UsdPhysics.DriveAPI(get_current_stage().GetPrimAtPath(_HINGE_PATHS[name]), "angular")
+        _HINGE_ATTRS[name] = (drive.GetTargetPositionAttr(), drive.GetStiffnessAttr(), drive.GetDampingAttr())
+    for attr, value in zip(_HINGE_ATTRS[name], (target_deg, spring, damping)):
+        if value is not None:
+            attr.Set(float(value))
+
+
+def _hinges_reset() -> None:
+    for h in _HINGES:
+        if h.name in _HINGE_PATHS and (h.spring or h.damping):
+            set_hinge_drive(h.name, h.target_deg, h.spring, h.damping)
 
 
 def _rearm_hinges() -> None:
@@ -378,6 +419,214 @@ def _author_threads(stage, prim_path: str, spec) -> None:
         _THREAD_ATTRS.pop(t.name, None)
 
 
+@dataclass(frozen=True)
+class Ball:
+    """A ball joint: ``body1`` hangs from ``body0`` at ``anchor`` (world, m, at the start; both bodies start unrotated),
+    free to swing every way and to spin about ``axis`` (the twist axis, from ``body0`` toward ``body1``), against
+    ``swing_damping`` and ``twist_damping`` (N m s/rad). A PhysX D6 joint with its three slides locked. ``body0`` must
+    come before ``body1`` in OBJECTS."""
+
+    name: str
+    body0: str
+    body1: str
+    anchor: tuple[float, float, float]
+    axis: tuple[float, float, float] = (0.0, 0.0, -1.0)
+    swing_damping: float = 0.0
+    twist_damping: float = 0.0
+
+
+_BALLS: list[Ball] = []
+
+
+def ball(*args, **kwargs) -> Ball:
+    """Register a :class:`Ball` (same arguments) and return it."""
+    b = Ball(*args, **kwargs)
+    _BALLS.append(b)
+    return b
+
+
+def _author_balls(stage, prim_path: str, spec) -> None:
+    from pxr import Gf, UsdPhysics
+
+    parent = prim_path.rsplit("/", 1)[0]
+    for b in _BALLS:
+        if b.body1 != spec.name:
+            continue
+        b0 = _SPECS[b.body0]
+        joint = UsdPhysics.Joint.Define(stage, f"{prim_path}/{b.name}")
+        joint.CreateBody0Rel().SetTargets([f"{parent}/{b.body0}/body"])
+        joint.CreateBody1Rel().SetTargets([f"{prim_path}/body"])
+        joint.CreateLocalPos0Attr(Gf.Vec3f(*(np.asarray(b.anchor, float) - np.asarray(b0.pos, float)).tolist()))
+        joint.CreateLocalPos1Attr(Gf.Vec3f(*(np.asarray(b.anchor, float) - np.asarray(spec.pos, float)).tolist()))
+        q = Gf.Quatf(*_x_to(b.axis))
+        joint.CreateLocalRot0Attr(q)
+        joint.CreateLocalRot1Attr(q)
+        joint.CreateCollisionEnabledAttr(False)
+        joint.CreateExcludeFromArticulationAttr(True)
+        prim = joint.GetPrim()
+        for dof in ("transX", "transY", "transZ"):
+            limit = UsdPhysics.LimitAPI.Apply(prim, dof)  # low > high: locked
+            limit.CreateLowAttr(1.0)
+            limit.CreateHighAttr(-1.0)
+        for dof, damping in (("rotX", b.twist_damping), ("rotY", b.swing_damping), ("rotZ", b.swing_damping)):
+            if damping:
+                drive = UsdPhysics.DriveAPI.Apply(prim, dof)  # USD angular drives take degrees
+                drive.CreateTypeAttr("force")
+                drive.CreateStiffnessAttr(0.0)
+                drive.CreateDampingAttr(float(damping) * math.pi / 180.0)
+                drive.CreateTargetVelocityAttr(0.0)
+                drive.CreateMaxForceAttr(1.0e6)
+
+
+@dataclass(frozen=True)
+class Glue:
+    """A fixed joint holding ``body1`` to ``body0`` as they start (both unrotated), at ``anchor`` (world, m). The task
+    file can switch it off (:func:`set_glue_on`), e.g. once a cut through it is finished; every reset switches it back
+    on. ``body0`` must come before ``body1`` in OBJECTS."""
+
+    name: str
+    body0: str
+    body1: str
+    anchor: tuple[float, float, float]
+
+
+_GLUES: list[Glue] = []
+_GLUE_ATTRS: dict[str, object] = {}
+_GLUE_PATHS: dict[str, str] = {}
+
+
+def glue(*args, **kwargs) -> Glue:
+    """Register a :class:`Glue` (same arguments) and return it."""
+    g = Glue(*args, **kwargs)
+    _GLUES.append(g)
+    return g
+
+
+def _author_glues(stage, prim_path: str, spec) -> None:
+    from pxr import Gf, UsdPhysics
+
+    parent = prim_path.rsplit("/", 1)[0]
+    for g in _GLUES:
+        if g.body1 != spec.name:
+            continue
+        b0 = _SPECS[g.body0]
+        joint = UsdPhysics.FixedJoint.Define(stage, f"{prim_path}/{g.name}")
+        joint.CreateBody0Rel().SetTargets([f"{parent}/{g.body0}/body"])
+        joint.CreateBody1Rel().SetTargets([f"{prim_path}/body"])
+        joint.CreateLocalPos0Attr(Gf.Vec3f(*(np.asarray(g.anchor, float) - np.asarray(b0.pos, float)).tolist()))
+        joint.CreateLocalPos1Attr(Gf.Vec3f(*(np.asarray(g.anchor, float) - np.asarray(spec.pos, float)).tolist()))
+        joint.CreateLocalRot0Attr(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
+        joint.CreateLocalRot1Attr(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
+        joint.CreateJointEnabledAttr(True)
+        joint.CreateExcludeFromArticulationAttr(True)
+        _GLUE_PATHS[g.name] = f"{prim_path}/{g.name}"
+        _GLUE_ATTRS.pop(g.name, None)
+
+
+def set_glue_on(name: str, on: bool) -> None:
+    """Switch a :class:`Glue` on (the two bodies held together) or off (apart)."""
+    if name not in _GLUE_ATTRS:
+        from isaaclab.sim.utils.stage import get_current_stage
+        from pxr import UsdPhysics
+
+        prim = get_current_stage().GetPrimAtPath(_GLUE_PATHS[name])
+        _GLUE_ATTRS[name] = UsdPhysics.Joint(prim).GetJointEnabledAttr()
+    _GLUE_ATTRS[name].Set(bool(on))
+
+
+def _glues_on() -> None:
+    for name in _GLUE_PATHS:  # off and on again: rebuilt whole from the bodies' reset poses
+        set_glue_on(name, False)
+        set_glue_on(name, True)
+
+
+@dataclass(frozen=True)
+class Slider:
+    """A prismatic joint: ``body1`` slides against ``body0`` along ``axis`` ("X", "Y" or "Z") through ``anchor`` (world,
+    m, at the start; both bodies start unrotated), between ``limits`` (m, from the start), pulled by a spring drive
+    (``stiffness`` N/m, ``damping`` N s/m, at most ``max_force`` N) toward ``target`` (m). The task file can move the
+    target and change the stiffness (:func:`set_slider_drive`), e.g. to lock it; every reset puts them back. ``body0``
+    must come before ``body1`` in OBJECTS."""
+
+    name: str
+    body0: str
+    body1: str
+    anchor: tuple[float, float, float]
+    axis: str = "X"
+    limits: tuple[float, float] | None = None
+    stiffness: float = 0.0
+    damping: float = 0.0
+    target: float = 0.0
+    max_force: float = 1.0e3
+
+
+_SLIDERS: list[Slider] = []
+_SLIDER_PATHS: dict[str, str] = {}
+_SLIDER_ATTRS: dict[str, tuple] = {}
+
+
+def slider(*args, **kwargs) -> Slider:
+    """Register a :class:`Slider` (same arguments) and return it."""
+    sl = Slider(*args, **kwargs)
+    _SLIDERS.append(sl)
+    return sl
+
+
+def _author_sliders(stage, prim_path: str, spec) -> None:
+    from pxr import Gf, UsdPhysics
+
+    parent = prim_path.rsplit("/", 1)[0]
+    for sl in _SLIDERS:
+        if sl.body1 != spec.name:
+            continue
+        b0 = _SPECS[sl.body0]
+        joint = UsdPhysics.PrismaticJoint.Define(stage, f"{prim_path}/{sl.name}")
+        joint.CreateBody0Rel().SetTargets([f"{parent}/{sl.body0}/body"])
+        joint.CreateBody1Rel().SetTargets([f"{prim_path}/body"])
+        joint.CreateLocalPos0Attr(Gf.Vec3f(*(np.asarray(sl.anchor, float) - np.asarray(b0.pos, float)).tolist()))
+        joint.CreateLocalPos1Attr(Gf.Vec3f(*(np.asarray(sl.anchor, float) - np.asarray(spec.pos, float)).tolist()))
+        joint.CreateLocalRot0Attr(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
+        joint.CreateLocalRot1Attr(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
+        joint.CreateAxisAttr(sl.axis)
+        if sl.limits is not None:
+            joint.CreateLowerLimitAttr(float(sl.limits[0]))
+            joint.CreateUpperLimitAttr(float(sl.limits[1]))
+        joint.CreateExcludeFromArticulationAttr(True)
+        drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "linear")
+        drive.CreateTypeAttr("force")
+        drive.CreateStiffnessAttr(float(sl.stiffness))
+        drive.CreateDampingAttr(float(sl.damping))
+        drive.CreateTargetPositionAttr(float(sl.target))
+        drive.CreateMaxForceAttr(float(sl.max_force))
+        _SLIDER_PATHS[sl.name] = f"{prim_path}/{sl.name}"
+        _SLIDER_ATTRS.pop(sl.name, None)
+
+
+def _slider_attrs(name: str) -> tuple:
+    if name not in _SLIDER_ATTRS:
+        from isaaclab.sim.utils.stage import get_current_stage
+        from pxr import UsdPhysics
+
+        drive = UsdPhysics.DriveAPI(get_current_stage().GetPrimAtPath(_SLIDER_PATHS[name]), "linear")
+        _SLIDER_ATTRS[name] = (drive.GetTargetPositionAttr(), drive.GetStiffnessAttr(), drive.GetDampingAttr())
+    return _SLIDER_ATTRS[name]
+
+
+def set_slider_drive(name: str, target: float | None = None, stiffness: float | None = None,
+                     damping: float | None = None) -> None:
+    """Move a :class:`Slider`'s drive target (m) and/or change its stiffness (N/m) and damping (N s/m)."""
+    attrs = _slider_attrs(name)
+    for attr, value in zip(attrs, (target, stiffness, damping)):
+        if value is not None:
+            attr.Set(float(value))
+
+
+def _sliders_reset() -> None:
+    for sl in _SLIDERS:
+        if sl.name in _SLIDER_PATHS:
+            set_slider_drive(sl.name, sl.target, sl.stiffness, sl.damping)
+
+
 def _thread_attrs(name: str) -> tuple:
     if name not in _THREAD_ATTRS:
         from isaaclab.sim.utils.stage import get_current_stage
@@ -385,8 +634,14 @@ def _thread_attrs(name: str) -> tuple:
 
         prim = get_current_stage().GetPrimAtPath(_THREAD_PATHS[name])
         _THREAD_ATTRS[name] = (UsdPhysics.Joint(prim).GetJointEnabledAttr(),
-                               UsdPhysics.DriveAPI(prim, "transX").GetTargetPositionAttr())
+                               UsdPhysics.DriveAPI(prim, "transX").GetTargetPositionAttr(),
+                               UsdPhysics.DriveAPI(prim, "rotX").GetDampingAttr())
     return _THREAD_ATTRS[name]
+
+
+def set_turn_damping(name: str, damping: float) -> None:
+    """Change a :class:`Thread`'s turn damping (N m s/rad): how hard it is to turn the nut on the screw."""
+    _thread_attrs(name)[2].Set(float(damping) * math.pi / 180.0)
 
 
 def set_thread_on(name: str, on: bool) -> None:
@@ -479,7 +734,10 @@ def _spawn_body(prim_path: str, cfg, translation=None, orientation=None, **kwarg
             geom.CreateHeightAttr(shape.height)
             geom.AddTranslateOp().Set(Gf.Vec3d(*shape.centre))
         path = str(geom.GetPrim().GetPath())
-        bind_visual_material(path, look(tuple(shape.color)), stage=stage)
+        if shape.color is None:  # a collision-only shape: not rendered (a clear part: what is inside shows)
+            UsdGeom.Imageable(geom.GetPrim()).MakeInvisible()
+        else:
+            bind_visual_material(path, look(tuple(shape.color)), stage=stage)
         if shape.collide:
             UsdPhysics.CollisionAPI.Apply(geom.GetPrim())
             collision = PhysxSchema.PhysxCollisionAPI.Apply(geom.GetPrim())
@@ -488,6 +746,9 @@ def _spawn_body(prim_path: str, cfg, translation=None, orientation=None, **kwarg
             bind_physics_material(path, phys, stage=stage)
     _author_hinges(stage, prim_path, spec)
     _author_threads(stage, prim_path, spec)
+    _author_balls(stage, prim_path, spec)
+    _author_glues(stage, prim_path, spec)
+    _author_sliders(stage, prim_path, spec)
     return root.GetPrim()
 
 
@@ -583,7 +844,10 @@ def _patch_embodiment(module) -> None:
     def reset(self, *args, **kwargs):
         _rearm_hinges()
         _threads_off()
+        _sliders_reset()
+        _hinges_reset()
         obs = base_reset(self, *args, **kwargs)
+        _glues_on()
         for fn in _RESET:
             fn()
         return obs
