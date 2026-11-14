@@ -1,10 +1,9 @@
 """On the station table lies a steel hand nutcracker, its two long handles open in a V toward the arms, on a smooth
-worktop, with a walnut between its jaws near the pivot. A small white bowl waits to the right and a saucer to the left.
+worktop, with a walnut between its jaws. A small white bowl waits to the right and a saucer to the left.
 
-Task: crack the walnut. The two handles are pushed toward each other from both sides, one hand on each (pushed from
-one side only, the light nutcracker just slides across the smooth worktop with the walnut and nothing cracks), until
-the jaws crush the shell. Then the kernel goes into the bowl, both shell halves go onto the saucer, and both arms go
-back to where they started.
+Task: crack the walnut, put the kernel in the bowl and every piece of shell on the saucer, and bring both arms back.
+The walnut cracks once both jaws press it with CRACK_N (PhysX contact forces). Pushed from one side only, the light
+nutcracker just slides across the smooth worktop with the walnut, and nothing cracks.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=crack_a_walnut_in_a_hand_nutcracker.py \\
            --instruction "..." --scorer task_score ...
@@ -21,8 +20,8 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from bodykit import (Body, BoxShape, CylShape, SphereShape, allow_matrix_grips, as_numpy, hinge, on_reset,  # noqa: E402
-                     on_step, rotation)
+from bodykit import (Body, BoxShape, CylShape, SphereShape, allow_matrix_grips, as_numpy, contact_forces,  # noqa: E402
+                     hinge, on_reset, on_step, rotation)
 from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
@@ -44,29 +43,36 @@ JAW = (0.040, 0.098, 0.018, 0.034)  # the jaw: from, to (along the lever), width
 LEVER_MASS = 0.16
 SPRING = 0.04  # N m per degree, opening the levers ...
 PRELOAD = 8.0  # ... toward 8 degrees past fully open, so they rest open against the stop
-
-# -- the walnut: 3.5 cm, on the worktop between the jaws, 6 cm out from the pivot ---------------------------------------
-NUT_S = 0.060
-NUT_R, NUT_CORE = 0.0175, 0.012  # what is seen; what the jaws touch (they crush the shell in by up to 5.5 mm)
-NUT_Z = 0.0125  # its middle above the worktop (it rests on a hidden flat-ended core 2.5 cm tall)
-CRACK_GAP = 0.029  # cracked once the jaws close to this gap where the walnut sits (3.5 cm across)
 JAW_IN = JAW[2] - BAR_W / 2  # a jaw's inner face, this far in from its lever's middle line
-PARK = (0.30, 0.0, TOP + 1.5)  # pieces wait out of sight in a closed box up here
 
-# -- after it cracks: the kernel and two shell halves fall out along the V ----------------------------------------------
-KERNEL_S, SHELL_S = 0.100, (0.150, 0.200)
-KERNEL = (0.026, 0.020, 0.020)  # its size: along x, across, tall
-SHELL_R, SHELL_H = 0.016, 0.0205
+# -- the walnut: 36 x 34 x 33 mm, 12 g, on the worktop between the jaws, its middle 7 cm out from the pivot -------------
+NUT_S = 0.070
+NUT = np.array([PX - NUT_S, PY, TOP])  # its middle, on the worktop
+W_A, W_B, W_C = 0.018, 0.017, 0.0165  # half its length (along the V), width and height
+NUT_MASS = 0.012
+CRACK_N = 40.0  # N: the shell gives once each jaw presses it this hard ...
+CRACK_STEPS = 2  # ... for this many control steps running (a steady squeeze, not a knock)
+# once it gives: a 6 g kernel, half the shell (3 g) and two quarters of it (1.5 g each), laid out between the levers
+# along the V's middle line, this far out from the pivot; each piece (length along the V, width, height)
+KERNEL = (0.028, 0.025, 0.024)
+SHELL = {"shell_a": (0.034, 0.032, 0.017), "shell_b": (0.030, 0.017, 0.016), "shell_c": (0.026, 0.017, 0.015)}
+MASS = {"kernel": 0.0060, "shell_a": 0.0030, "shell_b": 0.0015, "shell_c": 0.0015}
+LAYOUT = {"kernel": 0.100, "shell_a": 0.145, "shell_b": 0.188, "shell_c": 0.226}
+SHELLS = tuple(SHELL)
+PIECES = ("kernel",) + SHELLS
+PARK = (0.30, 0.0, TOP + 1.5)  # pieces wait out of sight in a closed box up here
 
 BOWL_AT, BOWL_R, BOWL_H = np.array([0.27, -0.25]), 0.050, 0.040
 DISH_AT, DISH_R = np.array([0.27, 0.25]), 0.062
 
-STEEL, RED, BROWN, DARK, KERNEL_C, WHITE, BLUE, HOLE = (0.72, 0.73, 0.75), (0.80, 0.12, 0.10), (0.55, 0.40, 0.24), \
-    (0.42, 0.30, 0.18), (0.86, 0.72, 0.50), (0.95, 0.95, 0.93), (0.30, 0.50, 0.85), (0.10, 0.10, 0.10)
+STEEL, RED, BROWN, DARK, KERNEL_C, KERNEL_D, WHITE, BLUE, HOLE, INNER = (0.72, 0.73, 0.75), (0.80, 0.12, 0.10), \
+    (0.55, 0.40, 0.24), (0.44, 0.31, 0.18), (0.86, 0.72, 0.50), (0.74, 0.58, 0.36), (0.95, 0.95, 0.93), \
+    (0.30, 0.50, 0.85), (0.10, 0.10, 0.10), (0.78, 0.64, 0.44)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 HOME_WITHIN = 0.05
 SUCCESS_HOLD_S = 1.0
+ON_DISH_Z = 0.04  # a piece of shell on the saucer: its middle at most this far above the saucer's base
 
 
 def _u(deg: float) -> np.ndarray:
@@ -100,52 +106,58 @@ def _lever(name: str, side: float) -> Body:
                       damping=(0.0, 0.05))
 
 
-def _nut_at(s: float) -> np.ndarray:
-    return np.array([PX - s, PY, TOP])
-
-
 def _walnut() -> Body:
-    shapes = [CylShape((0.0, 0.0, 0.0), NUT_CORE, 2 * NUT_Z, BROWN)]
-    shapes.append(SphereShape((0.0, 0.0, 0.0), NUT_R, BROWN, collide=False))
-    for i in range(10):  # wrinkles (seen only)
-        a = 2 * math.pi * i / 10
-        z = 0.006 * (1 if i % 2 else -1)
-        shapes.append(SphereShape((NUT_R * 0.82 * math.cos(a), NUT_R * 0.82 * math.sin(a), z), 0.0045, DARK,
-                                  collide=False))
-    shapes.append(BoxShape((0.0, 0.0, 0.0), (2 * NUT_R + 0.001, 0.0025, 2 * NUT_R + 0.001), DARK, collide=False))
-    p = _nut_at(NUT_S)
-    return Body.build("walnut", pos=(p[0], p[1], TOP + NUT_Z), mass=0.012, shapes=shapes, friction=(0.8, 0.7),
-                      color=BROWN, damping=(0.2, 2.0))
+    """One rigid body: a 34 mm upright cylinder (what the jaws touch; unseen) inside a lumpy shell (seen only)."""
+    shapes = [CylShape((0.0, 0.0, W_C), W_B, 2 * W_C, None)]
+    r = 0.0062
+    rows = [(-28.0, 12), (0.0, 14), (28.0, 12), (56.0, 8), (80.0, 3)]
+    for j, (lat, n) in enumerate(rows):
+        for i in range(n):
+            lon = 2 * math.pi * (i + 0.5 * (j % 2)) / n
+            c = math.cos(math.radians(lat))
+            p = ((W_A - r) * c * math.cos(lon), (W_B - r) * c * math.sin(lon),
+                 W_C + (W_C - r) * math.sin(math.radians(lat)))
+            shapes.append(SphereShape(p, r, BROWN if (i + j) % 2 else DARK, collide=False))
+    shapes.append(BoxShape((0.0, 0.0, W_C), (2 * W_A - 0.004, 0.0016, 2 * W_C - 0.003), DARK, collide=False))  # seam
+    return Body.build("walnut", pos=tuple(NUT.tolist()), mass=NUT_MASS, shapes=shapes, friction=(1.2, 1.1),
+                      color=BROWN, damping=(0.2, 2.0), report_contacts=True)
+
+
+def _store(k: int) -> np.ndarray:
+    return np.array([PARK[0] - 0.03 + 0.02 * k, PARK[1] + (0.02 if k % 2 else -0.02), PARK[2] + 0.005])
 
 
 def _kernel() -> Body:
     lx, ly, lz = KERNEL
-    shapes = [BoxShape((0.0, 0.0, lz * 0.475), (lx * 0.85, ly * 0.9, lz * 0.95), KERNEL_C)]
-    for sx in (-1.0, 1.0):
+    shapes = [BoxShape((0.0, 0.0, lz / 2), (lx, ly, lz), None)]
+    shapes.append(BoxShape((0.0, 0.0, lz / 2), (lx - 0.005, ly - 0.005, lz - 0.004), KERNEL_C, collide=False))
+    for sx in (-1.0, 1.0):  # its four lobes, top and bottom
         for sy in (-1.0, 1.0):
-            shapes.append(SphereShape((sx * lx * 0.28, sy * ly * 0.22, lz * 0.5), lz * 0.42, KERNEL_C, collide=False))
-    shapes.append(BoxShape((0.0, 0.0, lz * 0.9), (lx * 0.7, 0.002, 0.002), (0.70, 0.55, 0.35), collide=False))
-    return Body.build("kernel", pos=(PARK[0], PARK[1], PARK[2] + 0.005), mass=0.008, shapes=shapes,
-                      friction=(1.0, 0.9), color=KERNEL_C, damping=(0.2, 1.0))
+            for z, rr in ((0.0058, 0.0055), (0.0155, 0.0062)):
+                shapes.append(SphereShape((sx * (lx / 2 - rr), sy * (ly / 2 - rr * 0.8), z), rr,
+                                          KERNEL_C if z > 0.01 else KERNEL_D, collide=False))
+    shapes.append(BoxShape((0.0, 0.0, lz / 2), (lx - 0.002, 0.0012, lz - 0.002), KERNEL_D, collide=False))
+    return Body.build("kernel", pos=tuple(_store(0).tolist()), mass=MASS["kernel"], shapes=shapes,
+                      friction=(1.0, 0.9), color=KERNEL_C, damping=(0.2, 1.0), solver_iterations=32)
 
 
-def _shell(name: str, dy: float) -> Body:
-    # what is touched: a flat-sided block hidden inside the round shell (fingers hold flat faces, not a curve)
-    shapes, z = [BoxShape((0.0, 0.0, 0.0085), (0.019, 0.019, 0.017), BROWN)], 0.0
-    for r, h in ((SHELL_R, 0.015), (SHELL_R * 0.81, 0.003), (SHELL_R * 0.5, 0.0025)):
-        shapes.append(CylShape((0.0, 0.0, z + h / 2), r, h, BROWN, collide=False))
-        z += h
-    for i in range(6):
-        a = 2 * math.pi * i / 6
-        shapes.append(SphereShape((SHELL_R * 0.92 * math.cos(a), SHELL_R * 0.92 * math.sin(a), 0.010), 0.0035, DARK,
+def _shell(name: str, k: int) -> Body:
+    """A piece of shell lying dome up: a box (what is touched; unseen) under a lumpy brown dome (seen only)."""
+    lx, ly, lz = SHELL[name]
+    shapes = [BoxShape((0.0, 0.0, lz / 2), (lx, ly, lz), None)]
+    shapes.append(BoxShape((0.0, 0.0, 0.0015), (lx - 0.002, ly - 0.002, 0.003), INNER, collide=False))  # broken rim
+    r = lz * 0.55
+    for i, (fx, fy) in enumerate(((-1, -1), (-1, 1), (1, -1), (1, 1), (0, 0))):
+        rr = r * (1.15 if (fx, fy) == (0, 0) else 1.0)
+        shapes.append(SphereShape((fx * (lx / 2 - rr), fy * (ly / 2 - rr), lz - rr), rr, BROWN if i % 2 else DARK,
                                   collide=False))
-    shapes.append(CylShape((0.0, 0.0, 0.0006), SHELL_R * 0.8, 0.0012, (0.80, 0.68, 0.48), collide=False))
-    return Body.build(name, pos=(PARK[0] + 0.02, PARK[1] + dy, PARK[2] + 0.005), mass=0.008, shapes=shapes,
-                      friction=(1.0, 0.9), color=BROWN, damping=(0.2, 1.0))
+    shapes.append(BoxShape((0.0, 0.0, lz * 0.4), (lx - 0.004, ly - 0.004, lz * 0.8), BROWN, collide=False))
+    return Body.build(name, pos=tuple(_store(k).tolist()), mass=MASS[name], shapes=shapes, friction=(1.2, 1.1),
+                      color=BROWN, damping=(0.2, 1.0), solver_iterations=32)
 
 
-def _park() -> Body:
-    w, t = 0.10, 0.004
+def _store_box() -> Body:
+    w, t = 0.12, 0.004
     shapes = [BoxShape((0.0, 0.0, t / 2), (w, w, t), HOLE), BoxShape((0.0, 0.0, w - t / 2), (w, w, t), HOLE)]
     shapes += [BoxShape((s * (w / 2 - t / 2), 0.0, w / 2), (t, w, w), HOLE) for s in (-1.0, 1.0)]
     shapes += [BoxShape((0.0, s * (w / 2 - t / 2), w / 2), (w, t, w), HOLE) for s in (-1.0, 1.0)]
@@ -175,9 +187,8 @@ def _dish() -> Body:
                       friction=(0.6, 0.5))
 
 
-PIECES = ("kernel", "shell_a", "shell_b")
-OBJECTS = [_lever("lever_left", 1.0), _lever("lever_right", -1.0), _walnut(), _park(), _kernel(),
-           _shell("shell_a", 0.0), _shell("shell_b", -0.04), _bowl(), _dish()]
+OBJECTS = [_lever("lever_left", 1.0), _lever("lever_right", -1.0), _walnut(), _store_box(), _kernel(),
+           *[_shell(n, k + 1) for k, n in enumerate(SHELLS)], _bowl(), _dish()]
 hinge("pivot", "lever_left", "lever_right", anchor=(PX, PY, TOP + 0.01), axis="Z",
       limits_deg=(-2.0 * (OPEN_DEG - SHUT_LIMIT), 0.0), spring=SPRING, damping=0.0005, target_deg=PRELOAD)
 
@@ -185,7 +196,8 @@ hinge("pivot", "lever_left", "lever_right", anchor=(PX, PY, TOP + 0.01), axis="Z
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"cracked": False, "crack_t": None, "tcps": None, "s": {}, "min_half": OPEN_DEG}
+    return {"cracked": False, "crack_t": None, "pressed": 0, "peak": 0.0, "crack_f": None, "tcps": None, "s": {},
+            "min_half": OPEN_DEG}
 
 
 _EP = _fresh()
@@ -214,12 +226,12 @@ def _pose(base, origin, name):
     return p[:3] - origin, rotation(p[3:7])
 
 
-def _place(base, origin, name, pos) -> None:
+def _place(base, origin, name, pos, yaw: float = 0.0) -> None:
     import torch
 
     asset = base.scene[name]
-    pose = torch.tensor([[*(np.asarray(pos, float) + origin).tolist(), 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32,
-                        device=asset.device)
+    pose = torch.tensor([[*(np.asarray(pos, float) + origin).tolist(), 0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2)]],
+                        dtype=torch.float32, device=asset.device)
     asset.write_root_pose_to_sim(pose)
     asset.write_root_velocity_to_sim(torch.zeros(1, 6, dtype=torch.float32, device=asset.device))
 
@@ -228,18 +240,20 @@ def _yaw(rot) -> float:
     return math.degrees(math.atan2(float(rot[1, 0]), float(rot[0, 0])))
 
 
-def _crack(base, origin, l_pos, l_rot) -> None:
-    """The shell gives: the walnut goes to the store; the kernel and the two shell halves fall out along the V."""
-    _place(base, origin, "walnut", (PARK[0] - 0.02, PARK[1] + 0.03, PARK[2] + 0.02))
-    # the V's middle line: the pivot and the direction halfway between the two levers
-    r_pos, r_rot = _pose(base, origin, "lever_right")
-    a_l = _yaw(l_rot) + 180.0 - OPEN_DEG
-    a_r = _yaw(r_rot) + 180.0 + OPEN_DEG
-    d = _u((a_l + a_r) / 2.0)
-    pivot = l_pos
-    _place(base, origin, "kernel", pivot + d * KERNEL_S + [0.0, 0.0, 0.002])
-    for name, s in zip(("shell_a", "shell_b"), SHELL_S):
-        _place(base, origin, name, pivot + d * s + [0.0, 0.0, 0.002])
+def _crack(base, origin, pivot, d) -> None:
+    """The shell gives: the walnut goes to the store; the kernel and the three pieces of shell fall out along the V."""
+    _place(base, origin, "walnut", _store(4))
+    yaw = math.atan2(float(d[1]), float(d[0]))
+    for name in PIECES:
+        _place(base, origin, name, pivot + d * LAYOUT[name] + [0.0, 0.0, 0.002], yaw)
+
+
+def _on_dish(p, s_pos) -> bool:
+    return float(np.linalg.norm(p[:2] - s_pos[:2])) < DISH_R - 0.006 and s_pos[2] - 0.005 < p[2] < s_pos[2] + ON_DISH_Z
+
+
+def _in_bowl(p, b_pos) -> bool:
+    return float(np.linalg.norm(p[:2] - b_pos[:2])) < BOWL_R - 0.008 and b_pos[2] - 0.005 < p[2] < b_pos[2] + BOWL_H
 
 
 @on_step
@@ -251,44 +265,42 @@ def _follow(env) -> None:
     rel = (_yaw(r_rot) - _yaw(l_rot) + 180.0) % 360.0 - 180.0  # 0 open; negative as they close
     half = OPEN_DEG + rel / 2.0  # each lever's angle from the V's middle line
     _EP["min_half"] = min(_EP["min_half"], half)
+    d = _u((_yaw(l_rot) + 180.0 - OPEN_DEG + _yaw(r_rot) + 180.0 + OPEN_DEG) / 2.0)  # along the V's middle line
     n_pos, _ = _pose(base, origin, "walnut")
-    a_mid = (_yaw(l_rot) + 180.0 - OPEN_DEG + _yaw(r_rot) + 180.0 + OPEN_DEG) / 2.0
-    d = _u(a_mid)
     v = n_pos - l_pos
     along, across = float(v @ d), float(abs(v[0] * d[1] - v[1] * d[0]))
-    between = 0.035 < along < 0.090 and across < 0.012 and n_pos[2] < TOP + 0.03
-    gap = 2.0 * (along * math.sin(math.radians(half)) - JAW_IN)  # between the jaws' faces, where the walnut is
-    _EP["min_gap"] = min(_EP.get("min_gap", 1.0), gap) if between else _EP.get("min_gap", 1.0)
-    if not _EP["cracked"] and between and gap <= CRACK_GAP:
-        _EP["cracked"] = True
-        _EP["crack_t"] = _DEBUG["steps"] / 20.0
-        _crack(base, origin, l_pos, l_rot)
-    k_pos, _ = _pose(base, origin, "kernel")
+    between = JAW[0] < along < JAW[1] and across < 0.015 and n_pos[2] < TOP + 0.01
+    f_left, f_right = (float(np.linalg.norm(f)) for f in contact_forces("walnut", ("lever_left", "lever_right")))
+    squeeze = min(f_left, f_right)  # what both jaws press it with
+    if not _EP["cracked"]:
+        _EP["peak"] = max(_EP["peak"], squeeze)
+        pressed = between and half <= OPEN_DEG - 1.0 and squeeze >= CRACK_N
+        _EP["pressed"] = _EP["pressed"] + 1 if pressed else 0
+        if _EP["pressed"] >= CRACK_STEPS:
+            _EP["cracked"] = True
+            _EP["crack_t"] = _DEBUG["steps"] / 20.0
+            _EP["crack_f"] = (round(f_left, 1), round(f_right, 1))
+            _crack(base, origin, l_pos, d)
+    pose = {n: _pose(base, origin, n)[0] for n in PIECES}
     b_pos, _ = _pose(base, origin, "bowl")
     s_pos, _ = _pose(base, origin, "saucer")
-    in_bowl = (_EP["cracked"] and float(np.linalg.norm(k_pos[:2] - b_pos[:2])) < BOWL_R - 0.008
-               and b_pos[2] - 0.005 < k_pos[2] < b_pos[2] + BOWL_H)
-    on_dish = 0
-    for name in ("shell_a", "shell_b"):
-        p, _ = _pose(base, origin, name)
-        if (_EP["cracked"] and float(np.linalg.norm(p[:2] - s_pos[:2])) < DISH_R - 0.006
-                and s_pos[2] - 0.005 < p[2] < s_pos[2] + 0.03):
-            on_dish += 1
+    cracked = _EP["cracked"]
+    in_bowl = cracked and _in_bowl(pose["kernel"], b_pos)
+    on_dish = sum(cracked and _on_dish(pose[n], s_pos) for n in SHELLS)
+    shell_in_bowl = cracked and any(_in_bowl(pose[n], b_pos) for n in SHELLS)
     _EP["tcps"] = tcps = _tcps(base, origin)
-    _EP["s"] = {"cracked": _EP["cracked"], "in_bowl": in_bowl, "on_dish": on_dish}
-    if _DEBUG["on"]:
-        _DEBUG["steps"] += 1
-        if _DEBUG["steps"] % 10 == 0:
-            tl, tr = tcps
-            print(f"[nut] t={_DEBUG['steps'] / 20:5.1f}s half={half:5.1f} min={_EP['min_half']:5.1f} "
-                  f"gap={gap * 1000:5.1f} between={between} along={along * 1000:5.1f} across={across * 1000:5.1f} cracked={_EP['cracked']} "
-                  f"pivot={np.round(l_pos * 1000).astype(int).tolist()} "
-                  f"kernel={np.round(k_pos * 1000).astype(int).tolist()} shells={[np.round(_pose(base, origin, n)[0] * 1000).astype(int).tolist() for n in ('shell_a', 'shell_b')]} in_bowl={in_bowl} on_dish={on_dish} "
-                  f"home={_arms_home()} L={np.round(tl * 1000).astype(int).tolist()} "
-                  f"R={np.round(tr * 1000).astype(int).tolist()} score={_points(_status())}", file=sys.stderr,
-                  flush=True)
-    else:
-        _DEBUG["steps"] += 1
+    _EP["s"] = {"cracked": cracked, "in_bowl": in_bowl, "on_dish": on_dish, "shell_in_bowl": shell_in_bowl}
+    _DEBUG["steps"] += 1
+    if _DEBUG["on"] and (_DEBUG["steps"] % 10 == 0 or (squeeze > 1.0 and not cracked) or
+                         _EP["crack_t"] == (_DEBUG["steps"] - 1) / 20.0):
+        tl, tr = tcps
+        mm = lambda p: np.round(p * 1000).astype(int).tolist()  # noqa: E731
+        print(f"[nut] t={_DEBUG['steps'] / 20:5.2f}s half={half:5.1f} min={_EP['min_half']:5.1f} "
+              f"between={between} along={along * 1000:5.1f} across={across * 1000:5.1f} "
+              f"jaw_N=({f_left:5.1f},{f_right:5.1f}) peak={_EP['peak']:5.1f} cracked={cracked} crack_t={_EP['crack_t']} "
+              f"crack_f={_EP['crack_f']} pivot={mm(l_pos)} walnut={mm(n_pos)} pieces={ {n: mm(pose[n]) for n in PIECES} } "
+              f"in_bowl={in_bowl} on_dish={on_dish} shell_in_bowl={shell_in_bowl} home={_arms_home()} L={mm(tl)} "
+              f"R={mm(tr)} score={_points(_status())}", file=sys.stderr, flush=True)
 
 
 # -- scoring --------------------------------------------------------------------------------------------------------
@@ -296,26 +308,28 @@ def _follow(env) -> None:
 def _status() -> dict:
     st = _EP["s"]
     return {"cracked": bool(st.get("cracked")), "in_bowl": bool(st.get("in_bowl")), "on_dish": st.get("on_dish", 0),
-            "home": _arms_home()}
+            "shell_in_bowl": bool(st.get("shell_in_bowl")), "home": _arms_home()}
 
 
 def _points(s) -> float:
     if not s["cracked"]:
         return 0.0
-    if s["in_bowl"] and s["on_dish"] == 2 and s["home"]:
-        return 1.0
-    if s["in_bowl"]:
+    if s["in_bowl"] and s["on_dish"] == len(SHELLS):
+        return 1.0 if s["home"] else 0.75
+    if s["in_bowl"] and not s["shell_in_bowl"]:
         return 0.5
     return 0.25
 
 
 def score(objects) -> float:
-    """Cracked: at some point the jaws closed to 2.9 cm apart where the walnut sits (it is 3.5 cm across), with the
-    walnut between them (3.5-9 cm out from the pivot, within 1.2 cm of the V's middle line, on the worktop); the
-    shell then breaks into a kernel and two shell halves. Judged at the end: 1.0 when it cracked, the kernel is in the
-    bowl (its middle within 4.2 cm of the bowl's middle, inside it), both shell halves are on the saucer (each within
-    5.6 cm of its middle, on it) and both arms are back where they started (each TCP within 5 cm of its start); 0.5
-    when it cracked and the kernel is in the bowl; 0.25 when it cracked; else 0.0."""
+    """Cracked: both jaws pressed the walnut with at least 40 N each (PhysX contact forces) for two control steps
+    running (0.1 s), while it lay between them (4-9.8 cm out from the pivot, within 1.5 cm of the V's middle line, on
+    the worktop) and the levers were pressed in at least 1 degree from fully open; the shell then gives into a kernel
+    and three pieces of shell. Judged at the end: 1.0 when it cracked, the kernel is in the bowl (its middle within
+    4.2 cm of the bowl's middle, inside it), all three pieces of shell are on the saucer (each middle within 5.6 cm of
+    its middle and at most 4 cm above its base) and both arms are back where they started (each TCP within 5 cm of its
+    start); 0.75 for the same with an arm not back; 0.5 when it cracked and the kernel is in the bowl with no shell in
+    it; 0.25 when it cracked; else 0.0."""
     return _points(_status())
 
 
@@ -336,41 +350,59 @@ def _arms_home() -> bool:
 
 
 def success(objects) -> bool:
-    """Full score with the kernel, the shell halves, the bowl and the saucer still."""
+    """Full score with the kernel, the three pieces of shell, the bowl and the saucer still."""
     return (score(objects) >= 1.0 and all(objects[n].resting() for n in PIECES)
             and objects["bowl"].resting() and objects["saucer"].resting())
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
-# Each hand comes down beside the outside of one handle's red grip, fingers closed, and the two push the handles toward
-# each other along their swing until the jaws crush the walnut and the levers meet their stop. They draw back and the
-# spring opens the levers. The right hand takes the kernel to the bowl and goes back to where it started; then the left
-# takes each shell half to the saucer and goes back to where it started too.
+# Each hand comes down beside the outside of one handle's red grip, fingers closed and leaning in, and the two push the
+# grips toward each other. The soft arms push only in proportion to how far they are held short of where they aim, so
+# they aim well past the grips (about 5 mm per newton) until the shell cracks. They draw back and the spring opens the
+# levers. The right hand takes the kernel to the bowl and goes back to where it started; the left takes the three
+# pieces of shell to the saucer, one by one, and goes back to where it started too.
 
-TIP = 0.013
 FACE = 0.0125  # a closed gripper's side, this far from the TCP across its closing axis
-PUSH_Z = TOP + 0.024  # the TCP: the fingertips 1.1 cm above the worktop, on the grip's side
-SQUEEZE_TO = SHUT_LIMIT - 3.5  # aim each lever past its stop: the arms stop about 1.7 cm short against the spring
-STEPS, STEP_S = 10, 0.45
+PUSH_F = 0.7  # the hands push each grip this far along it from the bend
+PUSH_Z = TOP + 0.017  # the TCP: the fingertips just above the worktop, on the grip's side
+TILT = 20.0  # degrees the fingertips lean in (the wrists out); the push straightens them
+SQUEEZE_N = 25.0  # what each hand aims to push with (N)
+SQUEEZE_STEPS, SQUEEZE_STEP_S = 12, 0.5
 LEAD_S, LEAD_STEPS = 3.0, 15
-PICK_Z = TOP + 0.016
-KERNEL_PICK_Z = TOP + 0.018
-LIFT = 0.07
+LIFT = 0.06
+PICK_Z = 0.0145  # the TCP over a piece of shell: the fingertips 1 mm above the worktop
+KERNEL_Z = 0.020  # ... over the kernel: its top no more than 4 mm above the TCP (the fingers narrow above it)
+SQUEEZE_MM = 0.002  # the fingers aim this far inside what they hold: a gentle hold (about 10 N) for light pieces
+KP = np.diag([80.0, 80.0, 80.0, 10.0, 10.0, 10.0])  # the arm joints' stiffness (N m/rad), yam_arena's actuators
+ACROSS = grip_rotation(0.0)  # top-down, fingers closing along y (across the V)
 
 
-def _push_rot(side: float, half: float = 0.0) -> np.ndarray:
-    """Top-down, fingers closing along x (along the handle): the gripper's thin side faces the handle."""
+def _along_x(side: float) -> np.ndarray:
+    """Top-down, fingers closing along x (along the V); the wrist turned the way each arm reaches easily."""
     return grip_rotation(-math.pi / 2 if side > 0 else math.pi / 2)
 
 
+def _rx(deg: float) -> np.ndarray:
+    a = math.radians(deg)
+    return np.array([[1.0, 0.0, 0.0], [0.0, math.cos(a), -math.sin(a)], [0.0, math.sin(a), math.cos(a)]])
+
+
+def _grip_dir(side: float, half: float) -> float:
+    return 180.0 - side * (half - PARALLEL_DEG)
+
+
 def _push_at(side: float, half: float, gap: float = 0.0) -> np.ndarray:
-    """The TCP beside the outside of the middle of a handle's grip (side +1 left, -1 right) with the lever ``half``
-    degrees from the V's middle line, ``gap`` m off it."""
-    u = _u(180.0 - side * half)
-    g = _u(180.0 - side * (half - PARALLEL_DEG))
+    """The TCP beside the outside of a handle's grip (side +1 left, -1 right) with the lever ``half`` degrees from the
+    V's middle line, ``gap`` m off it."""
+    g = _u(_grip_dir(side, half))
     out = np.array([g[1], -g[0], 0.0]) * side  # away from the V's middle
-    c = np.array([PX, PY, 0.0]) + u * BEND + g * GRIP_LEN / 2 + out * (GRIP_W / 2 + FACE + gap)
+    c = np.array([PX, PY, 0.0]) + _u(180.0 - side * half) * BEND + g * GRIP_LEN * PUSH_F + out * (
+        GRIP_W / 2 + FACE + gap)
     return np.array([c[0], c[1], PUSH_Z])
+
+
+def _push_rot(side: float) -> np.ndarray:
+    return _rx(-side * TILT) @ _along_x(side)
 
 
 def _good_ik(arm: str, pos, rot) -> np.ndarray:
@@ -389,6 +421,24 @@ def _good_ik(arm: str, pos, rot) -> np.ndarray:
     if best is None:
         raise ValueError(f"no IK solution for the {arm} grip at {pos}")
     return best[0]
+
+
+def _give(arm: str, pos, rot, force) -> np.ndarray:
+    """How far the TCP gives (m) under ``force`` (N) at ``pos``, the joints held by their stiffness, the hand free to
+    turn: J K^-1 J^T f."""
+    from yam_arena import ik, station
+
+    q = _good_ik(arm, pos, rot)
+    p0, r0 = ik.tcp_pose(q, station.BASES[arm])
+    jac = np.zeros((6, 6))
+    for i in range(6):
+        dq = q.copy()
+        dq[i] += 1e-6
+        p, r = ik.tcp_pose(dq, station.BASES[arm])
+        dr = r @ r0.T
+        jac[:3, i] = (p - p0) / 1e-6
+        jac[3:, i] = np.array([dr[2, 1] - dr[1, 2], dr[0, 2] - dr[2, 0], dr[1, 0] - dr[0, 1]]) / 2e-6
+    return (jac @ np.linalg.inv(KP) @ jac.T)[:3, :3] @ np.asarray(force, float)
 
 
 def _lead_in(arm: str, pos, rot, label: str, finger) -> list[Waypoint]:
@@ -419,57 +469,70 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
     return Waypoint(t, tuple(float(v) for v in pos), finger, label, rot)
 
 
-def _squeeze(side: float, arm: str) -> tuple[list[Waypoint], np.ndarray, np.ndarray]:
+def _squeeze(side: float, arm: str) -> list[Waypoint]:
     name = "left" if side > 0 else "right"
-    start = _push_at(side, OPEN_DEG, 0.02)
-    out = _lead_in(arm, start + [0.0, 0.0, 0.04], _push_rot(side, OPEN_DEG),
-                   f"over the outside of the {name} handle's grip", FINGER_CLOSED)
-    out += [_w(1.0, start, FINGER_CLOSED, "down beside it, fingers closed", _push_rot(side, OPEN_DEG)),
-            _w(0.6, _push_at(side, OPEN_DEG), FINGER_CLOSED, "against the grip", _push_rot(side, OPEN_DEG))]
-    for k in range(1, STEPS + 1):
-        h = OPEN_DEG + (SQUEEZE_TO - OPEN_DEG) * k / STEPS
-        out.append(_w(STEP_S, _push_at(side, h), FINGER_CLOSED, "push the handles together: the jaws crush the shell",
-                      _push_rot(side, h)))
-    shut = _push_at(side, SQUEEZE_TO)
-    back = _push_at(side, SQUEEZE_TO, 0.06) + [0.0, 0.0, 0.08]
-    out += [_w(1.0, shut, FINGER_CLOSED, "hold them shut", _push_rot(side, SQUEEZE_TO)),
-            _w(0.8, back, FINGER_CLOSED, "draw back and up: the spring opens the levers", _push_rot(side, SQUEEZE_TO))]
-    return out, back, _push_rot(side, SQUEEZE_TO)
+    rot = _push_rot(side)
+    start, touch = _push_at(side, OPEN_DEG), _push_at(side, OPEN_DEG - 6.0)
+    # then aim past the grip so that the arm's give leaves it pushing about SQUEEZE_N across the V; half the give
+    # along x (the nutcracker slides freely: the hands must not drag it) and 80 % of it in z (so that the hand presses
+    # down a little rather than riding up over the grip)
+    aim = _give(arm, touch, rot, [0.0, -side * SQUEEZE_N, 0.0]) * [0.5, 1.0, 0.8]
+    out = _lead_in(arm, start + [0.0, side * 0.02, 0.05], rot, f"over the outside of the {name} handle's grip",
+                   FINGER_CLOSED)
+    out += [_w(1.0, start + [0.0, side * 0.02, 0.0], FINGER_CLOSED, "down beside it, fingers closed", rot),
+            _w(0.6, start, FINGER_CLOSED, "against the grip", rot)]
+    for k in range(1, 4):  # close the jaws onto the walnut
+        out.append(_w(0.5, _push_at(side, OPEN_DEG - 6.0 * k / 3), FINGER_CLOSED,
+                      "push the handles together: the jaws close on the walnut", rot))
+    for k in range(1, SQUEEZE_STEPS + 1):
+        out.append(_w(SQUEEZE_STEP_S, touch + aim * k / SQUEEZE_STEPS, FINGER_CLOSED,
+                      "push harder: the jaws crack the shell", rot))
+    back = _push_at(side, SHUT_LIMIT, 0.06) + [0.0, 0.0, 0.08]
+    out += [_w(1.0, touch + aim, FINGER_CLOSED, "keep pushing", rot),
+            _w(1.2, _push_at(side, SHUT_LIMIT, 0.01), FINGER_CLOSED, "ease off", rot),
+            _w(0.8, back, FINGER_CLOSED, "draw back and up: the spring opens the levers", rot)]
+    return out
 
 
-def _pick_place(src, dst, rot, open_w, name, dst_name, drop_z) -> list[Waypoint]:
+def _pick_place(src, dst, rot, width, name, dst_name, drop_z) -> list[Waypoint]:
+    """Take a piece ``width`` m across (along the fingers' closing axis) from ``src`` and drop it over ``dst``."""
     src = np.asarray(src, float)
     dst = np.asarray(dst, float)
+    open_w, hold = -(width / 2 + 0.008), -(width / 2 - SQUEEZE_MM)
     return [_w(2.0, src + [0.0, 0.0, LIFT], open_w, f"over the {name}", rot),
             _w(1.2, src, open_w, "down round it", rot),
             _w(0.4, src, open_w, "settle", rot),
-            _w(0.6, src, FINGER_CLOSED, f"take the {name}", rot),
-            _w(0.9, src + [0.0, 0.0, LIFT], FINGER_CLOSED, "lift it", rot),
-            _w(1.6, [dst[0], dst[1], drop_z], FINGER_CLOSED, f"over the {dst_name}", rot),
-            _w(0.5, [dst[0], dst[1], drop_z], open_w, "let it drop in", rot),
+            _w(0.6, src, hold, f"take the {name}", rot),
+            _w(0.9, src + [0.0, 0.0, LIFT], hold, "lift it", rot),
+            _w(1.6, [dst[0], dst[1], drop_z], hold, f"over the {dst_name}", rot),
+            _w(0.5, [dst[0], dst[1], drop_z], open_w, "let it drop", rot),
             _w(0.6, [dst[0], dst[1], drop_z + 0.03], open_w, "rise", rot)]
 
 
-def _piece_at(s: float, z: float = PICK_Z) -> np.ndarray:
-    return np.array([PX - s, PY, z])
+def _laid(name: str, z: float) -> np.ndarray:
+    """Where a piece lies once the shell has given (on the V's middle line, the nutcracker where it started)."""
+    return np.array([PX - LAYOUT[name], PY, TOP + z])
+
+
+def _wait(arm: list, until: float, label: str) -> None:
+    t = sum(w.duration for w in arm)
+    arm.append(_w(max(until - t, 0.3), arm[-1].pos, arm[-1].finger, label, arm[-1].yaw))
 
 
 def demo():
-    left, l_back, l_rot = _squeeze(1.0, "left")
-    right, r_back, r_rot = _squeeze(-1.0, "right")
-    pick = grip_rotation(0.0)  # top-down, fingers closing across the V (y)
-    k_open = -(KERNEL[1] / 2 + 0.008)
-    right += _pick_place(_piece_at(KERNEL_S, KERNEL_PICK_Z), BOWL_AT, pick, k_open, "kernel", "bowl", TOP + BOWL_H + 0.04)
-    right += _go_home("right", right[-1].pos, pick, FINGER_OPEN)
-    right_done = sum(w.duration for w in right)
-    s_open = -(0.011 + 0.013)
-    t_left = sum(w.duration for w in left)
-    left.append(_w(max(right_done - 6.0 - t_left, 0.5), l_back, FINGER_CLOSED,
-                   "wait for the right hand to take the kernel away", l_rot))
-    left += _pick_place(_piece_at(SHELL_S[0], KERNEL_PICK_Z), DISH_AT, pick, s_open, "first shell half", "saucer", TOP + 0.05)
-    left += _pick_place(_piece_at(SHELL_S[1], KERNEL_PICK_Z), DISH_AT + [0.0, -0.01], pick, s_open, "second shell half", "saucer",
-                        TOP + 0.05)
-    left += _go_home("left", left[-1].pos, pick, FINGER_OPEN)
+    left = _squeeze(1.0, "left")
+    right = _squeeze(-1.0, "right")
+    right += _pick_place(_laid("kernel", KERNEL_Z), BOWL_AT, ACROSS, KERNEL[1], "kernel", "bowl",
+                         TOP + BOWL_H + 0.045)
+    kernel_away = sum(w.duration for w in right[:-3])  # the kernel is up and on its way to the bowl
+    right += _go_home("right", right[-1].pos, ACROSS, FINGER_OPEN)
+    _wait(left, kernel_away - 2.0, "wait for the right hand to take the kernel away")
+    for name, at, which in (("shell_c", (-0.025, -0.02), "first"), ("shell_b", (0.025, -0.02), "next"),
+                            ("shell_a", (0.0, 0.025), "last")):
+        lx, ly, lz = SHELL[name]
+        left += _pick_place(_laid(name, PICK_Z), DISH_AT + at, ACROSS, ly,
+                            f"{which} piece of shell", "saucer", TOP + 0.045)
+    left += _go_home("left", left[-1].pos, ACROSS, FINGER_OPEN)
     total = max(sum(w.duration for w in left), sum(w.duration for w in right)) + 3.0
     for arm in (left, right):
         arm.append(_w(max(total - sum(w.duration for w in arm), 0.5), arm[-1].pos, FINGER_OPEN,

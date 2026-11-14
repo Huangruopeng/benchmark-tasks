@@ -16,7 +16,9 @@ pose (yam_arena reports the bounding-box centre for primitives). It also hooks t
 so a task file can clear what it tracks over an episode (:func:`on_reset`) and look at the simulation after every
 control step (:func:`on_step`), for instance at where the grippers are. Two bodies can be joined by a :class:`Hinge`
 (a PhysX revolute joint), optionally one that breaks under a set force: a perforation, say, or by a :class:`Thread` (a
-PhysX D6 joint the task file switches on and drives while the episode runs): a nut on a screw. Pure Python at import time: everything that needs
+PhysX D6 joint the task file switches on and drives while the episode runs): a nut on a screw. A body built with
+``report_contacts=True`` has the contact forces on it from other bodies readable with :func:`contact_forces` (a PhysX
+rigid contact view): how hard a tool presses a part, say. Pure Python at import time: everything that needs
 Isaac Sim is imported lazily, so the task file still loads without the simulator.
 """
 
@@ -32,6 +34,7 @@ import numpy as np
 from yam_arena.task_file import Box, ObjectState
 
 __all__ = ["Body", "BodyState", "BoxShape", "CylShape", "SphereShape", "Thread", "allow_matrix_grips", "as_numpy",
+           "contact_forces",
            "install", "on_reset", "on_step", "plate", "rotation", "segment", "set_slide_target", "set_thread_on", "thread"]
 
 Color = tuple[float, float, float]
@@ -40,7 +43,8 @@ Color = tuple[float, float, float]
 @dataclass(frozen=True)
 class BoxShape:
     """A box in the body frame: ``centre`` and ``size`` (m), turned ``yaw`` (rad) about the body's z axis, or, when
-    ``quat_xyzw`` is given, rotated by that quaternion instead."""
+    ``quat_xyzw`` is given, rotated by that quaternion instead. ``color=None``: collision only, not rendered (any
+    shape)."""
 
     centre: tuple[float, float, float]
     size: tuple[float, float, float]
@@ -147,6 +151,7 @@ class Body(Box):
     start_xyzw: tuple[float, float, float, float] | None = None  # the starting orientation, if not just ``yaw``
     ignore: tuple[str, ...] = ()  # names of bodies (earlier in OBJECTS) this one never collides with
     slick: bool = False  # True: contacts with this body take the lower of the two frictions (a smooth, slick surface)
+    report_contacts: bool = False  # True: PhysX reports this body's contact forces (see contact_forces)
 
     @staticmethod
     def build(name: str, pos, mass: float, shapes, yaw: float = 0.0, color: Color = (0.6, 0.6, 0.6), **kw) -> "Body":
@@ -707,6 +712,8 @@ def _spawn_body(prim_path: str, cfg, translation=None, orientation=None, **kwarg
         pairs = UsdPhysics.FilteredPairsAPI.Apply(prim).CreateFilteredPairsRel()
         for other in spec.ignore:
             pairs.AddTarget(f"{parent}/{other}/body")
+    if spec.report_contacts:
+        PhysxSchema.PhysxContactReportAPI.Apply(prim).CreateThresholdAttr(0.0)
     rb = PhysxSchema.PhysxRigidBodyAPI.Apply(prim)
     rb.CreateMaxDepenetrationVelocityAttr(1.0)
     rb.CreateSolverPositionIterationCountAttr(int(spec.solver_iterations))
@@ -733,7 +740,10 @@ def _spawn_body(prim_path: str, cfg, translation=None, orientation=None, **kwarg
             geom.CreateHeightAttr(shape.height)
             geom.AddTranslateOp().Set(Gf.Vec3d(*shape.centre))
         path = str(geom.GetPrim().GetPath())
-        bind_visual_material(path, look(tuple(shape.color)), stage=stage)
+        if shape.color is None:  # a collision-only shape: not rendered (a clear part: what is inside shows)
+            UsdGeom.Imageable(geom.GetPrim()).MakeInvisible()
+        else:
+            bind_visual_material(path, look(tuple(shape.color)), stage=stage)
         if shape.collide:
             UsdPhysics.CollisionAPI.Apply(geom.GetPrim())
             collision = PhysxSchema.PhysxCollisionAPI.Apply(geom.GetPrim())
@@ -769,6 +779,27 @@ def _arena_object(spec: Body):
                           rotation_xyzw=tuple(spec.start_xyzw) if spec.start_xyzw is not None else
                           (0.0, 0.0, math.sin(spec.yaw / 2), math.cos(spec.yaw / 2))),
     )
+
+
+_CONTACT_VIEWS: dict = {}
+
+
+def contact_forces(body: str, others: tuple[str, ...]) -> np.ndarray:
+    """The contact force (N, world frame) on ``body`` (a Body with ``report_contacts``) from each of ``others``, over
+    the last physics step: an array of shape (len(others), 3). Uses a PhysX rigid contact view, made on first use."""
+    key = (body, tuple(others))
+    if key not in _CONTACT_VIEWS:
+        from isaaclab.sim import SimulationContext
+        from isaaclab_physx.physics import PhysxManager
+
+        root = "/World/envs/env_*"
+        view = PhysxManager.get_physics_sim_view().create_rigid_contact_view(
+            [f"{root}/{body}/body"], filter_patterns=[[f"{root}/{o}/body" for o in others]], max_contact_data_count=0)
+        _CONTACT_VIEWS[key] = (view, SimulationContext.instance().get_physics_dt())
+    view, dt = _CONTACT_VIEWS[key]
+    m = view.get_contact_force_matrix(dt=dt)
+    m = m.numpy() if hasattr(m, "numpy") and not hasattr(m, "detach") else as_numpy(m)
+    return np.asarray(m, dtype=np.float64).reshape(-1, len(others), 3)[0]
 
 
 def as_numpy(x) -> np.ndarray:
