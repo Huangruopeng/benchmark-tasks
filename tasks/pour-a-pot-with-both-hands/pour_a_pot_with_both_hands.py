@@ -1,12 +1,14 @@
 """On the station table, between the arms, a portable single hob (black glass top 20 cm square, 4.5 cm tall, a burner
-ring and a knob). On it stands a full two-handled stainless pot: inside 18 cm across and 12 cm deep (3 L), 1.2 kg
-empty, with a rolled rim and two flat cast-steel loop handles, one sticking out to the left and one to the right. In it
-is the soup: 1.8 kg, as 120 orange beads (24 mm, 15 g each). The full pot weighs 3.0 kg. In front of the hob stands a
-white soup tureen (inside 20 cm across and 8.7 cm deep, 2.7 L), fixed to the table. The pot and the beads are loose;
-the hob and the tureen are fixed.
+ring and a knob; switched off). On it stands a full two-handled stainless pot: inside 18 cm across and 12 cm deep (3 L),
+1.2 kg empty, with a rolled rim and two flat cast-steel loop handles, one sticking out to the left and one to the right.
+In it is the soup, 1.8 L: in a real trial 1,800 ml of room-temperature water tinted orange; here 120 orange beads (24 mm,
+15 g each), each standing for 15 ml of it. The full pot weighs 3.0 kg. In front of the hob stands a white soup tureen
+(inside 20 cm across and 8.7 cm deep, 2.7 L), fixed to the table. The pot and the beads are loose; the hob and the
+tureen are fixed.
 
-Task: lift the full pot off the hob by both handles, pour all of the soup into the tureen without spilling, and set the
-pot back on the hob. The pot is too heavy to hold by one handle: it swings down about that handle.
+Task: pour all of the soup into the tureen without spilling and set the pot back on the hob. The full pot is too heavy
+to hold by one handle: it swings down about that handle. Scoring is by volume transferred and spilled: a real trial
+weighs the tureen and the pot before and after (1 g = 1 ml); here each bead counts as 15 ml.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=pour_a_pot_with_both_hands.py \\
            --instruction "..." --scorer task_score ...
@@ -46,6 +48,7 @@ POT_MASS = 1.2  # empty, handles included
 BAR_R, POST_X, BAR_Y, HANDLE_Z = 0.008, 0.032, R_OUT + 0.027, 0.100  # rod radius, post offset, bar axis, height
 
 BEAD_R, BEAD_MASS, N_BEADS = 0.012, 0.015, 120  # 120 x 15 g = 1.8 kg of soup
+ML_PER_BEAD = 15  # each bead stands for 15 ml of the real trial's 1,800 ml of tinted water
 SOUP_KG = N_BEADS * BEAD_MASS
 
 TUREEN_XY, TUREEN_R_IN, TUREEN_T, TUREEN_FLOOR, TUREEN_H = (0.40, 0.0), 0.100, 0.006, 0.008, 0.095
@@ -54,9 +57,9 @@ STEEL, HANDLE_STEEL, DARK, GLASS = (0.60, 0.61, 0.64), (0.44, 0.45, 0.47), (0.10
 SOUP, WHITE, RING = (0.93, 0.45, 0.10), (0.94, 0.94, 0.92), (0.45, 0.45, 0.47)
 
 # -- scoring --------------------------------------------------------------------------------------------------------
-FULL_IN, FULL_SPILL = 102, 5  # 85 % in the tureen, at most 5 (about 4 %) spilled
-HALF_IN, HALF_SPILL = 60, 12  # 50 %, at most 12 (10 %)
-SOME_IN = 12  # 10 %
+FULL_IN, FULL_SPILL = 102, 5  # at least 1,530 ml (85 %) in the tureen, at most 75 ml spilled
+HALF_IN, HALF_SPILL = 60, 12  # at least 900 ml (50 %), at most 180 ml spilled
+SOME_IN = 12  # at least 180 ml (10 %)
 BACK_OFF, BACK_GAP, UPRIGHT = 0.03, 0.01, math.radians(10)  # back on the hob: centre, underside gap, tilt
 TIPPED = math.radians(30)  # tilted this far the pot has been tipped
 LOW = 0.06  # tipping it while its body (base or rim) is this close to the table (on the hob, say) scores 0
@@ -194,14 +197,16 @@ _DEBUG = {"on": bool(os.environ.get("POT_DEBUG")), "calls": 0}
 def score(objects) -> float:
     """0 if the pot was ever tipped 30 degrees or more with the lowest point of its body (base or rim) within 6 cm
     of the table (tipped over on the hob rather than lifted), or ends tilted 30 degrees or more. Otherwise 1.0 with
-    at least 102 of the 120 beads in the tureen, at most 5 spilled and the pot back upright on the hob; 0.5 with at
-    least 60 in the tureen and at most 12 spilled; 0.25 with at least 12 in the tureen; else 0."""
+    at least 102 of the 120 beads (1,530 of 1,800 ml) in the tureen, at most 5 (75 ml) spilled and the pot back upright
+    on the hob; 0.5 with at least 60 (900 ml) in the tureen and at most 12 (180 ml) spilled; 0.25 with at least 12
+    (180 ml) in the tureen; else 0. Each bead stands for 15 ml; spilled means outside both the pot and the tureen."""
     t = _tally(objects)
     if _DEBUG["on"]:  # POT_DEBUG=1: two lines a second (at 20 Hz) on stderr
         _DEBUG["calls"] += 1
         if _DEBUG["calls"] % 10 == 0:
             print(f"[pot] t={_DEBUG['calls'] / 20:5.1f}s tureen={t['in_tureen']} pot={t['in_pot']} "
-                  f"spilled={t['spilled']} tilt={math.degrees(t['tilt']):.0f}deg pos=({t['pot'][0]:.3f},"
+                  f"spilled={t['spilled']} (ml: {t['in_tureen'] * ML_PER_BEAD}/{t['in_pot'] * ML_PER_BEAD}/"
+                  f"{t['spilled'] * ML_PER_BEAD}) tilt={math.degrees(t['tilt']):.0f}deg pos=({t['pot'][0]:.3f},"
                   f"{t['pot'][1]:.3f},{t['pot'][2] - TOP:.3f}) back={t['back']} tipped_low={t['tipped_low']} "
                   f"score={_points(t)}", file=sys.stderr, flush=True)
     return _points(t)
