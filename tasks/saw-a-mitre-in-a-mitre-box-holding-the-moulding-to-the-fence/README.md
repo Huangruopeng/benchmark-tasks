@@ -1,14 +1,15 @@
-# Saw a 45-degree mitre on a picture-frame moulding in a mitre box, one hand holding the moulding to the fence
+# Saw a 45-degree mitre through a picture-frame moulding in a mitre box
 
 On the table stands a beech mitre box on a long base board: a channel between a front wall and a back fence, with
 saw slots cut through both walls at 90 degrees and at 45 degrees either way. In front of it lies a length of
-black-lacquered picture-frame moulding with a gold lip, a white pencil line across it at 45 degrees near its right
+black-lacquered pine picture-frame moulding with a gold lip, a white pencil line across it at 45 degrees near its right
 end. To the right a backsaw (a steel blade with a brass back and a turned rosewood handle) stands in its wooden rest.
-One hand lifts the moulding over the front wall, lays it in the box with the pencil line at the 45-degree slot, slides
-it back against the fence and holds it there. The other takes the saw, turns it over the slot, sets it in and saws
-back and forth, each stroke a little deeper, until the moulding is cut through; it stands the saw back in its rest.
-The first hand lifts the cut moulding, its fresh 45-degree end showing bare wood, out of the box onto the table, and
-both arms go back to where they started. The task is one task file,
+The job: saw the moulding right through at its pencil line in the 45-degree slot, the moulding against the back fence,
+then leave the saw back in its rest, the cut moulding on the table in front of the box and both arms back where they
+started. The instruction states only this goal and these constraints. One way, as in the scripted demo: one hand lays
+the moulding in the box at its mark against the fence and holds it there, while the other saws back and forth in the
+slot until the offcut comes free and stands the saw back in its rest; the first hand then lifts the cut moulding, its
+fresh 45-degree end showing bare wood, out onto the table. The task is one task file,
 [`saw_a_mitre_in_a_mitre_box_holding_the_moulding_to_the_fence.py`](saw_a_mitre_in_a_mitre_box_holding_the_moulding_to_the_fence.py),
 for the `yam_arena` embodiment (scene, scoring and the scripted demo), plus [`bodykit.py`](bodykit.py), which it
 imports from the same folder.
@@ -44,11 +45,33 @@ rigid bodies made of shapes from `bodykit.py`.
   is turned within 8 degrees of the slot, leans less than 12 degrees, lies within 9 mm of the slot's line, and its
   teeth over the plate are within 7 mm above and 8 mm below the plate's top. A stroke counts when the saw, in the slot,
   is pushed 3 cm along it while the moulding lies at the mark and moves no more than 4 mm. Each stroke lowers the
-  plate 2.9 mm (a deeper cut); after eight the moulding is cut through: the joint between the two pieces switches off.
+  plate 2.875 mm (a deeper cut); after the eighth the simulation counts the moulding as cut through, and the joint
+  between the two pieces switches off. This stroke count stands in for sawing, which the simulation does not model; a
+  real backsaw's depth per stroke varies with the wood, the teeth and the pressure, so real trials measure the kerf
+  instead (see below).
   Sawdust is drawn on the box's floor after two and six strokes, and the saw cut across the moulding's top while
   sawing.
 - At the mark: the moulding's pencil line within 1 cm of the 45-degree slot along the box, its back face within 6 mm
   of the fence, turned less than 4 degrees and lying on the box's floor.
+
+## Scoring a real trial
+
+The tiers are the same; the cut is measured on the wood instead of counted in strokes:
+- **Where the cut is.** After the trial the cut counts only where it crosses the moulding within 1 cm of the pencil
+  line, at 45 degrees (plus or minus 4) to its edge: the cut that the 45-degree slot gives with the moulding at its
+  mark. Check it with a combination square or a protractor.
+- **0.5: kerf depth.** A kerf at least 11 mm deep, half the moulding's 22 mm height, measured with a caliper's depth
+  rod from the moulding's top face to the deepest point of the kerf. In simulation, four counted strokes (11.5 mm).
+- **0.75: cut through.** The offcut has come free along the kerf, sawn over the moulding's full height and width. An
+  offcut snapped or torn off with uncut fibres is not a through-cut; the kerf's sawn depth scores instead. In
+  simulation, the eighth counted stroke (23 mm).
+- **1.0** adds the end state, judged as in simulation: the saw standing back in its rest, the cut moulding on the table
+  in front of the box and both arms back where they started.
+
+The real rig: a beech (or hardwood) mitre box with the slots as specified, screwed or clamped down; a 34 cm length of
+26 x 22 mm pine picture-frame moulding (about 94 g), black-lacquered, marked with a 45-degree pencil line 5 cm from its
+right end; and a 24 cm backsaw with a brass back and fine teeth (about 15 per inch), standing in a wooden rest. Use a
+fresh moulding for each trial.
 
 Importing `bodykit.py` hooks `yam_arena.scene` when the simulator starts, without changing yam_arena, gives `score()`
 each body's own pose, and lets the task file act on the simulation after every control step.
@@ -66,16 +89,16 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=saw_a_mitre_in_a_mitre_box_holding_the_moulding_to_the_fence.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Cut the mitre: lay the moulding in the mitre box against its back fence with the pencil line at the 45-degree slot, and hold it there with one hand. With the other take the backsaw from its rest, set it in that 45-degree slot and saw back and forth until the moulding is cut through. Then stand the saw back in its rest, lift the cut moulding out of the box onto the table in front of it, and take both arms back to where they started." \
+  --instruction "Saw the moulding right through at its pencil line in the mitre box's 45-degree slot, with the moulding against the box's back fence. Leave the saw standing back in its rest, the cut moulding lying on the table in front of the box and both arms back where they started." \
   --scorer task_score --max-steps 1400 --store-frames --log-dir ~/yam-eval/mitre-dream
 ```
 
-The scripted demo, which reaches full score: the left hand comes straight down on the moulding 12 cm from its left end, fingers closing across it, lifts it over the box's front wall and lays it in the channel 7 mm clear of the fence with the pencil line at the 45-degree slot, then slides it back against the fence and holds it there, pressing it down. The right hand comes down on the saw's handle, fingers closing across it, lifts the saw out of its rest, turns it 45 degrees over the slot and sets it in, teeth on the pencil line. It saws twelve strokes, 6.5 cm forward and back along the slot, each aimed a little deeper (the first ones go while the saw settles onto the line); the moulding is cut through after eight that count. It lifts the saw out, turns it back and stands it in its rest, and lets go. The left hand lifts the cut moulding out of the box over the front wall and lays it on the table in front of the box, its fresh 45-degree end showing bare wood, and lets go; both arms go back to where they started:
+The scripted demo, which reaches full score: the left hand comes straight down on the moulding 12 cm from its left end, fingers closing across it, lifts it over the box's front wall and lays it in the channel 7 mm clear of the fence with the pencil line at the 45-degree slot, then slides it back against the fence and holds it there, pressing it down. The right hand comes down on the saw's handle, fingers closing across it, lifts the saw out of its rest, turns it 45 degrees over the slot and sets it in, teeth on the pencil line. It saws twelve strokes, 6.5 cm forward and back along the slot, each aimed a little deeper (the first ones go while the saw settles onto the line); the offcut comes free after eight that count. It lifts the saw out, turns it back and stands it in its rest, and lets go. The left hand lifts the cut moulding out of the box over the front wall and lays it on the table in front of the box, its fresh 45-degree end showing bare wood, and lets go; both arms go back to where they started:
 
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=saw_a_mitre_in_a_mitre_box_holding_the_moulding_to_the_fence.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Cut the mitre: lay the moulding in the mitre box against its back fence with the pencil line at the 45-degree slot, and hold it there with one hand. With the other take the backsaw from its rest, set it in that 45-degree slot and saw back and forth until the moulding is cut through. Then stand the saw back in its rest, lift the cut moulding out of the box onto the table in front of it, and take both arms back to where they started." \
+  --instruction "Saw the moulding right through at its pencil line in the mitre box's 45-degree slot, with the moulding against the box's back fence. Leave the saw standing back in its rest, the cut moulding lying on the table in front of the box and both arms back where they started." \
   --scorer task_score --max-steps 1400 --store-frames --log-dir ~/yam-eval/mitre-demo
 ```
 
@@ -93,8 +116,27 @@ cut is, where the saw is against its rest, each hand's finger opening and where 
 
 ## Runtime per trial
 
-On one RTX 5090: about 6 minutes for a Dream-1 trial of 1,400 steps (337 s on the clock, with Dream answering in 0.74 s on average), and about 3 minutes for the scripted demo (771 steps, 38.5 s of simulated time, 192 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 7 minutes for a Dream-1 trial of 1,400 steps (406 s on the clock, with Dream answering in 0.72 s on average), and about 4 minutes for the scripted demo (771 steps, 38.5 s of simulated time, 236 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
 None needed: with `-E object_jitter=0` the layout is fixed, and the scripted demo follows fixed waypoints.
+
+## Changes in this revision
+
+This is a revision of TK-X5B2Y5. Its review said:
+
+> Scoring (not met): The rule that eight 3 cm strokes cut through the wood can award cut credit without an actual through-cut in a real trial.
+>
+> What to change: Keep the simulated stroke-count approximation in the fidelity note, but specify real-world scoring using measured kerf depth for partial credit and an actual through-cut for cut credit. Do not assume that eight 3 cm strokes always sever the moulding.
+
+What changed in response:
+
+- **Real-world scoring:** the tiers now name what is measured on the wood after a real trial.
+  - 0.5 needs a kerf at least 11 mm deep (half the moulding's 22 mm height), measured with a caliper's depth rod from the top face to the deepest point of the kerf.
+  - 0.75 (cut credit) needs an actual through-cut: the offcut free along the kerf, sawn over the full height and width. An offcut snapped or torn off with uncut fibres does not count; its sawn depth scores instead.
+  - A cut counts only within 1 cm of the pencil line, at 45 ± 4 degrees to the moulding's edge.
+- **Stroke count:** the text no longer claims that eight 3 cm strokes always sever the moulding. The stroke count is kept as the simulation's stand-in for kerf depth (2.875 mm per counted stroke: four strokes are 11.5 mm, the eighth frees the offcut). The fidelity note says real depth per stroke varies, which is why real trials measure the kerf.
+- **Real rig:** a new README section, "Scoring a real trial", specifies it: black-lacquered pine moulding (26 x 22 mm, 34 cm, about 94 g, a fresh one each trial) and a fine-toothed backsaw (about 15 teeth per inch).
+- **Instruction:** it no longer assigns hand roles or steps. It now gives the goal (saw the moulding through at its pencil line in the 45-degree slot, against the back fence) plus the end state (saw back in its rest, cut moulding on the table, arms back where they started). The title is method-free too: "Saw a 45-degree mitre through a picture-frame moulding in a mitre box".
+- **Unchanged:** the scene, scorer and demo. The demo and Dream-1 runs were redone with the new instruction.

@@ -1,13 +1,13 @@
 """On the station table stands a beech mitre box: a channel between a front wall and a back fence, with saw slots cut
 through both walls at 90 degrees and at 45 degrees either way, on a long base board. In front of it lies a length of
-walnut picture-frame moulding with a gold lip, a pencil line across it at 45 degrees near its right end. To the right
-a backsaw (a steel blade with a brass back and a turned handle) stands in its wooden rest, blade down.
+black-lacquered pine picture-frame moulding with a gold lip, a pencil line across it at 45 degrees near its right end.
+To the right a backsaw (a steel blade with a brass back and a turned handle) stands in its wooden rest, blade down.
 
-Task: cut the mitre. Lay the moulding in the mitre box against its back fence with the pencil line at the 45-degree
-slot, and hold it there with one hand. With the other take the saw from its rest, set it in that 45-degree slot and saw
-back and forth until the moulding is cut through. Then put the saw back in its rest, lift the cut moulding out of the
-box onto the table in front of it, and take both arms back to where they started. The moulding is light and slides in
-the box: the saw's strokes drag it along with the blade unless it is held.
+Task: saw the moulding right through at its pencil line in the mitre box's 45-degree slot, the moulding against the
+box's back fence; leave the saw standing back in its rest, the cut moulding lying on the table in front of the box and
+both arms back where they started. The moulding is light and slides in the box: the saw's strokes drag it along with
+the blade unless it is held. The wood is not cut in simulation: counted strokes stand in for the kerf's depth (real
+trials measure it; see task.json).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=saw_a_mitre_in_a_mitre_box_holding_the_moulding_to_the_fence.py \\
            --instruction "..." --scorer task_score ...
@@ -379,8 +379,8 @@ def _follow(env) -> None:
 
 def score(objects) -> float:
     """1.0: the moulding cut through, the saw back in its rest, the cut moulding out of the box on the table and both
-    arms back where they started, at the end; 0.75: cut through; 0.5: at least half the strokes; 0.25: the moulding
-    laid in the box against the fence with its mark at the 45-degree slot; else 0.0."""
+    arms back where they started, at the end; 0.75: cut through; 0.5: at least half the strokes (a kerf at least 11 mm
+    deep); 0.25: the moulding laid in the box against the fence with its mark at the 45-degree slot; else 0.0."""
     if _EP["cut"]:
         if objects is not None and _finished(objects) and _arms_home():
             return 1.0
