@@ -4,10 +4,10 @@ on the bottom seal. Above the seal the two sheets' top flaps are folded out, lef
 pull tab. Beyond the holder lies a sterile instrument tray lined with a green drape; on either side stands a waste
 bin.
 
-Task: take the pouch by its two pull tabs, one in each hand, lift it out of the holder and hold it over the tray; peel
-it open by pulling the two sheets apart, so the forceps drop onto the drape without either hand touching them and
-without the pouch touching the tray; then drop each sheet in the waste bin on its side and take both arms back to
-where they started.
+Task: transfer the sterile forceps from their pouch onto the drape with aseptic technique. Only the forceps, the
+pouch's inside and the drape are sterile: the forceps may touch nothing but the pouch's inside and the drape, and
+nothing but the forceps may touch the drape or the tray. Then discard both pouch sheets in the waste bins and take
+both arms back to where they started.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=peel_open_a_sterile_pouch_and_drop_the_instrument_onto_the_tray.py \\
            --instruction "..." --scorer task_score ...
@@ -25,6 +25,7 @@ import numpy as np
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import bodykit  # noqa: E402
+import yam_gripper_hull  # noqa: E402
 from bodykit import (Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, on_reset, on_step, rotation,  # noqa: E402
                      segment, slider)
 from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
@@ -67,7 +68,8 @@ STEEL, GREEN, TRAY_STEEL, BIN_GREY, ACRYLIC, PINK = (0.78, 0.80, 0.83), (0.15, 0
     (0.35, 0.37, 0.40), (0.80, 0.86, 0.90), (0.85, 0.40, 0.55)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
-TOUCH = 0.02  # a TCP this close to the forceps touches them
+GRIP_TOUCH = 0.003  # a gripper collision-mesh point this close to a prop touches it (points are 4 mm apart)
+TOUCH = 0.0015  # a prop's surface point this close to another surface touches it
 HOME_WITHIN = 0.05
 SUCCESS_HOLD_S = 1.0
 
@@ -173,7 +175,7 @@ def _set_seal(on: bool) -> None:
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"open": False, "touched": False, "pouch_on_tray": False, "tcps": None, "s": {}}
+    return {"open": False, "contaminated": "", "tcps": None, "s": {}}
 
 
 _EP = _fresh()
@@ -208,23 +210,97 @@ def _box_dist(local, lo, hi) -> float:
     return float(np.linalg.norm(np.maximum(np.maximum(lo - local, local - hi), 0.0)))
 
 
-def _bottom_points(pos, rot) -> np.ndarray:
-    """Points along a sheet's bottom edge (world)."""
-    pts = [(x, 0.0, 0.0) for x in np.linspace(-PW / 2, PW / 2, 9)]
-    return pos + np.array(pts) @ rot.T
+def _box_dists(local, lo, hi) -> np.ndarray:
+    return np.linalg.norm(np.maximum(np.maximum(lo - local, local - hi), 0.0), axis=1)
 
 
-def _touches_tray(p) -> bool:
-    """A point of the pouch on the drape (inside the rim) or on the rim."""
-    dx, dy = abs(p[0] - TRAY_C[0]) - TRAY_IN[0] / 2, abs(p[1] - TRAY_C[1]) - TRAY_IN[1] / 2
-    if dx <= 0.0 and dy <= 0.0:
-        return p[2] < DRAPE_TOP + 0.004
-    return max(dx, dy) <= RIM_T + 0.003 and p[2] < RIM_TOP + 0.003
+_HULL = {k: np.array(getattr(yam_gripper_hull, k.upper()), float).reshape(-1, 3) / 1000.0
+         for k in ("gripper", "tip_left", "tip_right")}
+
+
+def _gripper_points(base, origin) -> np.ndarray:
+    """Points on both grippers' collision meshes (gripper body and both fingers), world frame."""
+    pts = []
+    for arm in ("left_robot", "right_robot"):
+        robot = base.scene[arm]
+        poses = as_numpy(robot.data.body_link_pose_w)[0]
+        for link, local in _HULL.items():
+            i = next(j for j, n in enumerate(robot.body_names) if n == link or n.endswith("/" + link))
+            g = poses[i]
+            pts.append(g[:3] - origin + local @ rotation(g[3:7]).T)
+    return np.concatenate(pts)
+
+
+def _grid(lo, hi, n) -> np.ndarray:
+    axes = [np.linspace(a, b, k) for a, b, k in zip(lo, hi, n)]
+    return np.array(np.meshgrid(*axes, indexing="ij")).reshape(3, -1).T
+
+
+def _sheet_points(paper: bool) -> np.ndarray:
+    """Points on every surface of a sheet (panel, folded flap, pull tab), in its own frame."""
+    s = 1.0 if paper else -1.0
+    out = [_grid((-PW / 2, -ST / 2, 0.0), (PW / 2, ST / 2, PH), (11, 2, 9))]
+    fy = sorted((0.0, s * FLAP[1]))
+    out.append(_grid((-FLAP[0] / 2, fy[0], PH), (FLAP[0] / 2, fy[1], PH + FLAP[2]), (3, 13, 2)))
+    tc = np.array([0.0, s * (FLAP[1] - TAB[1] / 2), PH + FLAP[2] + TAB_UP - TAB[2] / 2])
+    out.append(_grid(tc - np.array(TAB) / 2, tc + np.array(TAB) / 2, (2, 3, 4)))
+    return np.concatenate(out)
+
+
+_SHEET_PTS = {"paper": _sheet_points(True), "film": _sheet_points(False)}
+_TRAY_OUT = (TRAY_IN[0] / 2 + RIM_T, TRAY_IN[1] / 2 + RIM_T)
+# the holder's three blocks, world axis-aligned (it never moves): (centre, half size)
+_HOLDER = [((STAND_X, 0.0, TOP + STAND_BASE / 2), (0.10, 0.03, STAND_BASE / 2))] + \
+    [((STAND_X, s * 0.018, TOP + STAND_BASE + 0.011), (0.10, 0.006, 0.011)) for s in (-1.0, 1.0)]
+
+
+def _on_sterile_field(p, margin) -> np.ndarray:
+    """Which points touch the tray: the drape inside the rim, or the rim itself."""
+    dx = np.abs(p[:, 0] - TRAY_C[0]) - TRAY_IN[0] / 2
+    dy = np.abs(p[:, 1] - TRAY_C[1]) - TRAY_IN[1] / 2
+    inside = (dx <= 0.0) & (dy <= 0.0)
+    on_rim = ~inside & (dx <= RIM_T + margin) & (dy <= RIM_T + margin)
+    return (inside & (p[:, 2] < DRAPE_TOP + margin)) | (on_rim & (p[:, 2] < RIM_TOP + margin))
 
 
 def _in_bin(p) -> bool:
     return any(abs(p[0] - c[0]) <= BIN_IN[0] / 2 and abs(p[1] - c[1]) <= BIN_IN[1] / 2 for c in BIN_C.values()) \
         and p[2] < TOP + BIN_H
+
+
+def _forceps_contaminated(fw, sheets) -> str:
+    """What non-sterile surface the forceps' surface points touch, if any: the table, the holder, a bin, the tray's
+    rim, or the outside of the pouch (a sheet's outer face, its folded flap or its pull tab)."""
+    outside_tray = (np.abs(fw[:, 0] - TRAY_C[0]) > _TRAY_OUT[0]) | (np.abs(fw[:, 1] - TRAY_C[1]) > _TRAY_OUT[1])
+    if np.any(outside_tray & (fw[:, 2] < TOP + TOUCH)):
+        return "table"
+    for c, h in _HOLDER:
+        if np.any(_box_dists(fw - np.array(c), -np.array(h), np.array(h)) < TOUCH):
+            return "holder"
+    for c in BIN_C.values():
+        h = np.array([BIN_IN[0] / 2 + BIN_T, BIN_IN[1] / 2 + BIN_T, BIN_H / 2])
+        if np.any(_box_dists(fw - np.array([c[0], c[1], TOP + BIN_H / 2]), -h, h) < TOUCH):
+            return "bin"
+    dx = np.abs(fw[:, 0] - TRAY_C[0]) - TRAY_IN[0] / 2
+    dy = np.abs(fw[:, 1] - TRAY_C[1]) - TRAY_IN[1] / 2
+    rim = ~((dx <= 0.0) & (dy <= 0.0)) & (dx <= RIM_T + TOUCH) & (dy <= RIM_T + TOUCH)
+    if np.any(rim & (fw[:, 2] < RIM_TOP + TOUCH)):
+        return "tray rim"
+    for name, (p, r) in sheets.items():
+        s = 1.0 if name == "paper" else -1.0
+        q = (fw - p) @ r
+        outer = (np.abs(q[:, 0]) <= PW / 2 + TOUCH) & (q[:, 2] >= 0.002) & (q[:, 2] <= PH + TOUCH) & \
+            (s * q[:, 1] >= ST / 2 - 0.0005) & (s * q[:, 1] <= ST / 2 + TOUCH)
+        if np.any(outer):
+            return f"outside of the {name}"
+        fy = sorted((0.0, s * FLAP[1]))
+        if np.any(_box_dists(q, np.array([-FLAP[0] / 2, fy[0], PH]),
+                             np.array([FLAP[0] / 2, fy[1], PH + FLAP[2]])) < TOUCH):
+            return f"{name}'s flap"
+        tc = np.array([0.0, s * (FLAP[1] - TAB[1] / 2), PH + FLAP[2] + TAB_UP - TAB[2] / 2])
+        if np.any(_box_dists(q, tc - np.array(TAB) / 2, tc + np.array(TAB) / 2) < TOUCH):
+            return f"{name}'s pull tab"
+    return ""
 
 
 @on_step
@@ -240,16 +316,31 @@ def _follow(env) -> None:
         _set_seal(False)
     _EP["tcps"] = _tcps(base, origin)
     lo, hi = _SPEC["forceps"].local_bounds()
-    near = min(_box_dist(kr.T @ (t - kp), lo, hi) for t in _EP["tcps"])
-    if near < TOUCH:
-        _EP["touched"] = True
-    for name, p, r in (("paper", pp, pr), ("film", fp, fr)):
-        if any(_touches_tray(q) for q in _bottom_points(p, r)):
-            _EP["pouch_on_tray"] = True
+    fw = kp + _F_PTS(lo, hi) @ kr.T  # the forceps' surface points, world
+    gw = _gripper_points(base, origin)
+    sheets = {"paper": (pp, pr), "film": (fp, fr)}
+    if not _EP["contaminated"]:
+        why = ""
+        if np.any(_box_dists((gw - kp) @ kr, lo, hi) < GRIP_TOUCH):
+            why = "a gripper touched the forceps"
+        elif np.any(_on_sterile_field(gw, GRIP_TOUCH)):
+            why = "a gripper touched the tray"
+        else:
+            for name, (p, r) in sheets.items():
+                if np.any(_on_sterile_field(p + _SHEET_PTS[name] @ r.T, TOUCH)):
+                    why = f"the {name} touched the tray"
+                    break
+        if not why:
+            what = _forceps_contaminated(fw, sheets)
+            if what:
+                why = f"the forceps touched the {what}"
+        if why:
+            _EP["contaminated"] = why
     k_mid = kp + kr @ ((lo + hi) / 2)
     on_tray = abs(k_mid[0] - TRAY_C[0]) <= TRAY_IN[0] / 2 and abs(k_mid[1] - TRAY_C[1]) <= TRAY_IN[1] / 2 \
         and k_mid[2] < DRAPE_TOP + 0.015
     mids = {n: p + r @ np.array([0.0, 0.0, PH / 2]) for n, p, r in (("paper", pp, pr), ("film", fp, fr))}
+    near = float(np.min(_box_dists((gw - kp) @ kr, lo, hi)))
     _EP["s"] = {"apart": apart, "on_tray": on_tray, "binned": all(_in_bin(m) for m in mids.values()), "near": near,
                 "k_mid": k_mid, "mids": mids}
     if _DEBUG["on"]:
@@ -257,26 +348,37 @@ def _follow(env) -> None:
         if _DEBUG["steps"] % 10 == 0:
             tl, tr = _EP["tcps"]
             print(f"[pouch] t={_DEBUG['steps'] / 20:5.1f}s apart={apart * 1000:5.1f}mm open={_EP['open']} "
-                  f"forceps={np.round(k_mid * 1000).astype(int).tolist()} on_tray={on_tray} near={near * 1000:.0f}mm "
-                  f"touched={_EP['touched']} pouch_on_tray={_EP['pouch_on_tray']} "
+                  f"forceps={np.round(k_mid * 1000).astype(int).tolist()} on_tray={on_tray} "
+                  f"gripper-forceps={near * 1000:.0f}mm contaminated={_EP['contaminated']!r} "
                   f"paper={np.round(mids['paper'] * 1000).astype(int).tolist()} "
                   f"film={np.round(mids['film'] * 1000).astype(int).tolist()} binned={_EP['s']['binned']} "
                   f"leftTCP={np.round(tl * 1000).astype(int).tolist()} rightTCP={np.round(tr * 1000).astype(int).tolist()} "
                   f"score={score(None)}", file=sys.stderr, flush=True)
 
 
+def _F_PTS(lo, hi) -> np.ndarray:
+    if "f" not in _FP:
+        _FP["f"] = _grid(lo, hi, (13, 3, 4))
+    return _FP["f"]
+
+
+_FP: dict = {}
+
+
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def score(objects) -> float:
-    """0.0 if a gripper ever touched the forceps (a TCP within 2 cm of them). Otherwise 1.0 with the pouch peeled open
-    (its sheets pulled at least 12 mm apart at some point), the forceps lying on the drape inside the tray's rim, the
-    pouch never having touched the tray, each sheet in a waste bin and both arms back where they started; 0.5
-    with the pouch peeled open, the forceps on the drape and the pouch never on the tray; 0.25 with the pouch peeled
-    open at some point; else 0.0."""
+    """0.0 once anything breaks asepsis, at any moment (latched): a gripper (any part of its collision meshes, within
+    3 mm) touching the forceps or the tray; any surface of the pouch touching the tray (drape or rim, within 1.5 mm);
+    or the forceps touching anything non-sterile (within 1.5 mm): the table, the holder, a bin, the tray's rim, a
+    sheet's outer face, flap or pull tab. Otherwise 1.0 with the pouch peeled open (its sheets pulled at least 12 mm
+    apart at some point), the forceps lying on the drape inside the tray's rim, each sheet in a waste bin and both
+    arms back where they started; 0.5 with the pouch peeled open and the forceps on the drape; 0.25 with the pouch
+    peeled open at some point; else 0.0."""
     st = _EP["s"]
-    if _EP["touched"] or not _EP["open"]:
+    if _EP["contaminated"] or not _EP["open"]:
         return 0.0
-    if not st.get("on_tray") or _EP["pouch_on_tray"]:
+    if not st.get("on_tray"):
         return 0.25
     if st.get("binned") and _arms_home():
         return 1.0

@@ -1,12 +1,13 @@
-# Peel a sterile pouch open over the tray with both hands so the forceps drop onto the drape untouched
+# Transfer sterile forceps from their peel pouch onto a sterile drape without contaminating the forceps or the drape
 
 A pair of sterile dressing forceps waits in a peel pouch standing upright in an acrylic holder: a white paper sheet
 on the left and a clear film sheet on the right, sealed together along three edges, the forceps lying inside on the
 bottom seal. Above the seal the sheets' top flaps are folded out to either side, each ending in a stiff pull tab
 (blue on the paper, orange on the film). Beyond the holder lies a sterile instrument tray lined with a green drape;
 a waste bin stands on either side. Both hands take the pouch by its tabs, lift it out of the holder and hold it over
-the tray, then pull the sheets apart: the seal gives and the forceps drop onto the drape, touched by nothing. Each
-hand drops its sheet in the bin on its side, and both arms go back to where they started. The task is one task file,
+the tray, then pull the sheets apart: the seal gives and the forceps drop onto the drape, touched by nothing
+non-sterile. Each hand drops its sheet in the bin on its side, and both arms go back to where they started. The
+instruction states only the goal and the sterility rules; how to get the forceps out untouched is left to the policy. The task is one task file,
 [`peel_open_a_sterile_pouch_and_drop_the_instrument_onto_the_tray.py`](peel_open_a_sterile_pouch_and_drop_the_instrument_onto_the_tray.py),
 for the `yam_arena` embodiment (scene, scoring and the scripted demo), plus [`bodykit.py`](bodykit.py), which it
 imports from the same folder.
@@ -34,6 +35,12 @@ fixed where they are put; the two sheets and the forceps are loose rigid bodies 
   joint off, and the sheets come apart.
 - The forceps rest on the bottom seal. Once the sheets are a few millimetres further apart than the forceps are
   thick, nothing holds them and they drop.
+- Contamination is tracked after every control step, for the whole trial, from geometry: points on the grippers'
+  collision meshes (the gripper body and both fingers, one per 4 mm cell, read from the robot's USD asset and kept in
+  [`yam_gripper_hull.py`](yam_gripper_hull.py)) are checked against the forceps and the tray (within 3 mm), points
+  over every surface of both sheets (faces, flaps, tabs) against the tray, drape and rim, and points over the
+  forceps against the table, the holder, the bins, the tray's rim and the sheets' outer faces, flaps and tabs
+  (within 1.5 mm). The first contact latches the score at 0.
 
 Importing `bodykit.py` hooks `yam_arena.scene` when the simulator starts, without changing yam_arena, gives `score()`
 each body's own pose, and lets the task file act on the simulation after every control step.
@@ -51,7 +58,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=peel_open_a_sterile_pouch_and_drop_the_instrument_onto_the_tray.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Open the sterile pouch over the tray: take it by its two pull tabs, lift it out of its holder and hold it over the tray, then pull the two sheets apart so the forceps drop onto the green drape, without touching the forceps and without letting the pouch touch the tray; then drop the two sheets in the waste bins and take both arms back to where they started." \
+  --instruction "Transfer the sterile forceps from their peel pouch onto the green drape without contaminating them: only the forceps, the inside of the pouch and the drape are sterile, so the forceps may touch nothing else, and nothing but the forceps may touch the drape or the tray. Then put both pouch sheets in the waste bins and take both arms back to where they started." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/pouch-dream
 ```
 
@@ -64,7 +71,7 @@ they started:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=peel_open_a_sterile_pouch_and_drop_the_instrument_onto_the_tray.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Open the sterile pouch over the tray: take it by its two pull tabs, lift it out of its holder and hold it over the tray, then pull the two sheets apart so the forceps drop onto the green drape, without touching the forceps and without letting the pouch touch the tray; then drop the two sheets in the waste bins and take both arms back to where they started." \
+  --instruction "Transfer the sterile forceps from their peel pouch onto the green drape without contaminating them: only the forceps, the inside of the pouch and the drape are sterile, so the forceps may touch nothing else, and nothing but the forceps may touch the drape or the tray. Then put both pouch sheets in the waste bins and take both arms back to where they started." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/pouch-demo
 ```
 
@@ -75,13 +82,13 @@ for log in ~/yam-eval/pouch-dream/*.json; do inspect-robots video "$log"; done
 ```
 
 Set `POUCH_DEBUG=1` to print what the score is built from twice a second: how far apart the sheets have been pulled
-and whether the seal has given, where the forceps are and whether they lie on the drape, how close a TCP has come to
-them and whether one ever touched them, whether the pouch has touched the tray, where each sheet is and whether both
-are in the bins, and where each TCP is.
+and whether the seal has given, where the forceps are and whether they lie on the drape, how close any gripper has
+come to them, whether (and how) anything has been contaminated, where each sheet is and whether both are in the bins,
+and where each TCP is.
 
 ## Runtime per trial
 
-On one RTX 5090: about 5 minutes for a Dream-1 trial of 1,200 steps (328 s on the clock, with Dream answering in 0.70 s on average), and about 1 minute for the scripted demo (384 steps, 19.2 s of simulated time, 74 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 5 minutes for a Dream-1 trial of 1,200 steps (321 s on the clock, with Dream answering in 0.73 s on average), and about 1 minute for the scripted demo (384 steps, 19.2 s of simulated time, 88 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
