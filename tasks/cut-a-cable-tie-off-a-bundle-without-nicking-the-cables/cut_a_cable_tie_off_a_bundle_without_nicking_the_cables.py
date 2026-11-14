@@ -76,8 +76,18 @@ CUTTER_MASS = 0.06  # each half
 TRAY_FLOOR = TOP + 0.005
 
 # -- scoring ------------------------------------------------------------------------------------------------------------
-NEAR_STRAP = 0.004  # the jaws' tips within this of the strap (radially and across it) when they close: they cut it
-SAFE_ARC = 0.012  # ... within this (along the strap) of the head's middle: beside the head, a clean cut
+# The strap is severed only when it is truly between the blades as they close: the jaws' mouth across the strap (its
+# middle within ACROSS_IN of the mouth's middle line, so all 4 mm of its width lie between the 8 mm-apart edges), the
+# tips reaching at least to the strap's inner face (no farther than TIPS_PAST from the bundle's axis), the cutters
+# pointing into the bundle (within AIM_DEG of the inward radial) and their pivot axis along the strap's run (the jaws
+# closing across its width, not along it).
+ACROSS_IN = JAW_GAP / 2 - STRAP_W / 2 + 0.001
+TIPS_PAST = STRAP_R - STRAP_T / 2 + 0.0004
+AIM_DEG = 50.0
+SAFE_ARC = 0.012  # cut within this (along the strap) of the head's middle: beside the head, where it stands off
+NICK_DEPTH = 0.0015  # a tip pressed this far into any cable's insulation as the jaws close: a nicked cable
+OFF_BELOW = 0.015  # the cut tie off the bundle: its middle this far below the bundle's axis ...
+OFF_AWAY = 0.03  # ... or this far from it sideways
 LIFTED = 0.02  # the cutters lifted this far out of the tray: taken
 BACK_WITHIN = 0.03  # back in the tray: each half within this of where it lay
 ON_BLOCKS = 0.025  # the bundle still across its blocks: its centre within this of its line and not below the blocks
@@ -207,7 +217,7 @@ hinge("cutter_pivot", "cutters", "cutters_b", anchor=tuple(TRAY_PIVOT.tolist()),
 
 def _fresh() -> dict:
     return {"cut": False, "nicked": False, "taken": False, "closed_before": False, "tcps": None, "s": {},
-            "steps": 0, "mouth_ring": None}
+            "steps": 0, "mouth_ring": None, "aim": None}
 
 
 _EP = _fresh()
@@ -267,9 +277,26 @@ def _follow(env) -> None:
     tpos, trot, tq = _pose(base, origin, "cable_tie")
     gap, across, arc = _mouth_on_strap(mouth, tpos, trot)
     _EP["mouth_ring"] = (gap, across, arc)
+    bun, brot_b, _ = _pose(base, origin, "cable_bundle")
+    tips = [apos + arot @ np.array([JAW_TIP, JAW_GAP / 2, dz]) for dz in (-0.0015, 0.0015)]  # the tips' inner corners
+    tips += [bpos + brot @ np.array([JAW_TIP, -JAW_GAP / 2, dz]) for dz in (-0.0015, 0.0015)]
+    tq_b = [brot_b.T @ (t - bun) for t in tips]  # the tips' corners in the bundle's frame
+    tip_r = min(math.hypot(float(q[0]), float(q[2])) for q in tq_b)
+    dent = max((CABLE_R - math.hypot(float(q[0]) - cx, float(q[2]) - cz) for q in tq_b for cx, cz in CABLES
+                if abs(float(q[1])) < BUNDLE_L / 2), default=-1.0)  # deepest a tip corner is in a cable
+    _EP["dent"] = dent
+    q_mouth = brot_b.T @ (mouth - bun)
+    inward = -np.array([q_mouth[0], 0.0, q_mouth[2]]) / max(math.hypot(float(q_mouth[0]), float(q_mouth[2])), 1e-6)
+    aim = math.degrees(math.acos(max(-1.0, min(1.0, float(inward @ (brot_b.T @ arot[:, 0]))))))
+    pivot_along = math.degrees(math.asin(min(1.0, abs(float((brot_b.T @ arot[:, 2])[1])))))  # pivot axis vs bundle
+    _EP["aim"] = (tip_r, aim, pivot_along)
+    _EP["qm"] = trot.T @ (mouth - tpos)  # the mouth in the tie's frame (debug)
     if not _EP["cut"] and closed >= CUT_DEG and not _EP["closed_before"]:
         _EP["closed_before"] = True
-        if gap <= NEAR_STRAP and across <= NEAR_STRAP + STRAP_W / 2:  # the strap is between the tips
+        if dent >= NICK_DEPTH:
+            _EP["nicked"] = True  # a tip pressed into a cable's insulation as the jaws closed
+        if (across <= ACROSS_IN and gap <= 0.004 and tip_r <= TIPS_PAST and aim <= AIM_DEG
+                and pivot_along <= AIM_DEG):  # the strap is between the blades: severed
             _EP["cut"] = True
             if arc > SAFE_ARC:
                 _EP["nicked"] = True  # the strap lies tight on the insulation there: the jaws nicked a cable
@@ -285,19 +312,23 @@ def _follow(env) -> None:
     if apos[2] > TRAY_PIVOT[2] + LIFTED and bpos[2] > TRAY_PIVOT[2] + LIFTED:
         _EP["taken"] = True
     _EP["tcps"] = _tcps(base, origin)
-    bun, _, _ = _pose(base, origin, "cable_bundle")
+    ctp, _, _ = _pose(base, origin, "cut_tie")
+    off = _EP["cut"] and (float(ctp[2]) < float(bun[2]) - OFF_BELOW
+                          or math.hypot(float(ctp[0] - bun[0]), float(ctp[2] - bun[2])) > OFF_AWAY
+                          or abs(float(ctp[1] - bun[1])) > BUNDLE_L / 2)
     grip = apos + arot @ np.array([GRIP_X, 0.0, 0.0])
     press = bun + np.array([0.0, BLOCK_Y[0], 0.0])
     clear = all(float(np.linalg.norm(t - q)) >= LET_GO for t in _EP["tcps"] for q in (grip, press))
     back = (float(np.linalg.norm(apos - TRAY_PIVOT)) <= BACK_WITHIN
             and float(np.linalg.norm(bpos - TRAY_PIVOT)) <= BACK_WITHIN)
     on_blocks = abs(float(bun[0]) - BX) <= ON_BLOCKS and float(bun[2]) >= ZC - 0.006
-    _EP["s"] = {"closed": closed, "clear": clear, "back": back, "on_blocks": on_blocks}
+    _EP["s"] = {"closed": closed, "clear": clear, "back": back, "on_blocks": on_blocks, "off": off}
     _EP["steps"] += 1
     if _DEBUG["on"] and _EP["steps"] % 10 == 0:
         tl, tr = _EP["tcps"]
         print(f"[tie] t={_EP['steps'] / 20:5.1f}s closed={closed:5.1f}deg mouth: gap={gap * 1000:5.1f}mm "
-              f"across={across * 1000:5.1f}mm arc={arc * 1000:5.1f}mm cut={_EP['cut']} nicked={_EP['nicked']} "
+              f"across={across * 1000:5.1f}mm arc={arc * 1000:5.1f}mm tip_r={tip_r * 1000:5.1f}mm aim={aim:4.0f} "
+              f"pivot_along={pivot_along:4.0f} dent={_EP['dent'] * 1000:4.1f}mm qm={np.round(_EP['qm'] * 1000, 1).tolist()} off={off} cut={_EP['cut']} nicked={_EP['nicked']} "
               f"taken={_EP['taken']} back={back} on_blocks={on_blocks} clear={clear} "
               f"bundle={np.round((bun - [BX, 0.0, ZC]) * 1000).astype(int).tolist()} "
               f"rTCP-grip={np.round((tr - grip) * 1000).astype(int).tolist()} "
@@ -308,15 +339,16 @@ def _follow(env) -> None:
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def score(objects) -> float:
-    """0.0 if the jaws closed on the strap away from the head (nicking a cable). Else 1.0 once the tie was cut beside
-    its head, the cutters lie back in the tray, the bundle still lies across its blocks, both hands have let go (each
-    TCP at least 4 cm from the cutters' handles and from the bundle above its left block) and both arms are back where
-    they started; 0.5 once the tie was cut beside its head; 0.25 if the cutters were taken out of the tray at some
-    point; else 0.0."""
+    """0.0 if a cable was ever nicked: the jaws closed on the strap away from the head, or closed with a tip corner
+    pressed 1.5 mm or more into any cable. Else 1.0 once the strap was severed beside the head (between the blades as they closed) and
+    the tie has come off the bundle, the cutters lie back in the tray, the bundle still lies across its blocks, both
+    hands have let go (each TCP at least 4 cm from the cutters' handles and from the bundle above its left block) and
+    both arms are back where they started; 0.5 once the strap was severed beside the head and the tie is off the
+    bundle; 0.25 if the cutters were taken out of the tray at some point; else 0.0."""
     s = _EP["s"]
     if _EP["nicked"] or not s:
         return 0.0
-    if _EP["cut"]:
+    if _EP["cut"] and s["off"]:
         if s["back"] and s["on_blocks"] and s["clear"] and _arms_home():
             return 1.0
         return 0.5
@@ -362,6 +394,8 @@ TIP = 0.013  # closed fingertips below the TCP
 PRESS_IN = 0.010
 CUT_DEG_AT = HEAD_DEG - 20.0  # the jaws go to the strap here, just below the head
 PUSH_IN = 0.004  # aimed this far past the strap, into the bundle
+AIM_DY = 0.003  # measured: the held cutters end 3 mm toward -y of where they are aimed; aim this much the other way
+BUNDLE_SIT = 0.003  # measured: the bundle rests this much above ZC on its blocks
 LEAD_S, LEAD_STEPS = 3.0, 15
 
 
@@ -412,7 +446,7 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
 def _cut_point(push: float) -> np.ndarray:
     """The jaws' tips at the strap just below the head, pushed ``push`` past it into the bundle."""
     a = math.radians(CUT_DEG_AT)
-    return np.array([BX - (STRAP_R - push) * math.cos(a), TIE_Y, ZC + (STRAP_R - push) * math.sin(a)])
+    return np.array([BX - (STRAP_R - push) * math.cos(a), TIE_Y + AIM_DY, ZC + BUNDLE_SIT + (STRAP_R - push) * math.sin(a)])
 
 
 def _tcp_for_tips(tips) -> np.ndarray:

@@ -1,4 +1,4 @@
-# Cut a cable tie off a cable bundle without nicking the cables: hold the bundle, snip the strap beside the tie's head
+# Cut a cable tie off a cable bundle without nicking the cables
 
 A bundle of seven insulated cables lies across two beech blocks, held together by a black nylon cable tie between the
 blocks. The tie's head sits on the near side of the bundle. A pair of flush cutters with red handles lies in a tray to
@@ -36,12 +36,18 @@ they are put. The other parts are loose rigid bodies made of shapes from `bodyki
   jaws 8 mm open at the tips. A hand holding the handles lightly keeps them open; squeezing them shut turns the halves
   up to 16 degrees together, closing the jaws.
 - **The cut.** After every control step, the task file checks for the moment the halves close past 10 degrees. If the
-  jaws' tips are then within 4 mm of the strap, the tie is cut:
+  strap is then truly between the blades, the tie is cut. That means all 4 mm of its width lies between the 8 mm-apart
+  edges (its middle within 3 mm of the mouth's middle line), the tips are at or past its inner face (within 10.9 mm of
+  the bundle's axis), the cutters point into the bundle (within 50 degrees) and their pivot runs along the strap
+  (within 50 degrees). When that holds:
   - the glue switches off;
   - the closed tie is moved out of sight;
   - an open tie, its strap cut beside the head, takes its place and drops to the table.
 - **A nick.** The task file judges where the cut was made. A cut more than 12 mm along the strap from the middle of the
-  head counts as a nick: there, the strap lies tight on the insulation.
+  head counts as a nick: there, the strap lies tight on the insulation. So does closing the jaws with a corner of a tip
+  pressed 1.5 mm or more into any cable.
+- **Off the bundle.** The cut tie must end off the bundle (its middle 1.5 cm below the bundle's axis or 3 cm from it)
+  for any credit for the cut.
 
 Importing `bodykit.py` hooks `yam_arena.scene` when the simulator starts, without changing yam_arena. This gives
 `score()` each body's own pose and lets the task file act on the simulation after every control step.
@@ -62,7 +68,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=cut_a_cable_tie_off_a_bundle_without_nicking_the_cables.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Cut the cable tie off the cable bundle without nicking the cables. With one hand, press the bundle down on its left wooden block so that it cannot roll. With the other, take the flush cutters from the tray by their red handles and snip the tie's strap right beside its head: anywhere else the strap lies tight on the insulation, and the jaws would nick a cable. Then put the cutters back in the tray, let go of the bundle and take both arms back to where they started." \
+  --instruction "Cut the cable tie off the cable bundle with the flush cutters from the tray, without nicking any cable's insulation. Then put the cutters back on the tray's rests, leave the bundle across its blocks with nothing holding it, and take both arms back to where they started." \
   --scorer task_score --max-steps 900 --store-frames --log-dir ~/yam-eval/tie-dream
 ```
 
@@ -78,7 +84,7 @@ The scripted demo reaches full score:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=cut_a_cable_tie_off_a_bundle_without_nicking_the_cables.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Cut the cable tie off the cable bundle without nicking the cables. With one hand, press the bundle down on its left wooden block so that it cannot roll. With the other, take the flush cutters from the tray by their red handles and snip the tie's strap right beside its head: anywhere else the strap lies tight on the insulation, and the jaws would nick a cable. Then put the cutters back in the tray, let go of the bundle and take both arms back to where they started." \
+  --instruction "Cut the cable tie off the cable bundle with the flush cutters from the tray, without nicking any cable's insulation. Then put the cutters back on the tray's rests, leave the bundle across its blocks with nothing holding it, and take both arms back to where they started." \
   --scorer task_score --max-steps 900 --store-frames --log-dir ~/yam-eval/tie-demo
 ```
 
@@ -98,8 +104,30 @@ Set `TIE_DEBUG=1` to print what the score is built from twice a second:
 
 ## Runtime per trial
 
-On one RTX 5090: about 5 minutes for a Dream-1 trial of 900 steps (276 s on the clock, with Dream answering in 0.75 s on average), and about 1 minute for the scripted demo (377 steps, 18.9 s of simulated time, 70 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 4 minutes for a Dream-1 trial of 900 steps (262 s on the clock, with Dream answering in 0.68 s on average), and about 2 minutes for the scripted demo (377 steps, 18.9 s of simulated time, 120 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
 None needed: with `-E object_jitter=0` the layout is fixed, and the scripted demo follows fixed waypoints.
+
+## Changes in this revision
+
+This is a revision of TK-KA9BNZ. Its review said:
+
+> Construct validity (not met): Closing the cutters within 4 mm of the strap can score a cut without severing it, and actual damage to cables is not checked.
+>
+> Scoring (not met): The proximity-based cut and location-based nick rules do not reliably establish whether the tie was severed or insulation was damaged.
+>
+> What to change: Revise the real-world scoring to require the tie to be physically severed, rather than treating jaw closure within 4 mm as a cut, and inspect the cable insulation, awarding zero if any cable is nicked. Relabel the task as workplace maintenance or another appropriate domain: the setup does not specify an immediate hazard to a person.
+
+What changed in response:
+
+- A cut now needs the strap truly between the blades as they close: all 4 mm of its width between the 8 mm-apart
+  edges (its middle within 3 mm of the mouth's middle line), the tips at or past the strap's inner face (within
+  10.9 mm of the bundle's axis), the cutters pointing into the bundle and their pivot along the strap's run. Closing
+  the jaws merely near the strap no longer counts. Every credit for the cut also needs the severed tie to have come
+  off the bundle.
+- Nicks: besides closing on the strap away from its head, closing the jaws with a corner of a tip pressed 1.5 mm or more into
+  any cable scores 0. In a real trial every cable's insulation is inspected after the trial, and any nick or cut
+  scores 0.
+- The instruction states only the goal and its constraints; the category is Impact on jobs (workplace maintenance).
