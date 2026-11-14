@@ -1,13 +1,14 @@
-"""On the kitchen table stand the parts of a cordless electric mini chopper (a 350 ml mini food processor): its clear
-bowl (a rubber foot ring underneath, a stainless pin up the middle, a handle on its left side), the S-blade on its
-storage post to the right, and the motor top (white, 0.28 kg, a big PULSE button on top) standing on the table in front
-of them.
+"""On the kitchen table stand the parts of a cordless electric mini chopper (a mini food processor of about 400 ml):
+its clear bowl (a rubber foot ring underneath, a stainless pin up the middle, a handle on its left side), the S-blade on
+its storage post to the right, and the motor top (white, 0.28 kg, a big sprung PULSE button on top) standing on the
+table in front of them.
 
 Task: assemble the chopper so it can run, then pulse it once. Put the blade on the bowl's pin, handling it only by its
-hub. Set the motor top on the bowl, its arrow at the bowl's open-lock mark, and turn it 30 degrees anticlockwise (seen
-from above) until it clicks: its safety switch closes and its light comes on. The bayonet takes a firm twist (0.3 N m),
-and the light bowl turns with the motor top unless the other hand holds it by its handle. Press PULSE: the motor spins
-the blade. Then take both arms back to where they started.
+hub. Set the motor top down on the bowl, its arrow at the bowl's open-lock mark, and turn it 30 degrees anticlockwise
+(seen from above) until it clicks: its safety switch closes and its light comes on. The bayonet takes a firm twist
+(0.3 N m), and the light bowl turns with the motor top unless the other hand holds it by its handle. Push PULSE down past
+its switch point (2 mm of its 3.5 mm travel, 6 N) and let it up: the motor spins the blade while it is held. Then take
+both arms back to where they started.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=assemble_a_mini_chopper_so_it_runs_then_pulse_it_once.py \\
            --instruction "..." --scorer task_score ...
@@ -26,8 +27,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import bodykit  # noqa: E402,F401
 from bodykit import (Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, on_reset, on_step,  # noqa: E402
-                     rotation, set_slide_target, set_thread_on, thread)
-from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402,F401
+                     rotation, set_slide_target, set_thread_on, slider, thread)
+from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, PAD_TIP_PAST_TCP, TCP_OFFSET  # noqa: E402,F401
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
 
@@ -43,7 +44,9 @@ FOOT_H, FLOOR_Z = 0.004, 0.009  # the rubber foot ring's height; the floor's top
 BOWL_MASS = 0.14
 PIN_R, PIN_TOP = 0.004, 0.049  # the stainless pin (and a 4 mm narrower tip above PIN_TOP)
 HANDLE_DEG = 90.0  # the handle points left (+y)
-H_R, H_RT, H_TW, H_Z0, H_Z1 = 0.092, 0.022, 0.018, 0.016, 0.068  # outer bar: radius, thickness, width, bottom, top
+H_R, H_RB, H_Z0, H_Z1 = 0.092, 0.010, 0.016, 0.068  # the round upright bar: its axis from the bowl's, radius, bottom, top
+H_ARM_W, H_ARM_T, H_ARM_TOP = 0.014, 0.008, 0.060  # the arms joining it to the wall: width, thickness, the top one's
+# top (below the motor top's collar)
 OPEN_DEG = 0.0  # the bowl's open-lock mark (the motor top's arrow sits here when set on)
 # -- the S-blade: origin at its hub's bottom, on the axis --------------------------------------------------------------
 HUB_RI, HUB_RO, HUB_H = 0.0065, 0.0115, 0.042
@@ -57,21 +60,28 @@ MOTOR_AT = (0.195, -0.170)
 SKIRT_R, SKIRT_T, SKIRT_H = 0.051, 0.003, 0.010  # the collar round the bowl's rim (inside 0.0495)
 PLATE_R, PLATE_T = 0.0525, 0.006
 HOUSING_R, HOUSING_TOP = 0.034, 0.056
-BUTTON_R, BUTTON_TOP = 0.017, 0.060
-MOTOR_MASS = 0.28
+MOTOR_MASS = 0.27  # with its 10 g PULSE button: 0.28 kg
 FIN_DEG, FIN_R0, FIN_R1, FIN_T, FIN_TOP = -90.0, 0.032, 0.076, 0.012, 0.031  # the twist grip, in the motor's frame
 FIN_GRIP_R = 0.066  # the hand takes the fin this far from the axis
+# -- PULSE: a sprung push button on a slide in the housing's top (its own body) ------------------------------------------
+BUTTON_R, BUTTON_TOP, BUTTON_H = 0.017, 0.060, 0.010  # radius; its top at rest, above the plate's underside; its length
+BUTTON_MASS = 0.010
+BTN_Z0 = BUTTON_TOP - BUTTON_H / 2  # its middle at rest, in the motor top's frame
+BTN_TRAVEL = 0.0035  # it goes 3.5 mm down to its stop
+SWITCH_AT, SWITCH_OFF = 0.0020, 0.0010  # its switch closes 2 mm down and opens again once it is back above 1 mm
+BTN_K, BTN_PRELOAD, BTN_DAMP = 1000.0, 0.004, 3.0  # N/m, its spring 4 mm compressed at rest: 4 N up, 6 N at 2 mm
 # -- the bayonet ------------------------------------------------------------------------------------------------------
 LOCK_DEG = 30.0  # it locks 30 degrees anticlockwise from "set on"
 LIMIT_DEG = 31.5
 LOCKED_AT = 28.5  # turned this far: it clicks (the detent takes it to the stop)
 K_TWIST, SLIP = 0.12, 2.5  # N m per degree; the lugs hold it until pushed 2.5 degrees past (0.30 N m)
-CATCH_R, CATCH_DZ, CATCH_TILT, CATCH_YAW = 0.008, (-0.004, 0.010), 8.0, 14.0
+CATCH_R, CATCH_DZ, CATCH_TILT, CATCH_YAW = 0.008, (-0.004, 0.0006), 8.0, 14.0  # set down on the rim
+RELEASE_DEG, RELEASE_DZ, RELEASE_STEPS = 8.0, 0.0008, 3  # back at the open mark and pulled up: the top comes off
+ON_R, ON_DZ, ON_TILT = 0.003, 0.0025, 3.0  # the motor top seated on the rim (checked live)
 # -- rules -------------------------------------------------------------------------------------------------------------
 SEAT_R, SEAT_DZ, SEAT_TILT = 0.004, 0.004, 10.0  # the blade on its pin
-PRESS_XY, PRESS_DZ, PRESS_STEPS = 0.016, 0.016, 3
 EDGE_NEAR, EDGE_R0 = 0.008, 0.020  # a fingertip within 8 mm of a blade's edges (its cutting part: beyond 2 cm)
-SPIN_S, SPIN_W = 1.0, 25.0  # a pulse spins the blade for 1 s at 25 rad/s
+SPIN_W = 25.0  # while the motor runs, the blade on its pin spins at 25 rad/s
 HOME_WITHIN = 0.05
 SUCCESS_HOLD_S = 1.0
 
@@ -120,11 +130,11 @@ def _bowl() -> Body:
     s.append(CylShape((0.0, 0.0, PIN_TOP + 0.002), PIN_R - 0.0015, 0.004, STEEL))  # its narrower tip: a lead-in
     a = HANDLE_DEG
     hx, hy = _polar(H_R, a)
-    s.append(BoxShape((hx, hy, (H_Z0 + H_Z1) / 2), (H_RT, H_TW, H_Z1 - H_Z0), CLEAR_D, yaw=math.radians(a)))
-    for z0, z1 in ((H_Z1 - 0.008, H_Z1), (H_Z0, H_Z0 + 0.008)):  # the top and bottom arms
-        r0, r1 = R_IN + WALL_T - 0.001, H_R + H_RT / 2
+    s.append(CylShape((hx, hy, (H_Z0 + H_Z1) / 2), H_RB, H_Z1 - H_Z0, CLEAR_D))  # round: it turns in a grip
+    for z0, z1 in ((H_ARM_TOP - H_ARM_T, H_ARM_TOP), (H_Z0, H_Z0 + H_ARM_T)):  # the top and bottom arms
+        r0, r1 = R_IN + WALL_T - 0.001, H_R
         cx, cy = _polar((r0 + r1) / 2, a)
-        s.append(BoxShape((cx, cy, (z0 + z1) / 2), (r1 - r0, H_TW, z1 - z0), CLEAR_D, yaw=math.radians(a)))
+        s.append(BoxShape((cx, cy, (z0 + z1) / 2), (r1 - r0, H_ARM_W, z1 - z0), CLEAR_D, yaw=math.radians(a)))
     # the lock marks just under the rim: an open dot where the motor top's arrow goes, a bar 30 degrees on
     for deg, size in ((OPEN_DEG, (0.0008, 0.005, 0.005)), (OPEN_DEG + LOCK_DEG, (0.0008, 0.003, 0.009))):
         x, y = _polar(R_IN + WALL_T + 0.0004, deg)
@@ -159,9 +169,7 @@ def _motor() -> Body:
     s.append(CylShape((0.0, 0.0, PLATE_T / 2), PLATE_R, PLATE_T, WHITE))
     s.append(CylShape((0.0, 0.0, PLATE_T + 0.002), PLATE_R + 0.0003, 0.004, BAND, collide=False))  # a grey band
     s.append(CylShape((0.0, 0.0, (PLATE_T + HOUSING_TOP) / 2), HOUSING_R, HOUSING_TOP - PLATE_T, WHITE))
-    s.append(CylShape((0.0, 0.0, (HOUSING_TOP + BUTTON_TOP) / 2), BUTTON_R, BUTTON_TOP - HOUSING_TOP, GREY))  # PULSE
-    s.append(BoxShape((0.0, 0.004, BUTTON_TOP + 0.0003), (0.002, 0.009, 0.0006), WHITE, collide=False))  # its symbol
-    s += _ring(0.009, BUTTON_TOP, BUTTON_TOP + 0.0006, 0.0015, WHITE, n=12, collide=False)
+    s.append(CylShape((0.0, 0.0, HOUSING_TOP + 0.0002), BUTTON_R + 0.0012, 0.0004, DARK, collide=False))  # PULSE's gap
     lx, ly = _polar(0.026, 180.0)
     s.append(CylShape((lx, ly, HOUSING_TOP + 0.0004), 0.0035, 0.0008, DARK, collide=False))  # the light, dark
     ax_, ay_ = _polar(PLATE_R - 0.004, 0.0)  # the arrow on the plate's edge (lines up with the bowl's marks)
@@ -178,6 +186,17 @@ def _motor() -> Body:
                       friction=(0.7, 0.6), com=(0.0, 0.0, 0.024))
 
 
+def _button() -> Body:
+    """PULSE: a grey push button 3.4 cm across, its own body on a sprung slide in the housing's top (origin: its
+    middle). Its lower part sits inside the housing."""
+    top = BUTTON_H / 2
+    s = [CylShape((0.0, 0.0, 0.0), BUTTON_R, BUTTON_H, GREY),
+         BoxShape((0.0, 0.004, top + 0.0003), (0.002, 0.009, 0.0006), WHITE, collide=False)]  # its symbol
+    s += _ring(0.009, top, top + 0.0006, 0.0015, WHITE, n=12, collide=False)
+    return Body.build("pulse_button", pos=(MOTOR_AT[0], MOTOR_AT[1], TOP + SKIRT_H + BTN_Z0), mass=BUTTON_MASS,
+                      shapes=s, color=GREY, friction=(0.8, 0.7), ignore=("motor",))
+
+
 def _lamp() -> Body:
     """The motor top's light, lit: hidden under the table until its safety switch is closed."""
     return Body.build("power_light", pos=tuple(HIDDEN.tolist()), mass=0.01, kinematic=True, color=GREEN,
@@ -188,7 +207,12 @@ thread("bayonet", "bowl", "motor", anchor0=(0.0, 0.0, RIM_Z), axis0=(0.0, 0.0, 1
        axis1=(0.0, 0.0, 1.0), slide_limits=(-0.001, 0.001), turn_damping=0.002, slide_stiffness=3000.0,
        slide_damping=30.0, slide_max_force=40.0)
 
-OBJECTS = [_bowl(), _stand(), _blade(), _motor(), _lamp()]
+# PULSE's slide: 3.5 mm of travel, its spring pushing it up against its top stop (preloaded), so it takes 6 N to push it
+# to its switch point 2 mm down
+slider("pulse_spring", "motor", "pulse_button", anchor=(MOTOR_AT[0], MOTOR_AT[1], TOP + SKIRT_H + BTN_Z0), axis="Z",
+       limits=(-BTN_TRAVEL, 0.0), stiffness=BTN_K, damping=BTN_DAMP, target=BTN_PRELOAD, max_force=30.0)
+
+OBJECTS = [_bowl(), _stand(), _blade(), _motor(), _button(), _lamp()]
 
 # the bayonet joint: a twist limit and a stick-slip spring on its turn (the lugs' hold)
 _author_threads_plain = bodykit._author_threads
@@ -226,8 +250,9 @@ def _set_twist(deg: float) -> None:
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"steps": 0, "on": False, "turn": 0.0, "held": 0.0, "locked": False, "seated": False, "press_steps": 0,
-            "pulsed_at": None, "pressed_unready": False, "cut": False, "tcps": None, "lamp": False, "s": {}}
+    return {"steps": 0, "on": False, "turn": 0.0, "held": 0.0, "detent": False, "pull_steps": 0, "top_seated": False,
+            "locked": False, "seated": False, "depth": 0.0, "switch": False, "running": False, "pulses": 0,
+            "pulsed_at": None, "cut": False, "tcps": None, "lamp": False, "s": {}}
 
 
 _EP = _fresh()
@@ -306,31 +331,48 @@ def _follow(env) -> None:
     pw, rw = _pose(base, origin, "bowl")
     pm, rm = _pose(base, origin, "motor")
     pd, rd = _pose(base, origin, "blade")
-    # the bayonet: caught when the motor top is set on the rim with its arrow at the open mark; then its lugs hold it
-    # where it was left until it is pushed 2.5 degrees past, and at 28.5 degrees it clicks into its lock
+    # the bayonet: caught when the motor top is set down on the rim with its arrow at the open mark; then its lugs hold
+    # it where it was left until it is pushed 2.5 degrees past, and at 28.5 degrees it clicks into its lock (the detent
+    # holds it against its stop until it is forced back below 28.5 degrees). Turned back to the open mark and pulled
+    # up, its lugs are in their slots and it comes off.
     v = rw.T @ (pm - pw)
+    dz, off, tilt = float(v[2] - RIM_Z), math.hypot(v[0], v[1]), _tilt(rw.T @ rm)
     rel = _wrap(_yaw(rm) - _yaw(rw) - OPEN_DEG)
     _EP["turn"] = rel
     if not _EP["on"]:
-        if (math.hypot(v[0], v[1]) <= CATCH_R and CATCH_DZ[0] <= v[2] - RIM_Z <= CATCH_DZ[1]
-                and _tilt(rw.T @ rm) <= CATCH_TILT and abs(rel) <= CATCH_YAW):
+        if off <= CATCH_R and CATCH_DZ[0] <= dz <= CATCH_DZ[1] and tilt <= CATCH_TILT and abs(rel) <= CATCH_YAW:
             set_slide_target("bayonet", 0.0)
             _set_twist(rel)
             set_thread_on("bayonet", True)
-            _EP.update(on=True, held=rel)
-    elif not _EP["locked"]:
-        if rel >= LOCKED_AT:
-            _EP["locked"] = True
+            _EP.update(on=True, held=rel, detent=False, pull_steps=0)
+    else:
+        pulled = abs(rel) <= RELEASE_DEG and dz > RELEASE_DZ
+        _EP["pull_steps"] = _EP["pull_steps"] + 1 if pulled else 0
+        if _EP["pull_steps"] >= RELEASE_STEPS:  # lifted off at the open mark
+            set_thread_on("bayonet", False)
+            _set_twist(0.0)
+            _EP.update(on=False, detent=False, pull_steps=0)
+        elif _EP["detent"]:
+            if rel < LOCKED_AT:  # forced back out of its lock: the lugs' friction holds it again
+                _EP.update(detent=False, held=rel)
+                _set_twist(rel)
+        elif rel >= LOCKED_AT:
+            _EP["detent"] = True
             _set_twist(LIMIT_DEG + 1.0)
         elif abs(rel - _EP["held"]) > SLIP:
             _EP["held"] = rel
             _set_twist(rel)
+    # locked, live: the motor top caught by the bayonet, seated on the rim and turned into its lock
+    _EP["top_seated"] = bool(_EP["on"] and off <= ON_R and abs(dz) <= ON_DZ and tilt <= ON_TILT)
+    _EP["locked"] = bool(_EP["top_seated"] and rel >= LOCKED_AT)
     # the light: on while the safety switch is closed (locked)
-    if _EP["locked"] and not _EP["lamp"]:
-        _EP["lamp"] = True
-    if _EP["lamp"]:
+    if _EP["locked"]:
         lx, ly = _polar(0.026, 180.0)
         _place(base, origin, "power_light", pm + rm @ np.array([lx, ly, HOUSING_TOP + 0.0010]), _yaw(rm))
+        _EP["lamp"] = True
+    elif _EP["lamp"]:
+        _place(base, origin, "power_light", HIDDEN)
+        _EP["lamp"] = False
     # the blade on its pin
     u = rw.T @ (pd - pw)
     _EP["seated"] = bool(math.hypot(u[0], u[1]) <= SEAT_R and abs(u[2] - FLOOR_Z) <= SEAT_DZ
@@ -345,23 +387,28 @@ def _follow(env) -> None:
             for p in (tcp, tcp + 0.013 * axis):
                 if _seg_dist(p, a, b) < EDGE_NEAR + BLADE_W / 2:
                     _EP["cut"] = True
-    # PULSE: a fingertip on the button for 3 steps; with the motor top locked and the blade on its pin, the motor runs
-    button = pm + rm @ np.array([0.0, 0.0, BUTTON_TOP])
-    pressing = any(math.hypot(tc[0] - button[0], tc[1] - button[1]) <= PRESS_XY and tc[2] <= button[2] + PRESS_DZ
-                   for tc in _EP["tcps"])
-    _EP["press_steps"] = _EP["press_steps"] + 1 if pressing else 0
-    if _EP["press_steps"] >= PRESS_STEPS and _EP["pulsed_at"] is None:
-        if _EP["locked"] and _EP["seated"] and not _EP["cut"]:
+    # PULSE: how far the button is pushed down its slide; its switch closes 2 mm down (and opens again above 1 mm).
+    # The motor runs while the switch is closed and the motor top is locked; a pulse is the motor starting with the
+    # blade on its pin.
+    pb, _ = _pose(base, origin, "pulse_button")
+    _EP["depth"] = depth = BTN_Z0 - float((rm.T @ (pb - pm))[2])
+    _EP["switch"] = depth > SWITCH_OFF if _EP["switch"] else depth >= SWITCH_AT
+    running = _EP["switch"] and _EP["locked"]
+    if running and not _EP["running"] and _EP["seated"] and not _EP["cut"]:
+        _EP["pulses"] += 1
+        if _EP["pulsed_at"] is None:
             _EP["pulsed_at"] = t
-    if _EP["pulsed_at"] is not None and t - _EP["pulsed_at"] <= SPIN_S:
+    _EP["running"] = running
+    if running and _EP["seated"]:
         _spin(base, SPIN_W)
     _EP["s"] = {"bowl_down": _tilt(rw) < 5.0 and pw[2] - TOP < 0.004}
-    if _DEBUG["on"] and _EP["steps"] % 5 == 0:
+    if _DEBUG["on"] and (_EP["steps"] % 5 == 0 or depth > 0.0005):
         tl, trc = _EP["tcps"]
         print(f"[chop] t={t:5.2f} bowl={np.round((pw - AXIS) * 1000).astype(int).tolist()} byaw={_yaw(rw):5.1f}"
-              f" on={int(_EP['on'])} turn={rel:6.1f} held={_EP['held']:5.1f} locked={int(_EP['locked'])}"
-              f" motor={np.round((v - [0, 0, RIM_Z]) * 1000).astype(int).tolist()}"
+              f" on={int(_EP['on'])} turn={rel:6.1f} held={_EP['held']:5.1f} det={int(_EP['detent'])}"
+              f" locked={int(_EP['locked'])} motor=[{v[0] * 1000:.1f}, {v[1] * 1000:.1f}, {dz * 1000:.2f}]"
               f" blade={np.round((u - [0, 0, FLOOR_Z]) * 1000).astype(int).tolist()} seat={int(_EP['seated'])}"
+              f" btn={depth * 1000:.2f} sw={int(_EP['switch'])} run={int(running)} pulses={_EP['pulses']}"
               f" cut={int(_EP['cut'])} pulsed={_EP['pulsed_at']}"
               f" L={np.round((tl - [0, 0, TOP]) * 1000).astype(int).tolist()}"
               f" R={np.round((trc - [0, 0, TOP]) * 1000).astype(int).tolist()} score={score(None)}",
@@ -381,14 +428,18 @@ def _follow(env) -> None:
 def score(objects) -> float:
     """0.0 once a fingertip has come within 1.5 cm of the middle line of either blade's cutting part (the 1.4 cm wide
     blade beyond 2 cm from the hub's axis: about 8 mm from its edges).
-    Otherwise 1.0 when PULSE was pressed while the motor top was locked on the bowl with the blade on its pin (the
-    motor ran), and at the end the motor top is still locked, the blade is on its pin, the bowl stands on the table and
-    both arms are back where they started; 0.75 when PULSE was pressed that way; 0.5 with the motor top locked and the
-    blade on its pin at the end; 0.25 with the blade on its pin at the end; else 0.0."""
+    A pulse: PULSE pushed down past its switch point (2 mm of its 3.5 mm travel) while the motor top is locked on the
+    bowl, with the blade on its pin (the motor starts). Locked is checked live, at that moment and at the end: the
+    motor top caught by the bayonet, seated on the rim and turned at least 28.5 degrees into its lock.
+    Otherwise 1.0 after exactly one pulse, with, at the end, PULSE let go (its switch open), the motor top still locked,
+    the blade on its pin, the bowl standing on the table and both arms back where they started; 0.75 after at least one
+    pulse; 0.5 with the motor top locked and the blade on its pin at the end; 0.25 with the blade on its pin at the end;
+    else 0.0."""
     if _EP["cut"]:
         return 0.0
-    if _EP["pulsed_at"] is not None:
-        if _EP["locked"] and _EP["seated"] and _EP["s"].get("bowl_down") and _arms_home():
+    if _EP["pulses"] >= 1:
+        if (_EP["pulses"] == 1 and not _EP["switch"] and _EP["locked"] and _EP["seated"] and _EP["s"].get("bowl_down")
+                and _arms_home()):
             return 1.0
         return 0.75
     if _EP["locked"] and _EP["seated"]:
@@ -413,19 +464,20 @@ def _arms_home() -> bool:
 
 
 def success(objects) -> bool:
-    """Full score with the bowl, the motor top and the blade still: the trial ends there."""
+    """Full score with the bowl, the motor top, its button and the blade still: the trial ends there."""
     return (score(objects) >= 1.0 and objects["bowl"].resting() and objects["motor"].resting()
-            and objects["blade"].resting())
+            and objects["pulse_button"].resting() and objects["blade"].resting())
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
 # The right takes the blade by the top of its hub, lifts it off its post, carries it over the bowl and lowers the hub
-# over the pin, and lets go. It takes the motor top round its housing, carries it over the bowl and sets it on, its
-# arrow at the open mark, and lets go. The left comes in and holds the bowl by its handle; the right takes the motor
-# top's twist grip and carries it 31.5 degrees anticlockwise round the axis (its grip turning with it): the motor top
-# clicks and its light comes on. Both let go; the left goes home, the right presses PULSE with its closed fingers (the
-# blade spins for a second) and goes home. The left stays home while the right works over the bowl (two top-down grips
-# closer than about 15 cm put the wrists into each other).
+# over the pin, and lets go. It takes the motor top round its housing, carries it over the bowl and sets it down on the
+# rim, its arrow at the open mark, and lets go. The left comes in and holds the bowl by its handle; the right takes the
+# motor top's twist grip and carries it 31.5 degrees anticlockwise round the axis (its grip turning with it): the motor
+# top clicks and its light comes on. Both let go; the left goes home, the right comes down on PULSE with its closed
+# fingers, pushes it to its stop (the switch closes 2 mm down: the blade spins while it is held), lets it up and goes
+# home. The left stays home while the right works over the bowl (two top-down grips closer than about 15 cm put the
+# wrists into each other).
 
 OVER = 0.035
 LEAD_S, LEAD_STEPS = 3.0, 15
@@ -435,11 +487,13 @@ HANDLE_FINGER = -0.0215
 HUB_DZ = 0.008  # the TCP this far below the hub's top
 HOUSING_DZ = 0.015  # ... below the housing's top
 HANDLE_DZ = 0.010  # ... below the handle's top
+HOLD_PRESS = 0.003  # the holding hand aims this far lower (the V-jaw pushes it up the bar)
 FIN_DZ = 0.010  # ... below the twist grip's top
 FIN_FINGER = -0.0205
 RELEASE_FINGER = -0.032  # open wide before rising off a handle, so no finger drags it
-TWIST = 31.5
-BACK_OFF = 29.5  # degrees: where the grip eases back to before letting go (the lock clicked at 28.5)
+TWIST = 34.0  # degrees the grip is carried round (the top stops at 31.5 against the bowl; the held bowl gives a little)
+PRESS_DEPTH = 0.018  # aim the closed pads' tips this far below PULSE's top (it stops 3.5 mm down; the arm gives)
+BACK_OFF = 33.0  # degrees: where the grip eases back to before letting go (only a little: the lock is live)
 BLADE_AIM = np.array([0.0, 0.0, 0.0])  # where the blade hangs off the TCP (measured)
 MOTOR_AIM = np.array([0.0, 0.014, 0.0])  # the motor top hangs 14 mm off the TCP along the closing axis (measured)
 
@@ -540,13 +594,13 @@ def _plan() -> dict:
     L += _joint_path("left", np.array(READY, float), _good_ik("left", handle + [0, 0, OVER], rl), "over the handle",
                      HANDLE_FINGER)
     L.append(_w(1.2, handle, HANDLE_FINGER, "down round the handle", rl))
-    L.append(_w(0.6, handle, FINGER_CLOSED, "hold the bowl by its handle", rl))
+    L.append(_w(0.6, handle - [0, 0, HOLD_PRESS], FINGER_CLOSED, "hold the bowl by its handle", rl))
     t_held = sum(w.duration for w in L)
     R.append(_w(max(0.6, t_held - t_ready - 1.4), f0 + [0, 0, OVER], FIN_FINGER, "wait for the bowl to be held",
                 _g(FIN_DEG + 180.0)))
     R.append(_w(1.2, f0, FIN_FINGER, "down round the twist grip", _g(FIN_DEG + 180.0)))
     R.append(_w(0.6, f0, FINGER_CLOSED, "take the twist grip", _g(FIN_DEG + 180.0)))
-    n = 8
+    n = 9
     for k in range(1, n + 1):
         d = FIN_DEG + TWIST * k / n
         R.append(_w(0.45, at_fin(d), FINGER_CLOSED, "turn it anticlockwise (it clicks, the light comes on)",
@@ -559,7 +613,8 @@ def _plan() -> dict:
     R.append(_w(0.5, f2, FINGER_CLOSED, "ease off the stop", _g(d2 + 180.0)))
     t_eased = sum(w.duration for w in R)
     # the left lets go first (the right still holds the locked motor top, and with it the bowl) and goes home
-    L.append(_w(t_eased - sum(w.duration for w in L), handle, FINGER_CLOSED, "keep holding the bowl", rl))
+    L.append(_w(t_eased - sum(w.duration for w in L), handle - [0, 0, HOLD_PRESS], FINGER_CLOSED,
+                "keep holding the bowl", rl))
     L.append(_w(0.8, handle, RELEASE_FINGER, "let go of the handle (wide open)", rl))
     L.append(_w(1.2, handle + [0, 0, OVER], RELEASE_FINGER, "rise clear", rl))
     L += _joint_path("left", _good_ik("left", handle + [0, 0, OVER], rl), np.array(READY, float), "back home",
@@ -571,12 +626,15 @@ def _plan() -> dict:
     t_left_home = sum(w.duration for w in L)
     # the right presses PULSE (once the left is clear) and goes home
     button = ax + [0.0, 0.0, RIM_Z + BUTTON_TOP]
+    touch = button + [0.0, 0.0, PAD_TIP_PAST_TCP]  # the TCP with the closed pads' tips on PULSE
     rp = _g(0.0)
     R.append(_w(max(1.2, t_left_home - LEAD_S - sum(w.duration for w in R)), button + [0, 0, 0.040], FINGER_CLOSED,
                 "over PULSE", rp))
-    R.append(_w(0.8, button + [0, 0, 0.004], FINGER_CLOSED, "press PULSE: the blade spins", rp))
-    R.append(_w(0.8, button + [0, 0, 0.004], FINGER_CLOSED, "hold it a moment", rp))
-    R.append(_w(0.8, button + [0, 0, 0.040], FINGER_CLOSED, "let it up", rp))
+    R.append(_w(0.8, touch + [0, 0, 0.004], FINGER_CLOSED, "down onto PULSE", rp))
+    R.append(_w(0.6, touch - [0, 0, PRESS_DEPTH], FINGER_CLOSED, "push PULSE down: the motor runs, the blade spins", rp))
+    R.append(_w(1.0, touch - [0, 0, PRESS_DEPTH], FINGER_CLOSED, "hold it down a moment", rp))
+    R.append(_w(0.5, touch + [0, 0, 0.004], FINGER_CLOSED, "let it up: the motor stops", rp))
+    R.append(_w(0.6, button + [0, 0, 0.040], FINGER_CLOSED, "rise clear", rp))
     R += _joint_path("right", _good_ik("right", button + [0, 0, 0.040], rp), np.array(READY, float), "back home",
                      FINGER_CLOSED)
     tr = sum(w.duration for w in R)
