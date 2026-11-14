@@ -1,11 +1,15 @@
 """On the station table, a saucepan with its lid on stands on a fixed stove block in front of the arms, its handle
 pointing back toward the arms. In it are six dumplings (24 mm beads) in their cooking water (twenty 5 mm beads). In
-front of the stove is a fixed sink basin. The pan, the lid and the beads are loose.
+front of the stove is a fixed sink basin with no drain (a plugged sink). The pan, the lid and the beads are loose.
 
 Task: drain the water into the sink but keep every dumpling in the pan, then set the pan back on the stove. Tipped with
 the lid loose, the lid slides off and the dumplings follow the water, so one hand holds the lid slid back a little (a
 narrow gap at the front rim) while the other tips the pan by its handle. The 20 water beads stand for 300 ml of water
-(15 ml each); a real trial weighs the water drained.
+(15 ml each). Only water that ends inside the sink basin counts as drained: a real trial collects the water in the
+plugged sink, lifts out any dumplings that went in with it (each one is a lost dumpling, never water) and measures the
+water on a kitchen scale or in a measuring jug; water anywhere else is a spill and earns nothing. Here only water beads
+whose centres end inside the basin (inside its walls, below its rim) count, and dumplings in the sink are counted
+separately.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=drain_a_pot_through_a_lid_held_ajar.py \\
            --instruction "..." --scorer task_score ...
@@ -54,7 +58,8 @@ STEEL, DARK, LID_C, STONE = (0.72, 0.73, 0.75), (0.10, 0.10, 0.11), (0.80, 0.81,
 WATER_C, DUMPLING_C, SINK_C = (0.30, 0.60, 0.95), (0.95, 0.85, 0.45), (0.85, 0.86, 0.88)
 
 # -- scoring --------------------------------------------------------------------------------------------------------
-FULL_DRAINED, HALF_DRAINED, SOME_DRAINED = 16, 10, 5  # of the 20 water beads in the sink
+ML_PER_BEAD = 15  # each water bead stands for 15 ml of the real trial's 300 ml
+FULL_DRAINED, HALF_DRAINED, SOME_DRAINED = 16, 10, 5  # of the 20 water beads in the sink: 240, 150 and 75 ml
 ON_STOVE, UPRIGHT = 0.04, math.radians(10)  # the pan back on the stove: centre within this, tilted less than this
 SUCCESS_HOLD_S = 1.0
 
@@ -138,21 +143,30 @@ def _in_pot(p, pot) -> bool:
 
 
 def _in_sink(p) -> bool:
+    """Inside the sink basin: the centre within its four walls' inner faces, above its floor and below its rim. Water
+    anywhere else (on the table beside the sink, on the stove, on top of a wall) is a spill, not drained."""
     return (abs(p[0] - SINK_XY[0]) < SINK_IN / 2 and abs(p[1] - SINK_XY[1]) < SINK_IN / 2
-            and TOP < p[2] < TOP + SINK_H)
+            and TOP + 0.004 < p[2] < TOP + SINK_H)  # the floor's top is 4 mm up
 
 
 def _tally(objects) -> dict:
+    """Water collected in the sink, water left in the pan, water spilled elsewhere; dumplings in the pan and in the
+    sink (lost with the water: counted separately, never as water); whether the pan stands on the stove."""
     pot = objects["pan"]
     drained = sum(_in_sink(objects[n].pos) for n in WATER_NAMES)
+    water_left = sum(_in_pot(objects[n].pos, pot) for n in WATER_NAMES)
     kept = sum(_in_pot(objects[n].pos, pot) for n in DUMPLING_NAMES)
+    dumplings_in_sink = sum(_in_sink(objects[n].pos) for n in DUMPLING_NAMES)
     p = np.asarray(pot.pos, float)
     on_stove = (_tilt(rotation(pot.quat_xyzw)) < UPRIGHT and abs(p[2] - STOVE_TOP) < 0.01
                 and math.hypot(p[0] - STOVE_XY[0], p[1] - STOVE_XY[1]) < ON_STOVE)
-    return {"drained": int(drained), "kept": int(kept), "on_stove": on_stove}
+    return {"drained": int(drained), "water_left": int(water_left), "spilled": int(N_WATER - drained - water_left),
+            "kept": int(kept), "dumplings_in_sink": int(dumplings_in_sink), "on_stove": on_stove}
 
 
 def _points(t) -> float:
+    """Drained water is only what is in the sink (spills earn nothing); a dumpling not in the pan (in the sink or
+    anywhere else) is a lost dumpling."""
     if not t["on_stove"]:
         return 0.0
     if t["kept"] == N_DUMPLING and t["drained"] >= FULL_DRAINED:
@@ -174,8 +188,9 @@ def _new_episode() -> None:
 
 def score(objects) -> float:
     """0 unless the pan ends standing upright on the stove. Otherwise 1.0 with at least 16 of the 20 water beads (240 of
-    300 ml) in the sink and all 6 dumplings in the pan; 0.5 with at least 10 (150 ml) in the sink and at least 5
-    dumplings in the pan; 0.25 with at least 5 (75 ml) in the sink and all 6 dumplings in the pan; else 0."""
+    300 ml) inside the sink basin and all 6 dumplings in the pan; 0.5 with at least 10 (150 ml) in the sink and at
+    least 5 dumplings in the pan; 0.25 with at least 5 (75 ml) in the sink and all 6 dumplings in the pan; else 0.
+    Water beads outside the sink (spilled) never count; dumplings in the sink are lost dumplings, not water."""
     t = _tally(objects)
     if _DEBUG["on"]:  # DRAIN_DEBUG=1: one line a second (at 20 Hz) on stderr
         _DEBUG["calls"] += 1
@@ -184,8 +199,9 @@ def score(objects) -> float:
             rel = rotation(pot.quat_xyzw).T @ (np.asarray(lid.pos) - np.asarray(pot.pos)) - np.array([0.0, 0.0, POT_H])
             in_pot = sum(_in_pot(objects[n].pos, pot) for n in WATER_NAMES)
             lid_tilt = math.degrees(math.acos(max(-1.0, min(1.0, float(rotation(pot.quat_xyzw)[:, 2] @ rotation(lid.quat_xyzw)[:, 2])))))
-            print(f"[drain] t={_DEBUG['calls'] / 20:5.1f}s drained={t['drained']} water_in_pan={in_pot} lid_tilt={lid_tilt:.1f}deg "
-                  f"dumplings_kept={t['kept']} pan_tip={math.degrees(_tilt(rotation(pot.quat_xyzw))):.0f}deg "
+            print(f"[drain] t={_DEBUG['calls'] / 20:5.1f}s drained={t['drained']} ({t['drained'] * ML_PER_BEAD} ml) "
+                  f"water_in_pan={in_pot} spilled={t['spilled']} ({t['spilled'] * ML_PER_BEAD} ml) lid_tilt={lid_tilt:.1f}deg "
+                  f"dumplings_kept={t['kept']} dumplings_in_sink={t['dumplings_in_sink']} pan_tip={math.degrees(_tilt(rotation(pot.quat_xyzw))):.0f}deg "
                   f"lid_vs_pan_cm={np.round(rel * 100, 1).tolist()} on_stove={t['on_stove']} score={_points(t)}",
                   file=sys.stderr, flush=True)
     return _points(t)
