@@ -70,6 +70,11 @@ WOOD, WHITE, STEEL, DARK, CARD, TAPE = (0.62, 0.50, 0.36), (0.88, 0.88, 0.86), (
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 TOUCH = 0.003  # the gate within this of the parcel: touching it
+# Crossing the partition: while any of the parcel's footprint is within the partition's thickness (its x band), all of
+# the footprint must lie inside the gateway, between the latch post and the hinge post (y), for the crossing to count
+# as through the gateway; any of it outside the gateway there means it went round an end of the partition.
+GATEWAY_Y = (LATCH_Y, HINGE_Y)
+GATEWAY_SLACK = 0.003
 LIFTED = 0.02  # the parcel's bottom this far above the table: lifted (it must slide through, not over)
 SHUT = 5.0  # the gate within this many degrees of shut
 HOME_WITHIN = 0.05
@@ -182,7 +187,7 @@ hinge("knob_spin", "gate", "knob", anchor=tuple(KNOB_AT.tolist()), axis="Z")
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"touched": False, "lifted": False, "tcps": None, "s": {}, "ribs": 0.0}
+    return {"touched": False, "lifted": False, "tcps": None, "s": {}, "ribs": 0.0, "via_gateway": False, "around": False}
 
 
 _EP = _fresh()
@@ -277,6 +282,13 @@ def _follow(env) -> None:
                         for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)])
     if float(corners[:, 2].min()) > TOP + LIFTED:
         _EP["lifted"] = True
+    in_band = float(corners[:, 0].min()) < WX + WALL_T / 2 and float(corners[:, 0].max()) > WX - WALL_T / 2
+    if in_band:
+        if (float(corners[:, 1].min()) >= GATEWAY_Y[0] - GATEWAY_SLACK
+                and float(corners[:, 1].max()) <= GATEWAY_Y[1] + GATEWAY_SLACK):
+            _EP["via_gateway"] = True  # crossing the partition's line inside the gateway
+        else:
+            _EP["around"] = True  # part of it at the partition's line outside the gateway: round an end
     through = float(corners[:, 0].min()) > WX + WALL_T / 2 + 0.003
     half = float(b_pos[0]) > WX
     on_belt = _run_belt(base, origin, b_pos, corners)
@@ -291,7 +303,7 @@ def _follow(env) -> None:
             k = as_numpy(base.scene["knob"].data.root_link_pose_w)[0][:3] - origin
             print(f"[gate] t={_DEBUG['steps'] / 20:5.1f}s turn={turn:6.1f} gap={gap * 1000:6.1f}mm "
                   f"touched={_EP['touched']} lifted={_EP['lifted']} parcel={np.round(b_pos * 1000).astype(int).tolist()} "
-                  f"through={through} belt={on_belt} delivered={delivered} knob={np.round(k * 1000).astype(int).tolist()} "
+                  f"through={through} via_gateway={_EP['via_gateway']} around={_EP['around']} belt={on_belt} delivered={delivered} knob={np.round(k * 1000).astype(int).tolist()} "
                   f"L={np.round(tl * 1000).astype(int).tolist()} R={np.round(tr * 1000).astype(int).tolist()} "
                   f"home={_arms_home()} score={_points(_status())}", file=sys.stderr, flush=True)
 
@@ -318,12 +330,13 @@ def _arms_home() -> bool:
 def _status() -> dict:
     st = _EP["s"]
     return {"touched": _EP["touched"], "lifted": _EP["lifted"], "through": bool(st.get("through")),
+            "gateway": _EP["via_gateway"] and not _EP["around"],
             "half": bool(st.get("half")), "delivered": bool(st.get("delivered")),
             "shut": abs(st.get("turn", 0.0)) <= SHUT, "home": _arms_home()}
 
 
 def _points(s) -> float:
-    if s["touched"] or s["lifted"]:
+    if s["touched"] or s["lifted"] or not s["gateway"]:
         return 0.0
     if s["delivered"] and s["shut"] and s["home"]:
         return 1.0
@@ -333,8 +346,10 @@ def _points(s) -> float:
 
 
 def score(objects) -> float:
-    """0.0 if the gate ever touched the parcel (came within 3 mm of it) or the parcel was ever lifted off the table
-    (its bottom more than 2 cm up). Otherwise, at the end: 1.0 with the parcel carried off the belt's end onto the
+    """0.0 if the gate ever touched the parcel (came within 3 mm of it), the parcel was ever lifted off the table (its
+    bottom more than 2 cm up), or the parcel did not cross the partition through the gateway: every credit needs its
+    footprint to have been at the partition's line (within its 1.2 cm thickness) entirely between the latch post and
+    the hinge post, and never there outside them (round an end). Otherwise, at the end: 1.0 with the parcel carried off the belt's end onto the
     run-off plate (all of it past the belt, upright within 15 degrees), the gate shut (within 5 degrees) and both arms
     back where they started; 0.5 with the parcel entirely beyond the partition; 0.25 with its middle beyond the
     partition's middle; else 0.0. The belt carries a parcel that lies on it, entirely beyond the partition, to the

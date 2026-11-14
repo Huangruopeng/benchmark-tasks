@@ -1,4 +1,4 @@
-# Hold a self-closing gate open by its knob while the other hand pushes a parcel through onto a running conveyor
+# Send a parcel through a self-closing gate onto a running conveyor without the gate touching it
 
 A low partition crosses the table with a gateway in it, closed by a small spring-hinged gate that swings shut on its
 own when let go. Beyond the partition a conveyor belt runs to the right, ending on a steel run-off plate. A cardboard
@@ -33,6 +33,10 @@ kinematic, fixed where they are put; the gate, its knob and the parcel are loose
 - Touching: after every control step the task file measures, seen from above, how far the gate's panel is from the
   parcel's outline (both reach from the table to above the parcel's top); within 3 mm counts as touching, for good.
   It also checks that the parcel's bottom stays within 2 cm of the table.
+- Through the gateway: after every control step, while any of the parcel's footprint is within the partition's 1.2 cm
+  thickness, the task file checks that all of the footprint lies between the latch post and the hinge post (3 mm
+  slack). Only such a crossing counts; a parcel that is at the partition's line outside the gateway (pushed round an
+  end of the partition) earns no credit at all, even if it then reaches the belt.
 
 Importing `bodykit.py` hooks `yam_arena.scene` when the simulator starts, without changing yam_arena, gives `score()`
 each body's own pose, and lets the task file act on the simulation after every control step.
@@ -50,7 +54,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=hold_a_self_closing_gate_open_and_push_a_parcel_onto_a_conveyor.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Send the cardboard parcel through the gateway in the low partition onto the running conveyor belt beyond it, without the gate touching it: with one hand pull the gate open by its knob and hold it wide open; with the other slide the parcel along the table through the gateway onto the belt, which carries it away to the right onto the steel run-off plate at its end, then draw that hand back out; then let the gate swing back shut gently, and take both arms back to where they started. Keep the parcel on the table: do not lift it over the partition." \
+  --instruction "Send the cardboard parcel through the gateway in the low partition onto the running conveyor belt beyond it, so that the belt carries it onto the steel run-off plate at its end. The gate must never touch the parcel, the parcel must stay on the table (not lifted over the partition) and go through the gateway (not round the partition's ends). Finish with the gate shut and both arms back where they started." \
   --scorer task_score --max-steps 1000 --store-frames --log-dir ~/yam-eval/gate-dream
 ```
 
@@ -64,7 +68,7 @@ shut, lets go of the knob and goes back to where it started too:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=hold_a_self_closing_gate_open_and_push_a_parcel_onto_a_conveyor.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Send the cardboard parcel through the gateway in the low partition onto the running conveyor belt beyond it, without the gate touching it: with one hand pull the gate open by its knob and hold it wide open; with the other slide the parcel along the table through the gateway onto the belt, which carries it away to the right onto the steel run-off plate at its end, then draw that hand back out; then let the gate swing back shut gently, and take both arms back to where they started. Keep the parcel on the table: do not lift it over the partition." \
+  --instruction "Send the cardboard parcel through the gateway in the low partition onto the running conveyor belt beyond it, so that the belt carries it onto the steel run-off plate at its end. The gate must never touch the parcel, the parcel must stay on the table (not lifted over the partition) and go through the gateway (not round the partition's ends). Finish with the gate shut and both arms back where they started." \
   --scorer task_score --max-steps 1000 --store-frames --log-dir ~/yam-eval/gate-demo
 ```
 
@@ -80,8 +84,25 @@ whether the parcel is through, on the running belt or delivered to the run-off p
 
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,000 steps (178 s on the clock, with Dream answering in 0.79 s on average), and about 1 minute for the scripted demo (589 steps, 29.4 s of simulated time, 88 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 5 minutes for a Dream-1 trial of 1,000 steps (308 s on the clock, with Dream answering in 0.71 s on average), and about 2 minutes for the scripted demo (589 steps, 29.4 s of simulated time, 109 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
 None needed: with `-E object_jitter=0` the layout is fixed, and the scripted demo follows fixed waypoints.
+
+## Changes in this revision
+
+This is a revision of TK-9VPJ7F. Its review said:
+
+> Construct validity (not met): The parcel can be pushed around the end of the short partition to score 0.5 without opening or passing through the gate.
+>
+> Scoring (not met): The partial-credit conditions reward a parcel beyond the partition even if it never passed through the gateway.
+>
+> What to change: Revise the scoring so that nonzero credit requires the parcel to cross the partition through the gateway, rather than allowing it to be pushed around an end. Define the crossing using the parcel footprint and gateway boundaries, and verify that the demo still reaches full score under the revised rule.
+
+What changed in response:
+
+- Every credit (0.25, 0.5 and 1.0) now requires the parcel to cross the partition through the gateway, judged from
+  its footprint against the gateway's posts while it is at the partition's line; pushing it round an end of the
+  partition scores 0.
+- The instruction states only the goal and its constraints; the category is Societal relatability.
