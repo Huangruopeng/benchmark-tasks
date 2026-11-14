@@ -333,11 +333,12 @@ def success(objects) -> bool:
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
 # The left hand comes straight down on the cable 5.5 cm from its tip, fingers closing across it, lifts it off its rest,
-# carries it to the barrel's axis 2 cm in front of the mouth and pushes the bare end straight in, 1 cm deep, and holds
-# it. The right hand comes straight down on the lever's rubber grip, fingers closed, and presses the lever down until
-# it closes and crimps; then it rises, the lever springs open, and the right goes back to where it started. The left
-# pulls the cable straight back out with the terminal crimped on its end, holds it up to show it, lays it back on its
-# rest and goes back to where it started.
+# carries it to the barrel's axis 2 cm in front of the mouth and pushes the bare end straight in (aiming 3 mm past full
+# depth: the insulation stops on the lead-in with about 14 mm of the copper in the barrel), and holds it. The right hand
+# comes straight down on the lever's rubber grip, fingers closed, and presses the lever down until it closes and crimps;
+# then it rises, the lever springs open, and the right goes back to where it started. The left pulls the cable straight
+# back out with the terminal crimped on its end, holds it up to show it, lays it back on its rest and goes back to where
+# it started.
 
 GRIP_L = grip_rotation(0.0)  # straight down, fingers closing along y (across the cable, which runs along x)
 GRIP_R = grip_rotation(0.0)  # straight down, fingers closed, pressing the grip

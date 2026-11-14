@@ -2,17 +2,27 @@
 
 A pneumatic bench crimping press for cable lugs stands on the table with a tinned-copper tube lug for 16 mm² cable
 seated in its 16 mm² hexagonal die, the lug's barrel (6 mm inside, 16 mm long) pointing toward the arms. A short
-16 mm² single-core PVC cable (8 mm across; its stranded copper, 5 mm across, stripped 16 mm, the barrel's length) lies
-on a plastic rest beside it. The instruction gives only the goal. In the demo, one hand picks up the cable, pushes its
-bare end straight into the barrel until the insulation, too wide to enter, meets the barrel's mouth, and holds it there; the other presses the crimper's lever down until it
-closes, crimping the terminal onto the cable, and lets it spring open again. Then the first hand pulls the cable out
-with the terminal crimped on its end, holds it up to show it and lays it back on its rest, and both arms go back to
-where they started. The task is one task file,
+16 mm² single-core PVC cable (8 mm across; its stranded copper, 5 mm across, stripped 16 mm, the barrel's length)
+lies on a plastic rest beside it. The instruction gives only the goal. In the demo, one hand picks up the cable, pushes its
+bare end straight into the barrel until the insulation, too wide to enter, stops on the lead-in just in front of the
+barrel's mouth (14.2 mm of the 16 mm copper in the barrel, measured), and holds it there; the other presses the
+crimper's lever down until it closes, crimping the terminal onto the cable, and lets it spring open again. Then the
+first hand pulls the cable out with the terminal crimped on its end, holds it up to show it and lays it back on its
+rest, and both arms go back to where they started. The task is one task file,
 [`crimp_a_terminal_onto_a_cable_end.py`](crimp_a_terminal_onto_a_cable_end.py), for the `yam_arena` embodiment (scene,
 scoring and the scripted demo), plus [`bodykit.py`](bodykit.py), which it imports from the same folder.
 
 What it tests: inserting a cable fully and straight into a close-fitting lug barrel (0.5 mm of play round the
 copper), working a press lever, and taking the crimped cable out and putting it back where it lay.
+
+Why it matters: power conductors of this size are terminated with crimped compression lugs, which then bolt onto
+breakers, busbars, transformers and motor terminals. Lugging a cable end is part of the O*NET task statements for
+electricians "Connect wires to circuit breakers, transformers, or other components" and "Install ground leads and
+connect power cables to equipment, such as motors" (O*NET 47-2111.00). Electricians held about 821,000 US jobs in
+2025 (BLS Occupational Outlook Handbook), and electrical and electronic equipment assemblers, who build control
+panels and switchgear, another 246,300. Getting the strip length and the insertion right (the copper fully in the
+barrel, the insulation at its mouth, the cable straight while the die closes) is what separates a crimp that passes
+the pull test from one that pulls out or runs hot.
 
 Two hands: the press's lever is to the right of the die and the cable's rest to the left, so the demo holds the cable
 in the barrel with the left hand while the right closes the lever. With the matched lug the fit itself keeps the cable
@@ -59,7 +69,10 @@ inspect-robots run --embodiment yam_arena --policy dream \
 
 The scripted demo, which reaches full score: the left hand comes straight down on the cable 5.5 cm from its tip,
 fingers closing across it, lifts it off its rests, lines it up with the barrel 2 cm in front of the mouth and pushes
-the bare end straight in, 1 cm deep, and holds it. The right hand comes straight down on the lever's rubber grip,
+the bare end straight in, aiming 19 mm past the mouth (3 mm past full depth), so that the insulation stopping on the
+lead-in sets the depth, and holds it. Measured in the demo: 14.2 mm of the copper in the barrel when the die closed
+(inside the 13 to 16.5 mm window for full credit), the insulation's end 1.8 mm in front of the mouth, and the cable
+2.5 degrees off the barrel's axis. The right hand comes straight down on the lever's rubber grip,
 fingers closed, presses the lever down until it closes, holds it a moment and rises; the lever springs open, and the
 right goes back to where it started. The left pulls the cable straight out with the terminal crimped on its end, holds
 it up to show it, lays it back on its rest and goes back to where it started:
@@ -88,3 +101,27 @@ On one RTX 5090: about 7 minutes for a Dream-1 trial of 1,200 steps (409 s on th
 ## Seeds
 
 None needed: with `-E object_jitter=0` the layout is fixed, and the scripted demo follows fixed waypoints.
+
+## Changes in this revision
+
+This is a revision of TK-K6ECAU. Its review said:
+
+> Flags: Prior revision feedback was not provided
+>
+> Importance (not met): Crimping cable lugs is regular work for electricians and panel-building assemblers, but the submission selects Other rather than Impact on jobs.
+>
+> What to change: Change the category to Impact on jobs and explain how cable-lug crimping forms part of electricians' regular work. Please also reconcile the README's stated 10 mm demo insertion with the 13 mm minimum for full credit; provide the measured demo depth and, if it did not reach the threshold, a full-score demonstration.
+
+The review before that (TK-Y3RQVT) asked for a matched cable, ring terminal and crimper with a realistic insertion depth and crimping setup, full-credit scoring that checks the completed crimp (for example a specified pull test and observable insertion marks), and an updated demo. That was done in the previous revision and is kept: a 16 mm² cable stripped 16 mm in a 16 mm² tube lug with a 6 mm barrel, a 16 mm² hexagonal die, 13 to 16.5 mm insertion for full credit and a 450 N pull test in a real trial. The caliper reading of the insulation's gap at the barrel's mouth, added now, is the observable insertion mark.
+
+What changed in response:
+
+- **Importance / category:** the category is now Impact on jobs. The previous review had suggested Other; this follows the latest review. The context and a new "Why it matters" paragraph explain the job. Power conductors of this size are terminated with crimped compression lugs, which then bolt onto breakers, busbars, transformers and motor terminals. Two O*NET task statements for electricians (47-2111.00) cover this: "Connect wires to circuit breakers, transformers, or other components" and "Install ground leads and connect power cables to equipment, such as motors". Electricians held about 821,000 US jobs in 2025 (BLS Occupational Outlook Handbook). Electrical and electronic equipment assemblers, who include control-panel builders, held another 246,300.
+- **Demo depth vs. the 13 mm minimum:** the README's "1 cm deep" was left over from an earlier version and did not describe the demo. The demo hand aims 19 mm past the barrel's mouth, 3 mm past full depth, so the depth is set by the insulation, which is too wide for the 6 mm barrel and stops on the lead-in. Measured in a fresh run of the demo:
+  - 14.2 mm of the 16 mm copper was in the barrel when the die closed;
+  - the insulation's end sat 1.8 mm in front of the mouth;
+  - the cable was 2.5 degrees off the barrel's axis.
+
+  That depth is inside the 13 to 16.5 mm window for full credit, and the demo scores 1.0. An earlier run of the same demo also measured 14.2 mm. The README, its demo description and the demo's code comment now give this measured depth.
+- **Real-world check of the depth:** the scoring now says how a real trial reads the depth. After the crimp, a caliper measures the bare gap between the insulation's end and the barrel's mouth. A 16 mm strip sits in a 16 mm barrel, so a gap of at most 3 mm means at least 13 mm is in. A good crimp still has to hold a steady 450 N pull.
+- The scene, the scorer, the demo's waypoints and the instruction are unchanged, so the posted demo (1.0) and Dream-1 (0.0) videos still show the current version.
