@@ -3,10 +3,10 @@ fixed in the crown over the back of the pot, and one big leaf in front, on a spr
 soil and reaching out past the rim. Beside the pot, on a small wooden stool, stands a blue watering jug with water in
 it.
 
-Task: water the plant at its roots without wetting its leaves. Water poured from above lands on the leaves, so one
-hand pushes the big front leaf aside on its stalk and holds it there (let go, it springs back over the soil) while the
-other pours the jug out onto the soil underneath. Then the jug goes back on its stool, the leaf is let go back over
-the soil, and both arms go back to where they started.
+Task: water the plant at its roots, onto the soil, without wetting its leaves; then put the jug back on its stool,
+leave the leaves as they were and take both arms home. Water poured from above lands on the leaves, so the scripted
+demo pushes the big front leaf aside on its stalk with one hand and holds it there (let go, it springs back over the
+soil) while the other pours the jug onto the soil underneath. The 12 water beads stand for 120 ml of water.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=water_a_plant_holding_its_big_leaf_aside.py \\
            --instruction "..." --scorer task_score ...
@@ -84,7 +84,7 @@ TERRACOTTA, RIM_C, SOIL, STEM, LEAF_C, LEAF_DARK, VEIN, JUG_C, WATER, STOOL_C = 
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 WET = 0.004  # a bead within this of a leaf has wetted it
-SOAKED_FULL, SOAKED_SOME = 5, 3
+SOAKED_FULL, SOAKED_SOME = 9, 4  # beads on the soil (10 ml each): 90 ml for the higher scores, 40 ml for 0.25
 LEAVES_WET_MAX = 1  # beads that may touch a leaf for the higher scores
 BACK_WITHIN, UPRIGHT = 0.03, 15.0
 LET_GO = 0.04
@@ -345,11 +345,11 @@ def _points(s) -> float:
 
 def score(objects) -> float:
     """A water bead wets a leaf if it ever comes within 4 mm of one; it waters the soil if it lands on the soil inside
-    the pot without having touched a leaf. Judged at the end: 1.0 with at least 5 of the 12 beads on the soil, at most
+    the pot without having touched a leaf. Judged at the end: 1.0 with at least 9 of the 12 beads (90 of 120 ml) on the soil, at most
     1 bead ever on a leaf, the jug back on its stool (within 3 cm, upright within 15 degrees), the big leaf back over
     the soil (within 12 degrees of where it lay), both hands let go (each TCP at least 4 cm from the jug and the leaf)
-    and both arms back where they started (each TCP within 5 cm); 0.5 with at least 5 beads on the soil and at most 1
-    ever on a leaf; 0.25 with at least 3 beads on the soil; else 0.0."""
+    and both arms back where they started (each TCP within 5 cm); 0.5 with at least 9 beads on the soil and at most 1
+    ever on a leaf; 0.25 with at least 4 beads (40 ml) on the soil; else 0.0. (Each bead stands for 10 ml of water.)"""
     return _points(_status())
 
 

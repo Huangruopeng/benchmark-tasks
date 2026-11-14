@@ -1,4 +1,4 @@
-# Water a house plant at its roots: hold its big front leaf aside with one hand while the other pours the jug
+# Water a house plant at its roots without wetting its leaves
 
 A house plant in a terracotta pot spreads its broad leaves low over the soil: three in the crown over the back and
 sides, and one big leaf in front on a springy stalk, lying over the front of the soil. A blue watering jug with water
@@ -48,7 +48,7 @@ Dream-1 (needs a key in `~/.dreamlabs/credentials`):
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=water_a_plant_holding_its_big_leaf_aside.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Water the plant at its roots without wetting its leaves: with one hand push the big front leaf aside on its stalk and hold it there, and with the other pour the water from the jug onto the soil underneath. Then put the jug back on its stool, let the leaf go back over the soil, and take both arms back to where they started." \
+  --instruction "Water the plant at its roots, onto the soil, without wetting its leaves. Then put the jug back on its stool, leave the plant's leaves as they were and take both arms back to where they started." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/plant-dream
 ```
 
@@ -62,7 +62,7 @@ where it started:
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=water_a_plant_holding_its_big_leaf_aside.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Water the plant at its roots without wetting its leaves: with one hand push the big front leaf aside on its stalk and hold it there, and with the other pour the water from the jug onto the soil underneath. Then put the jug back on its stool, let the leaf go back over the soil, and take both arms back to where they started." \
+  --instruction "Water the plant at its roots, onto the soil, without wetting its leaves. Then put the jug back on its stool, leave the plant's leaves as they were and take both arms back to where they started." \
   --scorer task_score --max-steps 1200 --store-frames --log-dir ~/yam-eval/plant-demo
 ```
 
@@ -76,9 +76,19 @@ Set `PLANT_DEBUG=1` to print what the score is built from twice a second: how fa
 beads lie on the soil and how many have touched a leaf, how many are still in the jug, where the jug is and how far
 it is tipped, whether the jug and the leaf are back, whether both hands are clear, and where each TCP is.
 
+## A real trial
+
+A peace lily (Spathiphyllum, about 25 cm tall) in a 17 cm terracotta pot on a saucer, soil just moist, three leaves
+over the back and sides of the pot and one big lower leaf on its flexible stalk lying over the front of the soil; a
+150 ml watering jug holding 120 ml of room-temperature water on a 6 cm stool beside it. Weigh the potted plant with
+its saucer before and after the trial (1 g per ml) and blot every leaf with a pre-weighed paper towel: water on the
+soil is the weight gain minus the blotted water. Full credit needs at least 90 ml on the soil and at most 10 ml on the
+leaves, as the simulation's 9 and 1 of its 12 beads (10 ml each); 0.25 needs 40 ml on the soil. Reset by letting the
+pot drain back to its starting weight, drying the leaves and refilling the jug.
+
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (196 s on the clock, with Dream answering in 0.77 s on average), and about 3 minutes for the scripted demo (607 steps, 30.4 s of simulated time, 209 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 6 minutes for a Dream-1 trial of 1,200 steps (367 s on the clock, with Dream answering in 0.59 s on average), and about 4 minutes for the scripted demo (607 steps, 30.4 s of simulated time, 234 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
