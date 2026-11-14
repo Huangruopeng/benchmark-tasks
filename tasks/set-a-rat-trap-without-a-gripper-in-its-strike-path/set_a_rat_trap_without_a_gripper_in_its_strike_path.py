@@ -2,14 +2,14 @@
 steel hammer lies sprung forward over the trap's far half. Its lock bar stands up at the near end, leaning back against
 its stop.
 
-Task: set the trap without a gripper ever in the hammer's strike path while nothing holds the hammer back (a hand on
-the hammer, or the latched lock bar).
-- One hand pulls the hammer back over the top, against its strong spring, to the trap's near end, and holds it there.
-- The other swings the lock bar forward over the hammer and presses its tip down into the catch on the trigger post.
-  The catch takes the tip, and the lock bar now holds the hammer back.
-- The hand on the hammer lets go: the hammer settles against the lock bar and must never snap forward. Neither hand may
-  touch the trigger pedal of the set trap: that springs it.
-- Both arms go back to where they started.
+Task: set the trap, its lock bar holding the hammer back, without ever letting the hammer snap and without a gripper
+in the hammer's strike path while nothing holds it back (a hand on the hammer, or the latched lock bar). Both grippers
+end clear of the set trap and both arms back where they started. A gripper over the trigger pedal of the set trap
+springs it.
+
+One way (the scripted demo): one hand pulls the hammer back over the top, against its strong spring, to the trap's
+near end, and holds it there; the other swings the lock bar forward over the hammer and presses its tip down into the
+catch; the hand on the hammer lets go and the hammer settles against the lock bar.
 
 Why both hands: the hammer springs forward as soon as it is let go, and only a latched lock bar holds it.
 
