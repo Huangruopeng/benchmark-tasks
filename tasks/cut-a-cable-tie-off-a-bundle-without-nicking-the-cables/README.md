@@ -21,9 +21,10 @@ What it tests:
 - putting the tool back.
 
 Why two hands: the bundle is light and round. When the cutters' jaws touch it, it rolls or slides away, and the tie's
-head rolls away from the jaws. In the one-hand check, the right hand did its part as in the demo and the left never
-moved; it scored 0.25. The jaws pushed the bundle 1.2 cm along the blocks, the strap stayed 9 mm short of the tips, and
-the squeeze cut nothing.
+head rolls round toward the jaws. In the one-hand check (re-run under this revision's scorer), the right hand did its
+part as in the demo and the left never moved; it scored 0.25. The jaws pushed the bundle 1.3 cm across the blocks and
+rolled the tie's head round into their mouth; the tips stayed 6.8 mm short of the strap's inner face, and the squeeze
+cut nothing.
 
 ## How it is modelled
 
@@ -31,21 +32,24 @@ the squeeze cut nothing.
 they are put. The other parts are loose rigid bodies made of shapes from `bodykit.py`.
 
 - **The bundle.** One rigid body of seven cables, 120 g.
-- **The tie.** Glued to the bundle by a fixed joint (a `Glue` from `bodykit.py`).
+- **The tie.** Glued to the bundle by a fixed joint (a `Glue` from `bodykit.py`). Its strap lies on the six outer
+  cables and bridges the six grooves between them, one of them just below the head.
 - **The cutters.** Two steel halves joined at their pivot by a hinge (a `Hinge` from `bodykit.py`). A spring holds the
   jaws 8 mm open at the tips. A hand holding the handles lightly keeps them open; squeezing them shut turns the halves
   up to 16 degrees together, closing the jaws.
-- **The cut.** After every control step, the task file checks for the moment the halves close past 10 degrees. If the
-  strap is then truly between the blades, the tie is cut. That means all 4 mm of its width lies between the 8 mm-apart
-  edges (its middle within 3 mm of the mouth's middle line), the tips are at or past its inner face (within 10.9 mm of
-  the bundle's axis), the cutters point into the bundle (within 50 degrees) and their pivot runs along the strap
-  (within 50 degrees). When that holds:
+- **The cut (a simulation proxy).** After every control step, the task file checks for each moment the halves close
+  past 10 degrees. If the strap is then truly between the blades, wherever along the strap, the tie is cut. That means
+  all 4 mm of its width lies between the 8 mm-apart edges (its middle within 3 mm of the mouth's middle line), the
+  tips are at or past its inner face (within 10.9 mm of the bundle's axis), the cutters point into the bundle (within
+  50 degrees) and their pivot runs along the strap (within 50 degrees). When that holds:
   - the glue switches off;
   - the closed tie is moved out of sight;
-  - an open tie, its strap cut beside the head, takes its place and drops to the table.
-- **A nick.** The task file judges where the cut was made. A cut more than 12 mm along the strap from the middle of the
-  head counts as a nick: there, the strap lies tight on the insulation. So does closing the jaws with a corner of a tip
-  pressed 1.5 mm or more into any cable.
+  - an open tie takes its place, with its strap gone where the jaws closed, and drops to the table.
+- **A nick (a simulation proxy).** Either of two things counts as a nick:
+  - cutting the strap where it lies on a cable, with less than 0.5 mm between its inner face and the insulation where
+    the jaws' middle closes on it: there the blades cannot get past the strap without closing on that cable. Over the
+    six grooves the gap is up to 4.4 mm, so a clean cut is possible over any of them, near the head or not;
+  - closing the jaws, at any time, with any part of a jaw's front pressed 0.5 mm or more into a cable.
 - **Off the bundle.** The cut tie must end off the bundle (its middle 1.5 cm below the bundle's axis or 3 cm from it)
   for any credit for the cut.
 
@@ -102,9 +106,20 @@ Set `TIE_DEBUG=1` to print what the score is built from twice a second:
 - whether both hands are clear;
 - where each TCP is from the cutters' handles and from the bundle above its left block.
 
+## A real trial and the simulation's proxies
+
+The real-world score does not depend on where the strap was cut:
+
+| | Real trial (the score) | Simulation (the proxy) |
+|---|---|---|
+| Cut | the strap is physically cut through and the tie has come off the bundle, wherever it was cut | the jaws close with the strap between the blades, anywhere along it; the swapped-in open tie falls clear (its middle 1.5 cm below the bundle's axis or 3 cm from it) |
+| Nick: scores 0 | any nick, cut or crush mark found when every cable's insulation is inspected all round under a 10x magnifier after the trial | the strap cut where it lies on a cable (under 0.5 mm of gap beneath it), or a jaw pressed 0.5 mm or more into a cable as the jaws close |
+| End state (1.0) | ruler against marks on the tray and the blocks; the robot's joint log for the arms | the same distances, from the simulated poses |
+| 0.25 | the cutters lifted 2 cm out of the tray, from the overhead video | the same, from the simulated poses |
+
 ## Runtime per trial
 
-On one RTX 5090: about 4 minutes for a Dream-1 trial of 900 steps (262 s on the clock, with Dream answering in 0.68 s on average), and about 2 minutes for the scripted demo (377 steps, 18.9 s of simulated time, 120 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 6 minutes for a Dream-1 trial of 900 steps (337 s on the clock, with Dream answering in 0.77 s on average), and about 1 minute for the scripted demo (377 steps, 18.9 s of simulated time, 80 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
@@ -112,22 +127,29 @@ None needed: with `-E object_jitter=0` the layout is fixed, and the scripted dem
 
 ## Changes in this revision
 
-This is a revision of TK-KA9BNZ. Its review said:
+This is a revision of TK-BEKN5K. Its review said:
 
-> Construct validity (not met): Closing the cutters within 4 mm of the strap can score a cut without severing it, and actual damage to cables is not checked.
+> Scoring (not met): The stated location-based zero and beside-the-head success condition can reject a clean, fully severed tie cut elsewhere.
 >
-> Scoring (not met): The proximity-based cut and location-based nick rules do not reliably establish whether the tie was severed or insulation was damaged.
->
-> What to change: Revise the real-world scoring to require the tie to be physically severed, rather than treating jaw closure within 4 mm as a cut, and inspect the cable insulation, awarding zero if any cable is nicked. Relabel the task as workplace maintenance or another appropriate domain: the setup does not specify an immediate hazard to a person.
+> What to change: Distinguish the simulation's location-based cut and nick proxies from the real-world score. In real trials, award cut credit when the tie is physically severed and off the bundle, regardless of cut location, and award zero for observed insulation damage.
+
+The review before that (TK-KA9BNZ) asked for the tie to be physically severed rather than the jaws merely closing
+near it, for the insulation to be inspected with zero for any nick, and for the workplace-maintenance category; that
+was done in the previous revision and is kept.
 
 What changed in response:
 
-- A cut now needs the strap truly between the blades as they close: all 4 mm of its width between the 8 mm-apart
-  edges (its middle within 3 mm of the mouth's middle line), the tips at or past the strap's inner face (within
-  10.9 mm of the bundle's axis), the cutters pointing into the bundle and their pivot along the strap's run. Closing
-  the jaws merely near the strap no longer counts. Every credit for the cut also needs the severed tie to have come
-  off the bundle.
-- Nicks: besides closing on the strap away from its head, closing the jaws with a corner of a tip pressed 1.5 mm or more into
-  any cable scores 0. In a real trial every cable's insulation is inspected after the trial, and any nick or cut
-  scores 0.
-- The instruction states only the goal and its constraints; the category is Impact on jobs (workplace maintenance).
+- **Real-world score, independent of where the tie was cut.** Cut credit needs only the strap physically cut through
+  and the tie off the bundle, wherever it was cut. Every cable's insulation is then inspected all round under a 10x
+  magnifier: any nick, cut or crush mark scores 0. The scoring text, this README and the table above state it.
+- **Simulation proxies labelled as such**, in the scoring text, the fidelity note and this README: the cut (jaws
+  closing with the strap between the blades) and the nick (where the strap was cut and how deep a jaw pressed).
+- **The simulation no longer requires a cut beside the head.** The old rule (any cut more than 12 mm along the strap
+  from the head scored 0) is gone. A cut now counts anywhere the strap bridges a gap: a nick needs the strap cut
+  where it lies on a cable (under 0.5 mm of gap beneath it), or a jaw pressed 0.5 mm or more into a cable. The nick
+  check now runs every time the jaws close, not only at the first closing. In a test run the cutters, pitched up, cut
+  the strap 87 degrees round from the head (17 mm along it from the head's middle, over the groove below the bundle's
+  near side, with 2.7 mm of gap under the strap), which the old rule scored 0: it now scores 1.0. A second test cut
+  the strap where it lies on a cable (0.04 mm of gap beneath it): the tie came off, and it scores 0.
+- The demo, the Dream-1 run and the one-hand check were redone under the new scorer: demo 1.0 (in a debug run it
+  cut 7 mm along the strap from the head, with 1.9 mm of gap beneath it), Dream-1 0.0, one-hand 0.25.

@@ -4,8 +4,9 @@ red handles lies in a grey tool tray to the right.
 
 Task: cut the tie off without nicking the cables.
 - One hand presses the bundle down on its left block so that it cannot roll.
-- The other takes the flush cutters from the tray by their handles and snips the tie's strap right beside its head.
-  Anywhere else, the strap lies tight on the insulation, and closing the jaws there nicks a cable.
+- The other takes the flush cutters from the tray by their handles and snips the tie's strap right beside its head,
+  where the strap bridges the groove between two cables. Where the strap lies on a cable, the blades cannot pass it
+  without closing on that cable, and cutting there nicks it. A clean cut over any other groove counts too.
 - The cutters go back in the tray, the hand lets go of the bundle, and both arms go back to where they started.
 
 Why both hands: the light bundle rolls or slides away as soon as the cutter's jaws touch it, unless it is held.
@@ -25,6 +26,7 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+import bodykit  # noqa: E402
 from bodykit import (Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, glue, hinge, on_reset,  # noqa: E402
                      on_step, rotation, set_glue_on)
 from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
@@ -76,16 +78,24 @@ CUTTER_MASS = 0.06  # each half
 TRAY_FLOOR = TOP + 0.005
 
 # -- scoring ------------------------------------------------------------------------------------------------------------
-# The strap is severed only when it is truly between the blades as they close: the jaws' mouth across the strap (its
-# middle within ACROSS_IN of the mouth's middle line, so all 4 mm of its width lie between the 8 mm-apart edges), the
-# tips reaching at least to the strap's inner face (no farther than TIPS_PAST from the bundle's axis), the cutters
-# pointing into the bundle (within AIM_DEG of the inward radial) and their pivot axis along the strap's run (the jaws
-# closing across its width, not along it).
+# Simulation proxies (a real trial instead checks that the strap is cut through and the tie is off the bundle, wherever
+# it was cut, and inspects every cable's insulation for damage):
+# - Severed: the strap is truly between the blades as they close, wherever along the strap: the jaws' mouth across the
+#   strap (its middle within ACROSS_IN of the mouth's middle line, so all 4 mm of its width lie between the 8 mm-apart
+#   edges), the tips reaching at least to the strap's inner face (no farther than TIPS_PAST from the bundle's axis), the
+#   cutters pointing into the bundle (within AIM_DEG of the inward radial) and their pivot axis along the strap's run
+#   (the jaws closing across its width, not along it).
+# - Nicked, either of:
+#   - the strap is cut where it lies on a cable (less than UNDER_STRAP between its inner face and the insulation where
+#     the jaws' middle closes on it): the blades cannot pass the strap there without closing on that cable. The strap
+#     lies on the six outer cables and bridges the six grooves between them; just below the head it bridges one.
+#   - any part of either jaw's front is pressed NICK_DEPTH or more into a cable's insulation at any moment the jaws
+#     close.
 ACROSS_IN = JAW_GAP / 2 - STRAP_W / 2 + 0.001
 TIPS_PAST = STRAP_R - STRAP_T / 2 + 0.0004
 AIM_DEG = 50.0
-SAFE_ARC = 0.012  # cut within this (along the strap) of the head's middle: beside the head, where it stands off
-NICK_DEPTH = 0.0015  # a tip pressed this far into any cable's insulation as the jaws close: a nicked cable
+UNDER_STRAP = 0.0005
+NICK_DEPTH = 0.0005
 OFF_BELOW = 0.015  # the cut tie off the bundle: its middle this far below the bundle's axis ...
 OFF_AWAY = 0.03  # ... or this far from it sideways
 LIFTED = 0.02  # the cutters lifted this far out of the tray: taken
@@ -122,15 +132,13 @@ def _bundle() -> Body:
                       friction=(0.7, 0.6), com=(0.0, 0.0, 0.0))
 
 
-def _strap(skip: int = 0) -> list:
-    """The strap's segments round the bundle (in the tie's frame: origin at the bundle's centre at TIE_Y), leaving out
-    ``skip`` segments on the far side of the head (a cut tie)."""
+def _strap() -> list:
+    """The strap's segments round the bundle (in the tie's frame: origin at the bundle's centre at TIE_Y), segment k
+    centred (k + 0.5) / SEGMENTS of a turn on from the head."""
     shapes = []
     seg = 2 * math.pi * STRAP_R / SEGMENTS * 1.08
     for k in range(SEGMENTS):
         a = math.radians(HEAD_DEG) + 2 * math.pi * (k + 0.5) / SEGMENTS
-        if k < skip:
-            continue
         d = np.array([-math.cos(a), 0.0, math.sin(a)])
         # a segment's long side runs round the bundle: turned about y so that its local z points along d
         shapes.append(BoxShape(tuple((d * STRAP_R).tolist()), (seg, STRAP_W, STRAP_T), NYLON,
@@ -151,9 +159,38 @@ def _tie() -> Body:
 
 
 def _cut_tie() -> Body:
-    """The tie once cut (the strap open beside its head), kept out of sight until then."""
-    return Body.build("cut_tie", pos=tuple(HIDE["cut_tie"].tolist()), mass=0.002, shapes=[*_strap(skip=2), _head()],
+    """The tie once cut, kept out of sight until then; the segment where the jaws cut it is hidden (_show_gap)."""
+    return Body.build("cut_tie", pos=tuple(HIDE["cut_tie"].tolist()), mass=0.002, shapes=[*_strap(), _head()],
                       color=NYLON, friction=(0.6, 0.5), ignore=("cable_bundle",))
+
+
+_PATHS: dict[str, str] = {}
+_author_hinges_plain = bodykit._author_hinges
+
+
+def _author_hinges(stage, prim_path: str, spec) -> None:
+    _author_hinges_plain(stage, prim_path, spec)
+    if spec.name == "cut_tie":
+        _PATHS["cut_tie"] = prim_path
+
+
+bodykit._author_hinges = _author_hinges
+
+
+def _show_gap(k: int | None) -> None:
+    """Hide the cut tie's strap segment ``k`` (where the jaws cut it), or show them all (None)."""
+    from pxr import UsdGeom
+
+    if "cut_tie" not in _PATHS:
+        return
+    from isaaclab.sim.utils.stage import get_current_stage
+
+    stage = get_current_stage()
+    for i in range(SEGMENTS):
+        prim = stage.GetPrimAtPath(f"{_PATHS['cut_tie']}/body/s{i}")
+        if prim and prim.IsValid():
+            img = UsdGeom.Imageable(prim)
+            img.MakeInvisible() if i == k else img.MakeVisible()
 
 
 def _handle(side: float) -> list:
@@ -217,7 +254,7 @@ hinge("cutter_pivot", "cutters", "cutters_b", anchor=tuple(TRAY_PIVOT.tolist()),
 
 def _fresh() -> dict:
     return {"cut": False, "nicked": False, "taken": False, "closed_before": False, "tcps": None, "s": {},
-            "steps": 0, "mouth_ring": None, "aim": None}
+            "steps": 0, "mouth_ring": None, "aim": None, "jaw_clear": 1.0, "closings": [], "cut_at_deg": None}
 
 
 _EP = _fresh()
@@ -229,6 +266,7 @@ def _new_episode() -> None:
     _EP.clear()
     _EP.update(_fresh())
     set_glue_on("tie_on", True)
+    _show_gap(None)
 
 
 def _tcps(base, origin) -> list[np.ndarray]:
@@ -255,14 +293,50 @@ def _pose(base, origin, name) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return t[:3] - origin, rotation(t[3:7]), t[3:7]
 
 
-def _mouth_on_strap(mouth, tpos, trot) -> tuple[float, float, float]:
+def _mouth_on_strap(mouth, tpos, trot) -> tuple[float, float, float, float]:
     """Where the jaws' tips are against the strap: (radial gap to the strap's middle, offset across it, arc distance
-    along it from the head's middle), all in m."""
+    along it from the head's middle, in m; and the angle round from the head, in degrees, -180..180)."""
     q = trot.T @ (np.asarray(mouth, float) - tpos)  # in the tie's frame (its y along the bundle)
     r = math.hypot(float(q[0]), float(q[2]))
     a = math.atan2(float(q[2]), float(-q[0]))  # up from the near side, as HEAD_DEG
     da = (a - math.radians(HEAD_DEG) + math.pi) % (2 * math.pi) - math.pi
-    return abs(r - STRAP_R), abs(float(q[1])), abs(da) * STRAP_R
+    return abs(r - STRAP_R), abs(float(q[1])), abs(da) * STRAP_R, math.degrees(da)
+
+
+def _jaw_front(side: float) -> np.ndarray:
+    """Points over the front of a jaw (its tip block and the front of the jaw behind it), in its half's frame; ``side``
+    +1 for the half whose jaw is on +y (see _jaw)."""
+    tip = [(x, side * y, z) for x in (0.021, 0.0235, JAW_TIP) for y in (JAW_GAP / 2, JAW_GAP / 2 + 0.002,
+                                                                       JAW_GAP / 2 + 0.004)
+           for z in (-0.0015, 0.0, 0.0015)]
+    jaw = [(x, side * y, z) for x in (0.016, 0.022) for y in (JAW_GAP / 2, JAW_GAP / 2 + 0.003, JAW_GAP / 2 + 0.006)
+           for z in (-0.003, 0.0, 0.003)]
+    return np.array(tip + jaw)
+
+
+JAW_FRONT = {1.0: _jaw_front(1.0), -1.0: _jaw_front(-1.0)}
+
+
+def _under_strap(deg: float) -> float:
+    """The gap between the strap's inner face and the insulation beneath it, ``deg`` up from the near side (as
+    HEAD_DEG), in m: the strap's inner face less how far out the outermost cable reaches along that radius."""
+    u = np.array([-math.cos(math.radians(deg)), math.sin(math.radians(deg))])
+    reach = 0.0
+    for c in CABLES:
+        b = float(np.dot(c, u))
+        disc = CABLE_R ** 2 - (float(np.dot(c, c)) - b * b)
+        if disc >= 0.0:
+            reach = max(reach, b + math.sqrt(disc))
+    return STRAP_R - STRAP_T / 2 - reach
+
+
+def _clearance(points, bun, brot_b) -> float:
+    """The least distance from any of ``points`` (world) to a cable's insulation (negative: pressed into it), in m."""
+    q = (np.asarray(points) - bun) @ brot_b  # rows in the bundle's frame
+    q = q[np.abs(q[:, 1]) < BUNDLE_L / 2]
+    if not len(q):
+        return 1.0
+    return float(min((np.hypot(q[:, 0] - cx, q[:, 2] - cz) - CABLE_R).min() for cx, cz in CABLES))
 
 
 @on_step
@@ -275,33 +349,38 @@ def _follow(env) -> None:
     closed = math.degrees(math.atan2(float(rel[1, 0]), float(rel[0, 0])))  # the halves turned together
     mouth = apos + arot @ np.array([JAW_TIP - 0.001, 0.0, 0.0])
     tpos, trot, tq = _pose(base, origin, "cable_tie")
-    gap, across, arc = _mouth_on_strap(mouth, tpos, trot)
+    gap, across, arc, round_deg = _mouth_on_strap(mouth, tpos, trot)
     _EP["mouth_ring"] = (gap, across, arc)
     bun, brot_b, _ = _pose(base, origin, "cable_bundle")
     tips = [apos + arot @ np.array([JAW_TIP, JAW_GAP / 2, dz]) for dz in (-0.0015, 0.0015)]  # the tips' inner corners
     tips += [bpos + brot @ np.array([JAW_TIP, -JAW_GAP / 2, dz]) for dz in (-0.0015, 0.0015)]
     tq_b = [brot_b.T @ (t - bun) for t in tips]  # the tips' corners in the bundle's frame
     tip_r = min(math.hypot(float(q[0]), float(q[2])) for q in tq_b)
-    dent = max((CABLE_R - math.hypot(float(q[0]) - cx, float(q[2]) - cz) for q in tq_b for cx, cz in CABLES
-                if abs(float(q[1])) < BUNDLE_L / 2), default=-1.0)  # deepest a tip corner is in a cable
-    _EP["dent"] = dent
+    jaw_clear = _clearance(np.vstack([apos + JAW_FRONT[1.0] @ arot.T, bpos + JAW_FRONT[-1.0] @ brot.T]), bun, brot_b)
+    _EP["jaw_clear"] = jaw_clear
     q_mouth = brot_b.T @ (mouth - bun)
     inward = -np.array([q_mouth[0], 0.0, q_mouth[2]]) / max(math.hypot(float(q_mouth[0]), float(q_mouth[2])), 1e-6)
     aim = math.degrees(math.acos(max(-1.0, min(1.0, float(inward @ (brot_b.T @ arot[:, 0]))))))
     pivot_along = math.degrees(math.asin(min(1.0, abs(float((brot_b.T @ arot[:, 2])[1])))))  # pivot axis vs bundle
     _EP["aim"] = (tip_r, aim, pivot_along)
     _EP["qm"] = trot.T @ (mouth - tpos)  # the mouth in the tie's frame (debug)
-    if not _EP["cut"] and closed >= CUT_DEG and not _EP["closed_before"]:
+    under = _under_strap(HEAD_DEG + round_deg)
+    if closed >= CUT_DEG and not _EP["closed_before"]:  # the jaws close (every time, over the whole trial)
         _EP["closed_before"] = True
-        if dent >= NICK_DEPTH:
-            _EP["nicked"] = True  # a tip pressed into a cable's insulation as the jaws closed
-        if (across <= ACROSS_IN and gap <= 0.004 and tip_r <= TIPS_PAST and aim <= AIM_DEG
-                and pivot_along <= AIM_DEG):  # the strap is between the blades: severed
+        if jaw_clear <= -NICK_DEPTH:
+            _EP["nicked"] = True  # a jaw pressed into a cable's insulation as the jaws closed: a nicked cable
+        severs = (not _EP["cut"] and across <= ACROSS_IN and gap <= 0.004 and tip_r <= TIPS_PAST and aim <= AIM_DEG
+                  and pivot_along <= AIM_DEG)  # the strap is between the blades, wherever along it: severed
+        _EP["closings"].append((round(_EP["steps"] / 20, 2), round(jaw_clear * 1000, 2), round(round_deg, 1),
+                                round(under * 1000, 2), round(tip_r * 1000, 1), severs))
+        if severs:
             _EP["cut"] = True
-            if arc > SAFE_ARC:
-                _EP["nicked"] = True  # the strap lies tight on the insulation there: the jaws nicked a cable
+            _EP["cut_at_deg"] = round_deg
+            if under < UNDER_STRAP:
+                _EP["nicked"] = True  # cut where the strap lies on a cable: the blades closed on its insulation
             set_glue_on("tie_on", False)
             _place(base, origin, "cut_tie", tpos + np.array([0.0, 0.0, 0.002]), tuple(float(v) for v in tq))
+            _show_gap(int(((round_deg % 360.0) / 360.0) * SEGMENTS) % SEGMENTS)
     if closed < CUT_DEG * 0.5:
         _EP["closed_before"] = False
     # keep the parts that are out of play out of sight
@@ -327,8 +406,9 @@ def _follow(env) -> None:
     if _DEBUG["on"] and _EP["steps"] % 10 == 0:
         tl, tr = _EP["tcps"]
         print(f"[tie] t={_EP['steps'] / 20:5.1f}s closed={closed:5.1f}deg mouth: gap={gap * 1000:5.1f}mm "
-              f"across={across * 1000:5.1f}mm arc={arc * 1000:5.1f}mm tip_r={tip_r * 1000:5.1f}mm aim={aim:4.0f} "
-              f"pivot_along={pivot_along:4.0f} dent={_EP['dent'] * 1000:4.1f}mm qm={np.round(_EP['qm'] * 1000, 1).tolist()} off={off} cut={_EP['cut']} nicked={_EP['nicked']} "
+              f"across={across * 1000:5.1f}mm arc={arc * 1000:5.1f}mm round={round_deg:6.1f}deg "
+              f"tip_r={tip_r * 1000:5.1f}mm aim={aim:4.0f} pivot_along={pivot_along:4.0f} "
+              f"jaw_clear={jaw_clear * 1000:5.2f}mm under={under * 1000:5.2f}mm closings={_EP['closings']} off={off} cut={_EP['cut']} nicked={_EP['nicked']} "
               f"taken={_EP['taken']} back={back} on_blocks={on_blocks} clear={clear} "
               f"bundle={np.round((bun - [BX, 0.0, ZC]) * 1000).astype(int).tolist()} "
               f"rTCP-grip={np.round((tr - grip) * 1000).astype(int).tolist()} "
@@ -339,12 +419,13 @@ def _follow(env) -> None:
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def score(objects) -> float:
-    """0.0 if a cable was ever nicked: the jaws closed on the strap away from the head, or closed with a tip corner
-    pressed 1.5 mm or more into any cable. Else 1.0 once the strap was severed beside the head (between the blades as they closed) and
-    the tie has come off the bundle, the cutters lie back in the tray, the bundle still lies across its blocks, both
-    hands have let go (each TCP at least 4 cm from the cutters' handles and from the bundle above its left block) and
-    both arms are back where they started; 0.5 once the strap was severed beside the head and the tie is off the
-    bundle; 0.25 if the cutters were taken out of the tray at some point; else 0.0."""
+    """0.0 if a cable was ever nicked: the strap was cut where it lies on a cable (less than 0.5 mm between them where
+    the jaws' middle closed on it), or the jaws closed, at any time, with a jaw pressed 0.5 mm or more into a cable's
+    insulation. Else 1.0 once the strap was severed (between the blades as they closed, wherever along it)
+    and the tie has come off the bundle, the cutters lie back in the tray, the bundle still lies across its blocks,
+    both hands have let go (each TCP at least 4 cm from the cutters' handles and from the bundle above its left block)
+    and both arms are back where they started; 0.5 once the strap was severed and the tie is off the bundle; 0.25 if
+    the cutters were taken out of the tray at some point; else 0.0."""
     s = _EP["s"]
     if _EP["nicked"] or not s:
         return 0.0
