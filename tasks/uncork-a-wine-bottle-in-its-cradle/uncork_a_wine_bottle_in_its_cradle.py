@@ -3,12 +3,14 @@ its neck pointing back toward the right arm. A wing corkscrew has been set on it
 neck, the point of its worm on the middle of the cork.
 
 Task (the instruction gives the goal only): open the bottle without taking it out of its cradle, and leave the cork off
-it. The natural cork sits in the neck as tightly as a real one: it gives way only to a pull of 240 N. The corkscrew's
-handle turns the worm into the cork, which draws the rack down and raises the two wings (each a lever on a pinion that
-meshes with the rack); pressing the wings back down pulls the rack, the worm and the cork out with 6.4:1 leverage.
+it. The natural cork sits in the neck as tightly as a real one: it gives way only to a pull of 196 N, the mean that a
+published study measured for a natural cork in a 75 cl bottle with this 17.7 mm bore (not measured by us). The
+corkscrew's handle turns the worm into the cork, which draws the rack down and raises the two wings (each a lever on a
+pinion that meshes with the rack); pressing the wings back down pulls the rack, the worm and the cork out with 6.4:1
+leverage: about 30 N at the paddles together starts the cork.
 
-Why two hands: one arm can press one wing with at most about 20 N, which gives the cork about 130 N; it takes both
-wings pressed together (about 19 N each) to start the cork.
+One hand or two: the demo presses both wings together, but the task does not need two hands in the simulation. One arm
+alone pressed its wing with up to 32.5 N, which started the cork (see the README).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=uncork_a_wine_bottle_in_its_cradle.py \\
            --instruction "..." --scorer task_score ...
@@ -82,7 +84,7 @@ TILT = math.radians(10.0)
 YAW = math.radians(55.0)
 BODY_R, BODY_Y = 0.0375, 0.095  # the body: 75 mm across, from y = -0.095 to +0.095 (190 mm)
 NECK_Y0, LIP_Y = -0.125, -0.205  # the neck from the shoulder to the mouth (80 mm)
-BORE_R, NECK_R, BEAD_R, BEAD_L = 0.00925, 0.0145, 0.0155, 0.010  # 18.5 mm bore, 29 mm neck, 31 mm bead (the lip)
+BORE_R, NECK_R, BEAD_R, BEAD_L = 0.00885, 0.0145, 0.0155, 0.010  # 17.7 mm bore, 29 mm neck, 31 mm bead (the lip)
 BOTTLE_MASS = 1.25  # 0.5 kg of glass and 0.75 kg of wine
 LIP = np.array([0.32, -0.02, TOP + 0.101])  # the middle of the bottle's mouth, in the world
 BOTTLE_R = _rz(-YAW) @ _rx(-TILT)
@@ -94,10 +96,13 @@ NORM = np.cross(OUT, FRONT)  # the wings' pivot axis (10 degrees off vertical)
 R_C = np.column_stack([OUT, FRONT, NORM])  # the corkscrew's frame: x out along the axis, y to the front wing, z ~up
 Q_C = _quat(R_C)
 
-# -- the cork: natural cork, 38 x 24 mm, compressed into the 18.5 mm bore, its outer face flush with the lip ----------
+# -- the cork: natural cork, 38 x 24 mm, compressed into the 17.7 mm bore, its outer face flush with the lip ----------
 CORK_L = 0.038
 CORK_MASS = 0.010  # real: about 3.5 g; heavier for the solver (see fidelity)
-F_PEAK = 240.0  # N to start it (literature: 230-400 N, 120-350 N for 38 x 24 mm natural corks)
+# N to start it: the mean peak pull-out force that Giunchi, Versari, Parpinello & Galassi (J. Food Eng. 88 (2008)
+# 576-580) measured for a natural cork in a 750 ml bottle with a 17.7 mm neck: 196 +- 20 N (mean +- SD), ISO 9727-5,
+# 24 h after bottling, texture analyser with a 4 mm corkscrew, 5 mm/s. A published measurement, not ours.
+F_PEAK = 196.0
 NECK_K, NECK_D = 3.0e5, 2.0e3  # the friction hold's spring (N/m) and damping (N s/m), capped at the friction force
 CORK_FREE = CORK_L + 0.0005  # pulled this far, the cork's inner end is past the lip: out of the neck
 CORK_C = (0.72, 0.55, 0.36)
