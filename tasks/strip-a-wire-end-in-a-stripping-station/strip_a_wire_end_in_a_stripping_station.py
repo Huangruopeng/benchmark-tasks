@@ -22,6 +22,7 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+import bodykit  # noqa: E402
 from bodykit import (Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, glue, hinge, on_reset,  # noqa: E402
                      on_step, plate, rotation, set_glue_on)
 from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
@@ -43,17 +44,19 @@ ARM_X, ARM_Z = 0.024, 0.016
 ARM_END = -0.225  # the lever's arm reaches this far along y from the hinge (to the right)
 HANDLE_Y = -0.20  # the middle of its rubber grip, from the hinge: 23 cm right of the hole
 OPEN_DEG = 12.0
-SPRING_TO, SPRING = -20.0, 0.06  # pulled toward -20 degrees, so it rests on its open stop (about 6 N at the grip to hold it down)
+SPRING_TO, SPRING = -20.0, 0.06  # pulled toward -20 degrees, so it rests on its open stop: 1.2 N m with the lever
+# down, less about 0.19 N m from the lever's own weight, so about 5 N at the grip holds it down
 CLOSED_WITHIN = 1.5  # degrees: the blades are closed
 OPENED = 4.0  # degrees: let up this far, they let go
 
-# -- the cable: stiff, 12 mm across; the insulation round its last 24 mm is 12 rings, each held to it until cut --------
-WIRE_L, WIRE_R, CORE_R = 0.12, 0.006, 0.004
+# -- the cable: an H07V-K 1 x 35 mm2 single core (class 5 flexible copper, 7.9 mm across, 1.2 mm PVC insulation, 10.3 mm
+# overall, 340 g/m), stiff here; the insulation round its last 24 mm is 12 rings, each held to it until cut --------------
+WIRE_L, WIRE_R, CORE_R = 0.12, 0.00515, 0.00395
 RING_H, N_RINGS = 0.002, 12
-WIRE_MASS = 0.04
+WIRE_MASS = 0.039  # 9 cm of cable at 340 g/m (31 g) and the solid ABS plug (8 g)
 PLUG, PLUG_H = 0.016, 0.03  # a square plug moulded on the cable's other end (on top), 16 mm across
 HOLDER_AT = (0.30, 0.21)
-HOLDER_R, HOLDER_H = 0.0055, 0.018  # snug round the copper end: the cable stands straight
+HOLDER_R, HOLDER_H = 0.006, 0.018  # a 12 mm bore round the insulated end: 0.85 mm clearance all round the 10.3 mm cable
 BLACK, COPPER, STEEL, DARK, RED = (0.08, 0.08, 0.09), (0.80, 0.50, 0.25), (0.62, 0.63, 0.66), (0.20, 0.21, 0.23), \
     (0.75, 0.10, 0.10)
 
@@ -115,13 +118,19 @@ def _holder() -> Body:
 WIRE_Z0 = TOP + 0.0045  # the wire's end, standing in its holder
 
 
+SLEEVE = 3  # the wire's shape that is its end's insulation, for colliding only (hidden: the rings show it)
+
+
 def _wire() -> Body:
-    """Origin at the wire's end (its bottom, standing upright); the copper runs up through the rings."""
+    """Origin at the wire's end (its bottom, standing upright); the copper runs up through the rings. The insulation
+    over the end collides as one hidden cylinder of the cable's full width, so the end stands in its holder's bore and
+    goes into the station's hole as the insulated cable does (the rings only show it)."""
     strip = RING_H * N_RINGS
     cable = WIRE_L - PLUG_H
-    shapes = [CylShape((0.0, 0.0, strip / 2), CORE_R, strip, COPPER),
+    shapes = [CylShape((0.0, 0.0, strip / 2), CORE_R, strip, COPPER, collide=False),
               CylShape((0.0, 0.0, strip + (cable - strip) / 2), WIRE_R, cable - strip, BLACK),
-              BoxShape((0.0, 0.0, cable + PLUG_H / 2), (PLUG, PLUG, PLUG_H), (0.55, 0.56, 0.58))]
+              BoxShape((0.0, 0.0, cable + PLUG_H / 2), (PLUG, PLUG, PLUG_H), (0.55, 0.56, 0.58)),
+              CylShape((0.0, 0.0, strip / 2), WIRE_R, strip, BLACK)]  # SLEEVE
     return Body.build("wire", pos=(HOLDER_AT[0], HOLDER_AT[1], WIRE_Z0), mass=WIRE_MASS, shapes=shapes,
                       friction=(1.0, 0.9), color=BLACK, com=(0.0, 0.0, WIRE_L / 2))
 
@@ -133,6 +142,20 @@ def _rings() -> list[Body]:
                        shapes=[CylShape((0.0, 0.0, 0.0), WIRE_R, RING_H * 0.98, BLACK, collide=False)], color=BLACK)
             for k in range(N_RINGS)]
 
+
+_author_sliders_plain = bodykit._author_sliders
+
+
+def _author_sliders(stage, prim_path: str, spec) -> None:
+    """bodykit's sliders, then: hide the wire's collision-only insulation sleeve."""
+    _author_sliders_plain(stage, prim_path, spec)
+    if spec.name == "wire":
+        from pxr import UsdGeom
+
+        UsdGeom.Imageable(stage.GetPrimAtPath(f"{prim_path}/body/s{SLEEVE}")).MakeInvisible()
+
+
+bodykit._author_sliders = _author_sliders
 
 STATION, LEVER, HOLDER, WIRE = _station(), _lever(), _holder(), _wire()
 RINGS = _rings()
