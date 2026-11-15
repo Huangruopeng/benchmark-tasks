@@ -1,16 +1,17 @@
 """On the station table stands the pivot of a loader arm: a yellow steel lug on a base plate with a steel pin through
 it, and on the lug's top a straight grease nipple (DIN 71412 form A: M10x1 taper thread, 11 mm hex, 6.5 mm ball
-head). To the left stands a grease pail with a lever pump on its lid; its black hose runs over the table to a jawless
-push-type coupler standing in a steel holder cup.
+head). To the left stands a grease pail with a lever pump on its lid; its black hose runs over the table to a lock-on
+grease coupler standing in a steel holder cup.
 
 Task: grease the pivot pin through its nipple from the pail pump without leaking grease at the coupler or the nipple,
 then leave the coupler back in its holder cup and both arms back where they started.
 
-The coupler's mouth is a 7.2 mm bore with a 45-degree lead-in that goes right over the 6.5 mm ball head until a
-nitrile seal ring 5 mm up the bore sits on the ball's top. Nothing latches it: while the lever is pressed the grease
-pressure pushes it back off the ball, so it seals only while it is pressed on squarely. A lever stroke made through a
-sealed seat is a shot of grease into the pin's bushing; a stroke made while the coupler is not sealed on the nipple is
-a leak (latched for the whole trial).
+The coupler's mouth (its four jaws, closed: a 7.2 mm bore with a 45-degree lead-in) goes right over the 6.5 mm ball
+head until a nitrile seal ring 5 mm up sits on the ball's top. Pushed fully on with its thumb lever out, its jaws lock
+behind the ball and hold it on against the grease pressure with no hand on it; it comes off only while the thumb lever
+is pressed in. Not locked, the grease pressure pushes it back off the ball. A lever stroke made through a sealed seat
+is a shot of grease into the pin's bushing; a stroke made while the coupler is not sealed on the nipple is a leak
+(latched for the whole trial).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=grease_a_pivot_pin_holding_the_coupler_on_the_nipple.py \\
            --instruction "..." --scorer task_score ...
@@ -29,7 +30,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import bodykit  # noqa: E402,F401
 from bodykit import (Body, BoxShape, CylShape, SphereShape, allow_matrix_grips, as_numpy, ball, hinge,  # noqa: E402
-                     on_reset, on_step, plate, rotation, segment)
+                     on_reset, on_step, plate, rotation, segment, set_thread_on, slider, thread)
 from yam_arena.constants import FINGER_CLOSED, TCP_OFFSET  # noqa: E402
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
@@ -62,10 +63,18 @@ LEVER_UP = 15.0  # degrees the lever stands up from level at rest
 PAD = (0.030, 0.028, 0.016)
 STROKE_DOWN, STROKE_UP = 18.0, 10.0  # degrees pressed down: a stroke is down past 18, then back up past 10
 PRESSURE_DEG = 6.0  # pressed past this, the pump is pushing grease: the line is under pressure
+LEVER_MAX = 26.0  # degrees it presses down at most
 STROKES = 4  # sealed strokes that fill the pin's passage and bushing and purge fresh grease at its ends
 OUTLET = (PX, PY - PAIL_R - 0.006, TOP + 0.070)
+# The lever's spring stands in for its return spring and the grease's resistance together: pressing the grip pad takes
+# ~8 N at 18 degrees down and ~11 N at 26 (a real rig: at most 15 N, checked with a spring scale on the pad). Its target
+# just cancels the lever's own weight (0.078 N m), so it rests 15 degrees up.
+LEVER_SPRING = 0.055  # N m per degree
+LEVER_TARGET = 0.078 / LEVER_SPRING  # degrees up from rest
+LEVER_DAMP = 0.001  # N m per degree/s
+PUMP_CC = 1.0  # cm3 of grease per full stroke (6 to 26 degrees: 4.4 cm of pad travel)
 
-# -- the push-type coupler (origin: the middle of its mouth face, z up its axis) and its holder cup -----------------
+# -- the lock-on coupler (origin: the middle of its mouth face, z up its axis) and its holder cup -------------------
 HX, HY = 0.24, 0.0
 CUP_R, CUP_H, CUP_FLOOR = 0.023, 0.016, 0.004  # the holder's outer radius, rim height and floor
 SEAT_R, FUNNEL_Z, FUNNEL_R = 0.011, 0.007, 0.020  # the 22 mm seat the nose stands in, and its 45-degree funnel
@@ -82,8 +91,19 @@ SEAT_DEPTH = math.sqrt(BALL_R ** 2 - SEAL_HOLE_R ** 2)  # the ball's centre this
 BALL_IN_MOUTH = SEAL_Z - SEAT_DEPTH  # the ball's centre this far up from the mouth face when seated (2.7 mm)
 MOUTH_SEATED = BALL_Z - BALL_IN_MOUTH  # the mouth face's height when seated (1.05 mm over the hex)
 SEAT_OFF, SEAT_LIFT, SEAT_SINK, SEAT_TILT = 0.0015, 0.0005, 0.001, 8.0  # the sealed-seat tolerances
-PUSH_N = 15.0  # while the line is under pressure, the grease pushes a coupler on the ball back off with this force
+# While the line is under pressure, the grease pushes a coupler on the ball back off with PUSH_N along its axis. An arm
+# presses the pump's lever with at most ~15 N; less the return spring's ~4 N, that is at most ~11 N over 4.4 cm of pad
+# travel per 1 cm3: at most ~4.8 bar in the line, ~8 N on the seal's 4.6 mm circle (16.6 mm2).
+PUSH_N = 8.0
 PUSH_OFF, PUSH_LIFT, PUSH_TILT = 0.002, 0.001, 20.0  # ... while its seal is this close on the ball
+# the thumb lever: a pad on the body's +y flat, sprung out 2.5 mm; pressed in (by a thumb, or by fingers closing across
+# the body) it pulls the locking sleeve back and opens the jaws
+THUMB_W, THUMB_H, THUMB_T, THUMB_Z = 0.006, 0.020, 0.0025, 0.025  # its width, height, thickness and middle height
+THUMB_TRAVEL = 0.0025  # how far it presses in
+THUMB_Y = BODY_AF / 2 + THUMB_TRAVEL + THUMB_T / 2  # its middle out from the axis when not pressed
+THUMB_K, THUMB_PRELOAD = 3000.0, 0.001  # its spring (N/m) and preload (m): 3 N to start it, 10.5 N pressed fully in
+THUMB_OPEN, THUMB_SHUT = 0.0015, 0.0008  # pressed in past THUMB_OPEN the jaws open; back out past THUMB_SHUT they close
+LOCK_LIFT = 0.0001  # locked, the jaws hold the seal 0 to 0.2 mm off the ball's top (the rigid seal is not squeezed)
 
 # -- the hose: five segments on ball joints from the pump's outlet to the coupler's side outlet ----------------------
 HOSE = [OUTLET, (PX, 0.120, TOP + 0.007), (0.40, 0.060, TOP + 0.007), (0.38, 0.0, TOP + 0.007),
@@ -190,10 +210,11 @@ def _hose(i: int) -> Body:
 
 
 def _coupler() -> Body:
-    """A jawless push-type grease coupler. Its hardened nose (18 mm across, 12 mm tall) has a 7.2 mm mouth bore with
-    a 45-degree lead-in, and 5 mm up the bore a nitrile seal ring with a 4.6 mm hole whose edge sits on the ball
-    head's top; above the nose a black-oxide 13 mm hex body (where it is held) and a brass swivel with the hose's side
-    outlet. The nose's walls, lead-in and seal ring are 12-sided rings of boxes. Origin: the middle of its mouth."""
+    """A lock-on grease coupler. Its hardened nose (18 mm across, 12 mm tall) holds four jaws that, closed, form a
+    7.2 mm mouth with a 45-degree lead-in, and 5 mm up a nitrile seal ring with a 4.6 mm hole whose edge sits on the
+    ball head's top; above the nose a black-oxide 13 mm hex body (where it is held, with the thumb lever on one flat)
+    and a brass swivel with the hose's side outlet. The mouth's walls, lead-in and seal ring are 12-sided rings of
+    boxes; the jaws' lock is the ``jaws`` joint. Origin: the middle of its mouth."""
     n = 12
     tan = math.tan(math.pi / n)
     shapes = []
@@ -224,6 +245,13 @@ def _coupler() -> Body:
                       com=(0.0, 0.0, 0.020), friction=(1.2, 1.1), ignore=("hose4",))
 
 
+def _thumb() -> Body:
+    """The coupler's thumb lever: a steel pad on the hex body's +y flat, sprung 2.5 mm out from it."""
+    shapes = [BoxShape((0.0, 0.0, 0.0), (THUMB_W, THUMB_T, THUMB_H), STEEL)]
+    return Body.build("thumb", pos=(HX, HY + THUMB_Y, TOP + CUP_FLOOR + THUMB_Z), mass=0.012, shapes=shapes,
+                      color=STEEL, friction=(1.2, 1.1), ignore=("coupler", "hose4"))
+
+
 def _grease(k: int) -> Body:
     """A dab of grease (drawn only), parked under the table until it appears: the first four squeeze out of the pin's
     bushing, the fifth shows a leak."""
@@ -233,11 +261,19 @@ def _grease(k: int) -> Body:
     return Body.build(f"grease{k}", pos=PARKED[k], mass=0.01, shapes=shapes, kinematic=True, color=GREASE)
 
 
-OBJECTS = [_pivot(), _pump(), _lever(), _holder()] + [_hose(i) for i in range(5)] + [_coupler()] + \
+OBJECTS = [_pivot(), _pump(), _lever(), _holder()] + [_hose(i) for i in range(5)] + [_coupler(), _thumb()] + \
     [_grease(k) for k in range(5)]
-MOVING = ["lever", "coupler"] + [f"hose{i}" for i in range(5)]
-hinge("pump_lever", "pump", "lever", anchor=tuple(PIVOT.tolist()), axis="Y", limits_deg=(-26.0, 8.0), spring=0.02,
-      damping=0.001, target_deg=4.0)
+MOVING = ["lever", "coupler", "thumb"] + [f"hose{i}" for i in range(5)]
+hinge("pump_lever", "pump", "lever", anchor=tuple(PIVOT.tolist()), axis="Y", limits_deg=(-LEVER_MAX, 8.0),
+      spring=LEVER_SPRING, damping=LEVER_DAMP, target_deg=LEVER_TARGET)
+slider("thumb_lever", "coupler", "thumb", anchor=(HX, HY + THUMB_Y, TOP + CUP_FLOOR + THUMB_Z), axis="Y",
+       limits=(-THUMB_TRAVEL, 0.0), stiffness=THUMB_K, damping=5.0, target=THUMB_PRELOAD, max_force=60.0)
+# the jaws' lock: switched on when the coupler is pushed fully onto the ball with its thumb lever out; it then holds the
+# coupler on the nipple's axis with its seal on the ball (turning only slowly against the jaws' drag; the swivel takes
+# the hose's twist) until the thumb lever is pressed in
+thread("jaws", "pivot", "coupler", anchor0=(0.0, 0.0, BALL_Z - TOP), axis0=(0.0, 0.0, 1.0),
+       anchor1=(0.0, 0.0, BALL_IN_MOUTH - LOCK_LIFT), axis1=(0.0, 0.0, 1.0), slide_limits=(-0.0001, 0.0001),
+       turn_damping=20.0, slide_stiffness=20000.0, slide_damping=50.0, slide_max_force=200.0)
 ball("hose_out", "pump", "hose0", anchor=HOSE[0], swing_damping=0.002, twist_damping=0.002)
 for _i in range(1, 5):
     ball(f"hose_j{_i}", f"hose{_i - 1}", f"hose{_i}", anchor=HOSE[_i], swing_damping=0.002, twist_damping=0.002)
@@ -247,7 +283,8 @@ ball("hose_in", "hose4", "coupler", anchor=HOSE[5], swing_damping=0.002, twist_d
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"down": False, "strokes": 0, "shots": 0, "leak": False, "seated_ever": False, "tcps": None, "s": {}}
+    return {"down": False, "strokes": 0, "shots": 0, "leak": False, "seated_ever": False, "tcps": None, "s": {},
+            "locked": False, "locked_ever": False}
 
 
 _EP = _fresh()
@@ -323,10 +360,21 @@ def _follow(env) -> None:
     origin = as_numpy(base.scene.env_origins[0])
     cp, cr = _pose(base, origin, "coupler")
     _, lr = _pose(base, origin, "lever")
+    tp, _ = _pose(base, origin, "thumb")
     c = _coupler_state(cp, cr)
+    thumb_in = THUMB_Y - float((cr.T @ (tp - cp))[1])  # how far the thumb lever is pressed in
+    # the jaws: pushed fully on (sealed) with the thumb lever out, they lock behind the ball; the thumb lever pressed in
+    # opens them
+    if _EP["locked"] and thumb_in >= THUMB_OPEN:
+        set_thread_on("jaws", False)
+        _EP["locked"] = False
+    elif not _EP["locked"] and thumb_in <= THUMB_SHUT and c["seated"]:
+        set_thread_on("jaws", True)
+        _EP["locked"] = _EP["locked_ever"] = True
     pressed = -math.degrees(math.atan2(-lr[2, 0], lr[0, 0]))  # degrees the lever is pressed down from rest
     pressure = pressed >= PRESSURE_DEG
-    # while the pump pushes grease, its pressure on the seal pushes a coupler on the ball back off along its axis
+    # while the pump pushes grease, its pressure on the seal pushes a coupler on the ball back off along its axis (the
+    # locked jaws hold it on)
     _set_force(base.scene["coupler"], (0.0, 0.0, PUSH_N) if pressure and c["on_ball"] else (0.0, 0.0, 0.0))
     if pressure and not c["seated"] and not _EP["leak"]:  # grease squirts out of an unsealed coupler: a leak
         _EP["leak"] = True
@@ -345,12 +393,14 @@ def _follow(env) -> None:
     _EP["s"] = dict(c, pressed=pressed)
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
-        if _DEBUG["steps"] % 5 == 0 or (pressure and c["off"] < 0.01):
+        if _DEBUG["steps"] % 5 == 0 or (pressure and c["off"] < 0.01) or (c["off"] < 0.003 and c["lift"] < 0.003):
             tl, trc = _EP["tcps"]
             print(f"[grease] t={_DEBUG['steps'] / 20:5.2f}s lever={pressed:5.1f}deg strokes={_EP['strokes']} "
                   f"shots={_EP['shots']} leak={_EP['leak']} coupler={np.round(cp * 1000, 1).tolist()} "
                   f"off={c['off'] * 1000:5.2f}mm lift={c['lift'] * 1000:6.2f}mm tilt={c['tilt']:5.1f} "
                   f"seated={c['seated']} on_ball={c['on_ball']} in_holder={c['in_holder']} "
+                  f"thumb={thumb_in * 1000:4.2f}mm locked={_EP['locked']} "
+                  f"turn={math.degrees(math.atan2(cr[1, 0], cr[0, 0])):6.1f}deg "
                   f"leftTCP={np.round(tl * 1000).astype(int).tolist()} "
                   f"rightTCP={np.round(trc * 1000, 1).tolist()} score={score(None)}", file=sys.stderr, flush=True)
 
@@ -393,18 +443,24 @@ def success(objects) -> bool:
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
-# The right hand comes down round the coupler's hex body in its holder, takes it, lifts it out, carries it over the
-# nipple, lowers it onto the ball head and presses it on (aiming PRESS below the seat, so the soft arm leans about
-# 20 N on it, more than the 15 N the grease pressure pushes back with), and holds it there. The left hand comes down on
+# The right hand comes down round the coupler's hex body in its holder, fingers across the thumb lever (pressing it in,
+# so the jaws are open), takes it, lifts it out, carries it over the nipple, lowers it onto the ball head and presses
+# it on (aiming PRESS below the seat, so the soft arm leans about 12 N on it). It eases off to a light lean and lets go:
+# the thumb lever springs out and the jaws lock behind the ball. It rises clear and waits. The left hand comes down on
 # the lever's grip pad, fingers closed, and pumps the lever five full strokes, following its swing, then rises and goes
-# back to where it started. Once the lever is back up, the right pulls the coupler off, carries it back over the
-# holder, steadies it just above it, lowers it in, lets go and goes back to where it started.
+# back to where it started. The right comes back down round the coupler, closes across the thumb lever (the jaws open),
+# pulls the coupler off, carries it back over the holder, steadies it just above it, lowers it in and presses it into
+# the seat, eases off, lets go and goes back to where it started.
 
-GRIP = grip_rotation(0.0)  # straight down, fingers closing along y (across the hex body's flats)
+GRIP = grip_rotation(0.0)  # straight down, fingers closing along y (across the hex body's flats and the thumb lever)
 GRIP_TCP = 0.027  # the TCP this far above the coupler's mouth when holding it by its hex body
 PART_OPEN = -0.020
 AIM = (-0.002, 0.0)  # aim the held coupler's mouth this far off the nipple's axis (measured grip offset)
-PRESS = 0.047  # aim this far below the seat: the soft arm (~420 N/m) then presses the coupler on with ~20 N
+PRESS = 0.030  # aim this far below the seat: the soft arm (~420 N/m) then presses the coupler on with ~12 N
+EASE = 0.008  # then this far below it (a ~3 N lean) while letting go
+CLEAR = 0.06  # how far the right hand rises off the locked coupler while the left pumps
+SET_DOWN = 0.006  # aim the coupler's mouth this far below the holder's floor (a ~3-8 N push: it pushes a hose
+# lying under it aside and slides the nose down the funnel into the seat)
 PUMPS = 5
 LEAD_S, LEAD_STEPS = 3.0, 15
 
@@ -459,47 +515,57 @@ def _pad_top(pressed: float) -> np.ndarray:
     return PIVOT + np.array([-LEVER_L * math.cos(a), 0.0, LEVER_L * math.sin(a) + PAD[2] / 2])
 
 
-def _right(release_at: float) -> tuple[list[Waypoint], float]:
-    """The right hand; returns its waypoints and when the coupler is pressed on."""
+def _right(regrip_at: float) -> tuple[list[Waypoint], float]:
+    """The right hand; returns its waypoints and when it has let go of the locked coupler and risen clear."""
     take = np.array([HX, HY, TOP + CUP_FLOOR + GRIP_TCP])
     out = _lead_in("right", take + [0.0, 0.0, 0.05], GRIP, "over the coupler in its holder", PART_OPEN)
     carry_z = NIPPLE_TOP + 0.030 + GRIP_TCP
     over = np.array([MX + AIM[0], MY + AIM[1], carry_z])
     on = np.array([MX + AIM[0], MY + AIM[1], MOUTH_SEATED + GRIP_TCP + 0.002])
     press = on - [0.0, 0.0, PRESS + 0.002]
+    ease = on - [0.0, 0.0, EASE + 0.002]
+    clear = on + [0.0, 0.0, CLEAR]
+    grip = on - [0.0, 0.0, 0.002]
     rim = np.array([HX, HY, TOP + CUP_H + 0.012 + GRIP_TCP])  # the coupler's mouth 12 mm over the holder's rim
-    out += [_w(1.0, take, PART_OPEN, "down round its hex body", GRIP),
-            _w(0.6, take, FINGER_CLOSED, "take it", GRIP),
+    out += [_w(1.0, take, PART_OPEN, "down round its hex body, across the thumb lever", GRIP),
+            _w(0.6, take, FINGER_CLOSED, "take it (the thumb lever pressed in: jaws open)", GRIP),
             _w(1.0, [HX, HY, carry_z], FINGER_CLOSED, "lift it out of the holder", GRIP),
             _w(1.6, over, FINGER_CLOSED, "carry it over the grease nipple", GRIP),
             _w(1.4, on, FINGER_CLOSED, "lower it over the ball head", GRIP),
-            _w(0.8, press, FINGER_CLOSED, "press it on", GRIP)]
-    seated_at = sum(w.duration for w in out)
-    out += [_w(max(release_at - seated_at, 0.5), press, FINGER_CLOSED, "hold it on while the other hand pumps", GRIP),
-            _w(0.6, on, FINGER_CLOSED, "ease off", GRIP),
+            _w(0.8, press, FINGER_CLOSED, "push it fully on", GRIP),
+            _w(0.4, press, FINGER_CLOSED, "hold it on a moment", GRIP),
+            _w(0.5, ease, FINGER_CLOSED, "ease off to a light lean", GRIP),
+            _w(0.6, ease, PART_OPEN, "let go: the thumb lever springs out and the jaws lock", GRIP),
+            _w(0.8, clear, PART_OPEN, "rise clear of the locked coupler", GRIP)]
+    released_at = sum(w.duration for w in out)
+    out += [_w(max(regrip_at - released_at, 0.5), clear, PART_OPEN, "wait while the other hand pumps", GRIP),
+            _w(1.2, grip, PART_OPEN, "come back down round the coupler", GRIP),
+            _w(0.6, grip, FINGER_CLOSED, "close across the thumb lever: the jaws open", GRIP),
             _w(0.8, over, FINGER_CLOSED, "pull it off the nipple", GRIP),
             _w(1.6, [HX, HY, carry_z], FINGER_CLOSED, "carry it back over the holder", GRIP),
             _w(1.0, rim, FINGER_CLOSED, "down to just above the holder", GRIP),
             _w(0.5, rim, FINGER_CLOSED, "steady it there", GRIP),
-            _w(1.0, take + [0.0, 0.0, 0.004], FINGER_CLOSED, "lower it into the holder", GRIP),
-            _w(0.5, take + [0.0, 0.0, 0.004], PART_OPEN, "let go", GRIP),
+            _w(1.0, take - [0.0, 0.0, SET_DOWN], FINGER_CLOSED, "lower it into the holder", GRIP),
+            _w(0.4, take - [0.0, 0.0, SET_DOWN], FINGER_CLOSED, "press it into the seat", GRIP),
+            _w(0.4, take + [0.0, 0.0, 0.002], FINGER_CLOSED, "ease off", GRIP),
+            _w(0.5, take + [0.0, 0.0, 0.002], PART_OPEN, "let go", GRIP),
             _w(0.8, take + [0.0, 0.0, 0.05], PART_OPEN, "rise", GRIP)]
     out += _go_home("right", take + [0.0, 0.0, 0.05], GRIP, PART_OPEN)
-    return out, seated_at
+    return out, released_at
 
 
 def _left(start: float, total: float) -> tuple[list[Waypoint], float]:
     """The left hand; returns its waypoints and when it is done pumping."""
     over = _pad_top(0.0) + [0.0, 0.0, 0.03]
     out = _lead_in("left", over, GRIP, "over the pump lever's grip pad", FINGER_CLOSED)
-    out.append(_w(max(start - LEAD_S, 0.3), over, FINGER_CLOSED, "wait for the coupler to be held on", GRIP))
+    out.append(_w(max(start - LEAD_S, 0.3), over, FINGER_CLOSED, "wait for the coupler to be locked on", GRIP))
     out.append(_w(0.8, _pad_top(0.0) - [0.0, 0.0, 0.002], FINGER_CLOSED, "down onto the pad", GRIP))
     for _ in range(PUMPS):
         for k in range(1, 5):
-            out.append(_w(0.25, _pad_top(25.0 * k / 4) - [0.0, 0.0, 0.004], FINGER_CLOSED,
+            out.append(_w(0.35, _pad_top(25.0 * k / 4) - [0.0, 0.0, 0.004], FINGER_CLOSED,
                           "press the lever down a full stroke", GRIP))
         for k in range(3, -2, -1):
-            out.append(_w(0.3, _pad_top(25.0 * k / 4) + [0.0, 0.0, 0.003], FINGER_CLOSED,
+            out.append(_w(0.4, _pad_top(25.0 * k / 4) + [0.0, 0.0, 0.003], FINGER_CLOSED,
                           "let it come back up", GRIP))
     out.append(_w(0.8, over, FINGER_CLOSED, "rise off the pad", GRIP))
     done = sum(w.duration for w in out)
@@ -511,10 +577,10 @@ def _left(start: float, total: float) -> tuple[list[Waypoint], float]:
 
 
 def demo():
-    _, seated_at = _right(0.0)
-    _, pumped_at = _left(seated_at + 0.5, 0.0)
+    _, released_at = _right(0.0)
+    _, pumped_at = _left(released_at + 0.3, 0.0)
     right, _ = _right(pumped_at + 0.5)
     total = sum(w.duration for w in right) + 3.0
     right.append(_w(3.0, right[-1].pos, PART_OPEN, "wait at the start", right[-1].yaw))
-    left, _ = _left(seated_at + 0.5, total)
+    left, _ = _left(released_at + 0.3, total)
     return {"left": left, "right": right}
