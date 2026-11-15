@@ -6,7 +6,8 @@ it.
 Task: water the plant at its roots, onto the soil, without wetting its leaves; then put the jug back on its stool,
 leave the leaves as they were and take both arms home. Water poured from above lands on the leaves, so the scripted
 demo pushes the big front leaf aside on its stalk with one hand and holds it there (let go, it springs back over the
-soil) while the other pours the jug onto the soil underneath. The 12 water beads stand for 120 ml of water.
+soil) while the other pours the jug onto the soil underneath. The 12 water beads stand for 120 ml of water (10 ml
+each); a real trial weighs the pot and its saucer separately and weighs absorbent pads on the leaves (see task.json).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=water_a_plant_holding_its_big_leaf_aside.py \\
            --instruction "..." --scorer task_score ...
@@ -211,11 +212,12 @@ hinge(name="leaf_stalk", body0="plant_pot", body1="big_leaf", anchor=(float(P[0]
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"wet": set(), "soil": set(), "tcps": None, "s": {}, "aside_max": 0.0}
+    return {"wet": set(), "soil": set(), "tcps": None, "s": {}, "aside_max": 0.0, "wet_ctrl": set(), "substeps": 0}
 
 
 _EP = _fresh()
 _DEBUG = {"on": bool(os.environ.get("PLANT_DEBUG")), "steps": 0}
+_WATCH: dict = {}
 
 
 @on_reset
@@ -267,9 +269,45 @@ def _on_soil(p) -> bool:
         SOIL_Z + 0.015
 
 
+def _watch_leaves(base) -> None:
+    """After every physics step (240 a second, not only after each 50 ms control step): every bead that comes within
+    WET of any leaf's blade has wetted a leaf, even if it runs off the leaf straight away."""
+    import torch
+
+    names = ("big_leaf", *BEAD_NAMES)
+    poses = torch.cat([getattr(base.scene[n].data.root_link_pose_w, "torch", base.scene[n].data.root_link_pose_w)[:1]
+                       for n in names]).detach().cpu().numpy().astype(np.float64)
+    origin = _WATCH["origin"]
+    frames = _leaf_frames(poses[0, :3] - origin, rotation(poses[0, 3:7]))
+    _EP["substeps"] += 1
+    for name, row in zip(BEAD_NAMES, poses[1:]):
+        if name in _EP["wet"] or name in _EP["soil"]:
+            continue
+        p = row[:3] - origin
+        if any(_on_leaf(r.T @ (p - o)) for o, r in frames):
+            _EP["wet"].add(name)
+
+
+def _install_watch(base) -> None:
+    """Run _watch_leaves after every physics step: Isaac Lab calls scene.update(dt=physics_dt) after each one."""
+    scene = base.scene
+    if getattr(scene, "_plant_watch", False):
+        return
+    plain = scene.update
+    _WATCH["origin"] = as_numpy(scene.env_origins[0])
+
+    def update(*args, **kwargs):
+        plain(*args, **kwargs)
+        _watch_leaves(base)
+
+    scene.update = update
+    scene._plant_watch = True
+
+
 @on_step
 def _follow(env) -> None:
     base = env.unwrapped
+    _install_watch(base)
     origin = as_numpy(base.scene.env_origins[0])
     l_pos, l_rot = _pose(base, origin, "big_leaf")
     frames = _leaf_frames(l_pos, l_rot)
@@ -277,7 +315,10 @@ def _follow(env) -> None:
     for name in BEAD_NAMES:
         p = as_numpy(base.scene[name].data.root_link_pose_w)[0][:3] - origin
         beads.append(p)
-        if name not in _EP["soil"] and any(_on_leaf(r.T @ (p - o)) for o, r in frames):
+        near_leaf = any(_on_leaf(r.T @ (p - o)) for o, r in frames)
+        if near_leaf and name not in _EP["soil"]:
+            _EP["wet_ctrl"].add(name)  # what a check after each control step alone would catch (debug only)
+        if name not in _EP["soil"] and near_leaf:
             _EP["wet"].add(name)
         if name not in _EP["wet"] and _on_soil(p):
             _EP["soil"].add(name)
@@ -302,6 +343,7 @@ def _follow(env) -> None:
             in_jug = sum(1 for p in beads if float(np.linalg.norm(p[:2] - j_pos[:2])) < CUP_R_I + 0.012
                          and p[2] > j_pos[2] - 0.01)
             print(f"[plant] t={_DEBUG['steps'] / 20:5.1f}s leaf_turn={turn:6.1f} soaked={soaked} wet={len(_EP['wet'])} "
+                  f"wet_ctrl_only={len(_EP['wet_ctrl'])} substeps={_EP['substeps']} "
                   f"in_jug={in_jug} jug={np.round(j_pos * 1000).astype(int).tolist()} jug_back={jug_back} "
                   f"jug_tilt={math.degrees(math.acos(max(-1.0, min(1.0, float(j_rot[2, 2]))))):5.1f} "
                   f"jug_from_L={np.round((j_pos - tl) * 1000).astype(int).tolist()} leaf_back={leaf_back} "
@@ -344,8 +386,9 @@ def _points(s) -> float:
 
 
 def score(objects) -> float:
-    """A water bead wets a leaf if it ever comes within 4 mm of one; it waters the soil if it lands on the soil inside
-    the pot without having touched a leaf. Judged at the end: 1.0 with at least 9 of the 12 beads (90 of 120 ml) on the soil, at most
+    """A water bead wets a leaf if it ever comes within 4 mm of one (checked after every physics step); it waters the
+    soil if it ends on the soil inside the pot's wall without having touched a leaf (the saucer is drawn only, so a
+    bead outside the pot never counts). Judged at the end: 1.0 with at least 9 of the 12 beads (90 of 120 ml) on the soil, at most
     1 bead ever on a leaf, the jug back on its stool (within 3 cm, upright within 15 degrees), the big leaf back over
     the soil (within 12 degrees of where it lay), both hands let go (each TCP at least 4 cm from the jug and the leaf)
     and both arms back where they started (each TCP within 5 cm); 0.5 with at least 9 beads on the soil and at most 1
