@@ -1,0 +1,23 @@
+{
+  "title": "Swap the counted till insert into the cash drawer and shut it on its catch",
+  "category": "Impact on jobs",
+  "keywords": [
+    "bimanual",
+    "retail",
+    "cashier",
+    "cash drawer",
+    "till insert",
+    "two-hand carry",
+    "drop-in fit",
+    "spring-loaded drawer",
+    "latch"
+  ],
+  "instruction": "Swap the till insert in the cash drawer for the counted one on the right-hand mat, coins at the front and without spilling any coins. Leave the old insert on the empty mat, shut the drawer and take both arms back to where they started.",
+  "context": "At a shift change a cashier lifts the outgoing till insert out of the cash drawer and drops the counted insert for the next shift in, then pushes the drawer shut until its catch holds. Cashiers (SOC 41-2011, 3.1 million US workers) count and balance their drawers every shift; a loaded insert is wide and heavy at the coin end and must stay level.",
+  "setup": "A shop counter (the station table) in front of two arms (bases 61 cm apart), seen by one overhead camera and a camera on each wrist. Distances are measured forward from the line between the arm bases and sideways from the midpoint between them. (1) A POS cash drawer, fixed: a black powder-coated steel cabinet 41.1 cm wide, 41.5 cm deep and 11.0 cm tall on 13 mm rubber feet, centred on the centre line, its front edge 44.0 cm forward, with a POS tablet (25.5 x 17 cm, black) on a stand on its top toward the back. (2) Its drawer (1.8 kg), on roller slides: a steel pan 37.1 x 31.6 cm inside and 6.0 cm deep (2 mm walls) behind a black steel front 40.5 cm wide, 9.1 cm tall and 1.5 cm thick with a lock. It stands sprung open 34.5 cm, its front face 8.0 cm forward. An ejection spring pushes it open with 6 N fully out and 12 N at home; a catch holds it once it has been pushed within 1 mm of home, and it then rests 2 mm short of home. (3) In the drawer, the old till insert: a black ABS tray 36.1 cm wide, 30.6 cm deep and 6.0 cm tall at its rim, on two 8 mm runners, with 2.5 mm floor and outer walls (drafted 2.5 degrees), a cross wall 12.0 cm behind its front between five coin cups (front) and five bill bays (back), and four dividers; the top 8 mm of its internal walls are 4 mm thick. It weighs 1.53 kg: the tray with its black bill clips and steel hold-down bar 0.83 kg, 0.65 kg of coins in its cups and 0.05 kg of notes under the clips. Its middle is 25.3 cm forward on the centre line, coins toward the arms, with 5 mm of play each side in the pan. (4) Two grey rubber mats, 37 x 36 cm and 3 mm thick, fixed, centred 25.3 cm forward and 39 cm left and right of the centre line. The left one is empty. (5) On the right mat, the counted insert: the same model, loaded the same, coins toward the arms. The counted insert carries a white count slip (10 x 7 cm, under one note clip) and full, even note stacks and coin cups; the used one is uneven (one bay and one coin cup nearly empty). The layout is the same in every trial, as in the screenshot.",
+  "scoring": "0.0 if either insert is ever tipped more than 25 degrees from level or dropped (lands faster than 0.6 m/s, a fall of 2 cm or more): coins spilt (latched). Otherwise, read at the end: 1.0 the old insert flat on the left mat (all four corners of its underside inside the mat and within 5 mm of it, tilted at most 5 degrees), the counted insert seated in the drawer (all four corners of its underside inside the pan and within 3 mm of its floor, turned at most 10 degrees, coins at the front; read in the drawer's frame), the drawer shut on its catch (the catch dropped in, the drawer within 3.5 mm of home), and both arms back where they started (each gripper within 5 cm of its start); 0.75 the same without the arms home; 0.5 the old insert on the left mat and the counted one seated; 0.25 the old insert on the left mat; else 0.0. The trial ends at the run limit, or once the full score has held for 1 s with the drawer and both inserts still (each moved under 0.5 mm over that second).",
+  "run_limit": "2,400 steps (2 minutes at 20 Hz)",
+  "fidelity": "Rigid-body simulation (Isaac Sim, PhysX, 20 Hz control), real sizes: APG Vasario 1616-class drawer and 5 bill / 5 coin till. Simplified: the coins are fixed mass and the notes are drawn on, so a tilt over 25 deg or a 2 cm drop stands in for spilt coins; the internal walls' top 8 mm are 4 mm thick (real about 2.5 mm) so the YAM's jaw can pinch them; the spring (6-12 N) and the 5 mm play are estimates; the drawer starts open (the POS fires its release).",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-US4TW2"
+}
