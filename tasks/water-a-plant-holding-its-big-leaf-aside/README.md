@@ -30,10 +30,11 @@ soil, and ran off it.
   pushes back with 0.14 N m.
 - The water is 12 rigid beads in the jug, which is a cup built from a floor and 16 wall panels.
 - After every physics step (240 a second, not only after each 50 ms control step), the task file checks each bead:
-  within 4 mm of any leaf's blade, it has wetted that leaf for good, even if it runs off straight away. A bead counts
-  as watering the soil only if it ends lying on the soil inside the pot's wall (its centre within 7.25 cm of the pot's
-  axis and between 3 mm below and 15 mm above the soil's surface) and never touched a leaf. The saucer is drawn only:
-  a bead that misses the pot or bounces out of it lands on the table under the saucer and never counts.
+  within 4 mm of any leaf's blade, it has touched that leaf for good, even if it runs off straight away, and the trial
+  scores 0. A bead counts as watering the soil only if it ends lying on the soil inside the pot's wall (its centre
+  within 7.25 cm of the pot's axis and between 3 mm below and 15 mm above the soil's surface) and never touched a
+  leaf. The saucer is drawn only: a bead that misses the pot or bounces out of it lands on the table under the saucer
+  and never counts.
 
 Importing `bodykit.py` hooks `yam_arena.scene` when the simulator starts, without changing yam_arena, gives `score()`
 each body's own pose, and lets the task file act on the simulation after every control step.
@@ -81,72 +82,53 @@ it is tipped, whether the jug and the leaf are back, whether both hands are clea
 
 ## A real trial
 
-The plant is artificial, built to the simulated sizes, so every trial has the same leaves in the same places and the
-leaves themselves record the water that touches them.
+The plant is an ordinary artificial house plant (an artificial peace lily, say) with moulded green plastic leaves.
+They take up no water, so nothing about them needs measuring or calibrating. Its leaves are 15 cm long and up to 13 cm
+wide, set as in the simulation: three in the crown over the back and sides of the pot, and the big lower leaf on a
+sprung wire stalk lying over the front of the soil, which springs back when let go. Each leaf is fixed to its wire
+stalk with a small clip, so it can be unclipped for the weighings. The plant stands in real potting soil, just moist,
+in a 17 cm glazed terracotta pot on a saucer, its drainage hole plugged with a rubber bung for the trial. A 150 ml
+watering jug holding 120 ml of room-temperature water, tinted dark blue with food colouring so that water on a green
+leaf shows clearly, stands on a 6 cm stool beside it. Two cameras film the trial at 60 frames a second, synchronized:
+one overhead and one from the side, level with the leaves.
 
-- **The leaves.** Each of the four leaves is cut from white cellulose sponge cloth, the Swedish-dishcloth type (70%
-  cellulose, 30% cotton), whose makers rate it to absorb up to 15 times its own weight. A 17.5 x 20 cm cloth weighs
-  about 9 g. Each leaf is four layers cut to the 141 cm² blade outline and stitched round the edge: 4 x 141 cm² x 9 g /
-  350 cm² = about 14.5 g dry, so it holds up to about 217 ml, more than the whole 120 ml. Each is clipped to a wire
-  stalk: three over the back and sides of the pot, and the big lower leaf on a sprung wire stalk lying over the front
-  of the soil, which springs back when let go. (The simulation draws the leaves green.)
-- **The rest.** Real potting soil, just moist, in a 17 cm glazed terracotta pot on a saucer, its drainage hole plugged
-  with a rubber bung for the trial. A 150 ml watering jug holding 120 ml of room-temperature water, tinted dark blue
-  with food colouring (about 1 ml per litre), stands on a 6 cm stool beside it.
-
-The two quantities are measured separately (1 g of water = 1 ml).
-
-**Water delivered to the soil.** The pot is weighed in the same state before and after the trial: all four cloth leaves
-unclipped, the soil, stem, wire stalks, clips and bung left in.
+**Water delivered to the soil** is weighed (1 g of water = 1 ml). The pot is weighed in the same state before and
+after the trial: its four plastic leaves unclipped, its soil, stem, wire stalks, clips and bung left in.
 
 1. Before the trial, unclip the leaves, lift the pot out of its saucer and weigh it, and the dry saucer, on a kitchen
    scale (1 g steps). Clip the leaves back on.
-2. After the trial, unclip the leaves again (into their bags, below), lift the pot out, let it drip into the saucer,
-   and weigh the pot and the saucer.
+2. After the trial, photograph the leaves (below), unclip them, lift the pot out, let it drip into the saucer, and
+   weigh the pot and the saucer.
 
 The pot's gain is the water delivered to the soil. With the drain plugged, and 1.3 cm of headroom above the soil
 (about 235 ml), none of it leaves the pot. The saucer's gain is spilled water and never counts as delivered.
 
-**Water that touched the leaves.** It is recorded two ways:
+**Leaf contact** is observed, not measured.
 
-- **By weight.** Each leaf is weighed dry before the trial. After it, each is unclipped into its own pre-weighed clear
-  sealed bag and weighed on a 0.01 g scale. Their total gain is the leaf water. Each leaf holds more than the whole
-  120 ml, so none can be filled past what it holds, even if all the water lands on it.
-- **By stain.** The water is dyed and the cloth is white, so every drop that touches a leaf leaves a blue stain where
-  it touched. That holds however fast it came and whether or not the cloth kept it. Every leaf is photographed on both
-  faces through its bag.
+- The two synchronized videos are reviewed frame by frame. Any frame in which the stream or a droplet of the blue
+  water touches a leaf, anywhere on it, edges included, counts as leaf contact.
+- As a backup, every leaf is photographed close up after the trial, before it is unclipped. A blue droplet or wet mark
+  on a leaf also counts as contact.
 
-Any stain counts as leaf contact, and it is scored with the weights. A stain that runs over a leaf's edge means water
-left that leaf without being weighed, so it counts as more than 10 ml, whatever the leaves gained.
+Nothing is weighed on the leaves, so the result does not depend on how much water a leaf holds, how fast it was
+poured or whether it ran off: the first touch already counts. Any leaf contact scores 0.0, since it breaks the
+instruction's one constraint ("without wetting its leaves").
 
-**Validating the leaves before trials.** This is a procedure for the trial's operator to run; we have not run it or
-measured its result.
-
-1. Clip a dry, weighed leaf on its stalk at its trial angle, over a pre-weighed tray.
-2. Pour 10 ml onto its middle from the trial jug, held 5 cm above it and tipped over as fast as it will go (the
-   fastest pour the jug gives).
-3. Do the same with 120 ml onto a second dry leaf.
-4. Weigh the leaves and the tray, and photograph the leaves. The leaves pass if each keeps at least 98% of what was
-   poured (a gain of at least 9.8 g and 117.6 g; the tray catches the rest), each shows a stain, and the 10 ml stain
-   does not reach the edge.
-5. If a leaf fails, give every leaf another layer of cloth and repeat.
-
-The thresholds are the simulation's, at 10 ml per bead:
-
-| Score | Real trial | Simulation |
+| Score | Real trial | Simulation (10 ml per bead) |
 |---|---|---|
-| 1.0 | pot gain at least 90 g; cloth leaves gain at most 10 g, with no stain running over an edge; and the end state (marks on the stool and the pot's rim, ruler and protractor; the robot's joint log for the arms) | at least 9 of the 12 beads on the soil, at most 1 ever within 4 mm of a leaf, and the end state |
-| 0.5 | pot gain at least 90 g; cloth leaves gain at most 10 g, with no stain running over an edge | at least 9 beads on the soil, at most 1 on a leaf |
-| 0.25 | pot gain at least 40 g | at least 4 beads on the soil |
+| 0.0 | any leaf contact, in any video frame or on the photographs | any bead ever within 4 mm of a leaf |
+| 1.0 | no leaf contact; pot gain at least 90 g; and the end state (marks on the stool and the pot's rim, ruler and protractor; the robot's joint log for the arms) | no bead ever on a leaf; at least 9 of the 12 beads on the soil; and the end state |
+| 0.5 | no leaf contact; pot gain at least 90 g | no bead ever on a leaf; at least 9 beads on the soil |
+| 0.25 | no leaf contact; pot gain at least 40 g | no bead ever on a leaf; at least 4 beads on the soil |
 
-Water in the saucer, on the table or left in the jug never counts. To reset, pull the bung and let the pot drain, then
-plug it again; it is weighed afresh, leaves unclipped, before each trial. Empty and dry the saucer, clip on fresh, dry,
-unstained, pre-weighed cloth leaves, lay the big leaf back over the soil, and refill the jug with 120 ml of the dyed
-water.
+Water in the saucer, on the table or left in the jug never counts. To reset, pull the bung and let the pot drain,
+then plug it again; it is weighed afresh, leaves unclipped, before each trial. Empty and dry the saucer, wipe the
+plastic leaves dry and clip them back on, lay the big leaf back over the soil, and refill the jug with 120 ml of the
+tinted water.
 
 ## Runtime per trial
 
-On one RTX 5090: about 9 minutes for a Dream-1 trial of 1,200 steps (514 s on the clock, with Dream answering in 0.71 s on average), and about 6 minutes for the scripted demo (607 steps, 30.4 s of simulated time, 335 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (197 s on the clock, with Dream answering in 0.81 s on average), and about 3 minutes for the scripted demo (607 steps, 30.4 s of simulated time, 190 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
@@ -154,47 +136,52 @@ None needed: with `-E object_jitter=0` the layout is fixed, and the scripted dem
 
 ## Changes in this revision
 
-This is a revision of TK-EYKT6P. Its review said:
+This is a revision of TK-T4P2JA. Its review said:
 
-> **Not accepted** (TK-EYKT6P).
+> **Not accepted** (TK-T4P2JA).
 >
-> Scoring (not met): The pot weighings use different leaf configurations, and cloth capacity alone does not establish
-> that all water contacting a leaf is captured.
+> Scoring (not met): The proposed fast-pour and staining checks have not been performed, leaving the previously
+> requested validation of leaf-water measurement open.
 >
-> What to change: Weigh the pot with the same leaves removed both before and after the trial, or explicitly correct
-> for their dry mass, so its gain measures water delivered to the soil. Also specify and validate a practical method
-> that records water contacting leaves even during a fast pour or after a leaf's absorbent capacity is exceeded; apply
-> the existing soil and leaf-water thresholds to those measurements.
+> What to change: The matched pot weighings and separate saucer measurement address the earlier soil-scoring concerns.
+> The requested validation of leaf-contact measurement is still open: the proposed tests have not been run. Perform
+> and report the fast-pour tests, including contact near leaf edges and volumes around the 10 ml threshold; show that
+> the method detects runoff and applies the thresholds reliably, and adjust the leaf design or scoring procedure if it
+> does not.
 
-The review before that (TK-A2TMY6) asked to tell water delivered to the soil from water in the saucer, and to measure
-water that touched a leaf even if it ran off; that was done in the previous revision (pot and saucer weighed apart,
-drain plugged, absorbent cloth leaves weighed) and is kept. The first review (TK-J457LS) asked for a reproducible real
-plant, a real water volume with a reset procedure, and real-world thresholds for every tier; that is kept too.
+Earlier reviews:
+
+- TK-EYKT6P asked for the pot to be weighed in the same leaf state before and after, and for a method that records
+  leaf contact even during a fast pour or past a leaf's capacity. The matched, leafless pot weighings are kept. The
+  capacity-based method is replaced, as below.
+- TK-A2TMY6 asked to tell water delivered to the soil from water in the saucer, and to record water that touched a leaf
+  even if it ran off. The separately weighed pot and saucer and the plugged drain are kept.
+- TK-J457LS asked for a reproducible real plant, a real water volume with a reset procedure, and real-world thresholds
+  for every tier. All three are kept.
 
 What changed in response:
 
-- **Scoring (not met), the pot weighings:** the pot is now weighed in the same state both times, with all four cloth
-  leaves unclipped. Before the trial the leaves are unclipped, the pot (with its soil, stem, wire stalks, clips and
-  bung) is weighed, and the leaves are clipped back on. After it they are unclipped again before the pot is weighed. So
-  the pot's gain is the water delivered to the soil, with no leaf mass in either weighing.
-- **Scoring (not met), capacity:** each leaf now holds more than the whole 120 ml. It is four layers of white
-  cellulose sponge cloth, which its makers rate at up to 15 times its own weight. Cut to the 141 cm² blade, it weighs
-  about 14.5 g (a 17.5 x 20 cm cloth weighs about 9 g) and holds up to about 217 ml. So no leaf can be filled past what
-  it holds in a trial.
-- **A method that records leaf contact even during a fast pour or past a leaf's capacity:** the water is tinted dark
-  blue with food colouring and the leaves are white. Every drop that touches a leaf leaves a stain, whether or not the
-  cloth keeps it, and each leaf is photographed on both faces after the trial. This record does not depend on the
-  cloth's capacity or on how fast the water came.
-- **Validating it:** the README and the scoring now give a check for the trial's operator to run before trials. It is
-  a procedure to run, not a result we have measured. Pour 10 ml, and 120 ml onto a second leaf, from the trial jug at
-  its fastest pour (held 5 cm above, tipped over as fast as it goes), onto a dry leaf clipped at its trial angle over a
-  pre-weighed tray. Each leaf must keep at least 98% by weight (at least 9.8 g and 117.6 g) and show a stain, and the
-  10 ml stain must not reach the edge. A failing leaf design gets another layer of cloth and is checked again.
-- **The existing thresholds apply to these measurements:** the pot's gain goes against the soil thresholds (at least
-  90 g for 1.0 and 0.5, at least 40 g for 0.25). The leaves' total weight gain goes against the leaf-water threshold
-  (at most 10 g for 1.0 and 0.5). Any stain counts as leaf contact and is scored with the weights. A stain running over
-  a leaf's edge means water left it unweighed, so it counts as more than 10 ml. In the simulation these remain at least
-  9 (or 4) of the 12 beads on the soil and at most 1 bead ever within 4 mm of a leaf, at 10 ml per bead.
-- **Simulation unchanged:** only the text changed (setup, scoring, reset notes, the fidelity note at 490 characters,
-  and this README). The scene, scorer, demo and instruction are as before, so the demo and Dream-1 runs and their
-  scores still apply.
+- **Scoring (not met), the unvalidated leaf-water measurement:** no physical test was run. Instead, as the review
+  allows, the leaf design and the scoring procedure were changed so that no leaf measurement is left to validate.
+  - The real-trial plant now has ordinary non-absorbent plastic leaves, green as in the simulation. The absorbent
+    sponge-cloth leaves, the stains, the leaf weighings and the validation procedure are all gone.
+  - Leaf contact is now observed directly. Two synchronized 60 fps videos (overhead, and from the side level with the
+    leaves) are reviewed frame by frame. Any frame in which the stream or a droplet of the dark-blue water touches a
+    leaf counts as contact. A close-up photograph of every leaf after the trial is the backup: any blue droplet or wet
+    mark also counts.
+- **Contact near leaf edges, and runoff:** a touch anywhere on a leaf, edges included, counts in the frame where it
+  happens. Water that later runs off has already been counted, so no capacity or runoff assumption remains.
+- **Volumes around the 10 ml threshold:** the 10 ml leaf-water allowance is gone, so there is no volume threshold to
+  check on the leaves. Any leaf contact, however small, scores 0.0, because it breaks the instruction's constraint
+  ("without wetting its leaves").
+- **Thresholds, now applied reliably:** the score is binary on leaf contact. With no leaf contact: 1.0 needs a pot gain
+  of at least 90 g and the end state; 0.5 needs at least 90 g without the end state; 0.25 needs at least 40 g. Any
+  leaf contact scores 0.0.
+- **The simulation matches:** a trial now scores 0.0 if any bead ever comes within 4 mm of a leaf (it allowed 1 bead
+  before). The tiers are otherwise as before: 9 or 4 of the 12 beads on the soil, at 10 ml per bead. The demo and
+  Dream-1 runs were redone under this scorer. The scripted demo scores 1.0 (607 steps; in a debug run 11 of the 12
+  beads ended on the soil and none came within 4 mm of a leaf). Dream-1 scores 0.0: it reaches toward the jug but
+  never lifts it. The one-hand check was not re-run: the scorer only got stricter, so its earlier 0 (all 12 beads
+  landed on the big leaf) cannot rise.
+- **Kept, as the review accepted them:** the matched leafless pot weighings, the separately weighed saucer, the
+  plugged drain, the real potting soil and the 120 ml of water.

@@ -7,7 +7,7 @@ Task: water the plant at its roots, onto the soil, without wetting its leaves; t
 leave the leaves as they were and take both arms home. Water poured from above lands on the leaves, so the scripted
 demo pushes the big front leaf aside on its stalk with one hand and holds it there (let go, it springs back over the
 soil) while the other pours the jug onto the soil underneath. The 12 water beads stand for 120 ml of water (10 ml
-each); a real trial weighs the pot and its saucer separately and weighs absorbent pads on the leaves (see task.json).
+each); a real trial weighs the pot and its saucer separately and watches the leaves on video (see task.json).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=water_a_plant_holding_its_big_leaf_aside.py \\
            --instruction "..." --scorer task_score ...
@@ -86,7 +86,7 @@ TERRACOTTA, RIM_C, SOIL, STEM, LEAF_C, LEAF_DARK, VEIN, JUG_C, WATER, STOOL_C = 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 WET = 0.004  # a bead within this of a leaf has wetted it
 SOAKED_FULL, SOAKED_SOME = 9, 4  # beads on the soil (10 ml each): 90 ml for the higher scores, 40 ml for 0.25
-LEAVES_WET_MAX = 1  # beads that may touch a leaf for the higher scores
+LEAVES_WET_MAX = 0  # beads that may touch a leaf: none (any leaf contact scores 0.0)
 BACK_WITHIN, UPRIGHT = 0.03, 15.0
 LET_GO = 0.04
 HOME_WITHIN = 0.05
@@ -377,22 +377,24 @@ def _status() -> dict:
 
 
 def _points(s) -> float:
-    dry = s["wet"] <= LEAVES_WET_MAX
-    if dry and s["soaked"] >= SOAKED_FULL and s["jug_back"] and s["leaf_back"] and s["clear"] and s["home"]:
+    if s["wet"] > LEAVES_WET_MAX:  # water touched a leaf: the instruction's constraint is broken, whatever else
+        return 0.0
+    if s["soaked"] >= SOAKED_FULL and s["jug_back"] and s["leaf_back"] and s["clear"] and s["home"]:
         return 1.0
-    if dry and s["soaked"] >= SOAKED_FULL:
+    if s["soaked"] >= SOAKED_FULL:
         return 0.5
     return 0.25 if s["soaked"] >= SOAKED_SOME else 0.0
 
 
 def score(objects) -> float:
-    """A water bead wets a leaf if it ever comes within 4 mm of one (checked after every physics step); it waters the
-    soil if it ends on the soil inside the pot's wall without having touched a leaf (the saucer is drawn only, so a
-    bead outside the pot never counts). Judged at the end: 1.0 with at least 9 of the 12 beads (90 of 120 ml) on the soil, at most
-    1 bead ever on a leaf, the jug back on its stool (within 3 cm, upright within 15 degrees), the big leaf back over
-    the soil (within 12 degrees of where it lay), both hands let go (each TCP at least 4 cm from the jug and the leaf)
-    and both arms back where they started (each TCP within 5 cm); 0.5 with at least 9 beads on the soil and at most 1
-    ever on a leaf; 0.25 with at least 4 beads (40 ml) on the soil; else 0.0. (Each bead stands for 10 ml of water.)"""
+    """A water bead touches a leaf if it ever comes within 4 mm of one (checked after every physics step); it waters
+    the soil if it ends on the soil inside the pot's wall without having touched a leaf (the saucer is drawn only, so a
+    bead outside the pot never counts). Judged at the end: 0.0 if any bead ever touched a leaf. Otherwise 1.0 with at
+    least 9 of the 12 beads (90 of 120 ml) on the soil, the jug back on its stool (within 3 cm, upright within 15
+    degrees), the big leaf back over the soil (within 12 degrees of where it lay), both hands let go (each TCP at least
+    4 cm from the jug and the leaf) and both arms back where they started (each TCP within 5 cm); 0.5 with at least 9
+    beads on the soil; 0.25 with at least 4 beads (40 ml) on the soil; else 0.0. (Each bead stands for 10 ml of
+    water.)"""
     return _points(_status())
 
 
