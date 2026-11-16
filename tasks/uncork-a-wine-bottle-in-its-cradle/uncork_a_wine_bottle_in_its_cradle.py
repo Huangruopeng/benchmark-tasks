@@ -1,16 +1,17 @@
 """On the station table, a corked 75 cl bottle of red wine lies in a wooden pouring cradle, tipped up 10 degrees with
-its neck pointing back toward the right arm. A wing corkscrew has been set on its mouth, wings down: its bell over the
-neck, the point of its worm on the middle of the cork.
+its neck pointing back toward the right arm and its shoulder against the cradle's neck rest. A wing corkscrew has been
+set on its mouth, wings down: its bell over the neck, the point of its worm on the middle of the cork.
 
 Task (the instruction gives the goal only): open the bottle without taking it out of its cradle, and leave the cork off
-it. The natural cork sits in the neck as tightly as a real one: it gives way only to a pull of 196 N, the mean that a
-published study measured for a natural cork in a 75 cl bottle with this 17.7 mm bore (not measured by us). The
-corkscrew's handle turns the worm into the cork, which draws the rack down and raises the two wings (each a lever on a
-pinion that meshes with the rack); pressing the wings back down pulls the rack, the worm and the cork out with 6.4:1
-leverage: about 30 N at the paddles together starts the cork.
+it. The agglomerated cork, 45 mm long, sits in the neck as tightly as a real one: it gives way only to a pull of
+263.3 N, the peak we measured pulling the cork of a bottle of this wine straight out with a corkscrew on a luggage
+scale (26.84 kg). The corkscrew's handle turns the worm into the cork, which draws the rack down and raises the two
+wings (each a lever on a pinion that meshes with the rack); pressing the wings back down pulls the rack, the worm and
+the cork out with 6.4:1 leverage: 41.0 N at the paddles together starts the cork. The corkscrew's 44.9 mm stroke is
+about the cork's length, so its last few millimetres come out with a straight pull on the corkscrew.
 
-One hand or two: the demo presses both wings together, but the task does not need two hands in the simulation. One arm
-alone pressed its wing with up to 32.5 N, which started the cork (see the README).
+One hand or two: the demo presses both wings together (20.5 N each); we make no claim that the simulation needs two
+hands. One arm would need 41.0 N on its paddle: about the left arm's peak-torque push, more than the right's (README).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=uncork_a_wine_bottle_in_its_cradle.py \\
            --instruction "..." --scorer task_score ...
@@ -84,7 +85,7 @@ TILT = math.radians(10.0)
 YAW = math.radians(55.0)
 BODY_R, BODY_Y = 0.0375, 0.095  # the body: 75 mm across, from y = -0.095 to +0.095 (190 mm)
 NECK_Y0, LIP_Y = -0.125, -0.205  # the neck from the shoulder to the mouth (80 mm)
-BORE_R, NECK_R, BEAD_R, BEAD_L = 0.00885, 0.0145, 0.0155, 0.010  # 17.7 mm bore, 29 mm neck, 31 mm bead (the lip)
+BORE_R, NECK_R, BEAD_R, BEAD_L = 0.00925, 0.0145, 0.0155, 0.010  # 18.5 mm bore (CETIE standard), 29 mm neck, 31 mm bead
 BOTTLE_MASS = 1.25  # 0.5 kg of glass and 0.75 kg of wine
 LIP = np.array([0.32, -0.02, TOP + 0.101])  # the middle of the bottle's mouth, in the world
 BOTTLE_R = _rz(-YAW) @ _rx(-TILT)
@@ -96,13 +97,14 @@ NORM = np.cross(OUT, FRONT)  # the wings' pivot axis (10 degrees off vertical)
 R_C = np.column_stack([OUT, FRONT, NORM])  # the corkscrew's frame: x out along the axis, y to the front wing, z ~up
 Q_C = _quat(R_C)
 
-# -- the cork: natural cork, 38 x 24 mm, compressed into the 17.7 mm bore, its outer face flush with the lip ----------
-CORK_L = 0.038
-CORK_MASS = 0.010  # real: about 3.5 g; heavier for the solver (see fidelity)
-# N to start it: the mean peak pull-out force that Giunchi, Versari, Parpinello & Galassi (J. Food Eng. 88 (2008)
-# 576-580) measured for a natural cork in a 750 ml bottle with a 17.7 mm neck: 196 +- 20 N (mean +- SD), ISO 9727-5,
-# 24 h after bottling, texture analyser with a 4 mm corkscrew, 5 mm/s. A published measurement, not ours.
-F_PEAK = 196.0
+# -- the cork: agglomerated (technical) cork, 45 mm long (measured), compressed into the 18.5 mm bore, flush with the lip
+CORK_L = 0.045
+CORK_MASS = 0.010  # real: about 5.7 g (45 x 24 mm at 280 kg/m^3); heavier for the solver (see fidelity)
+# N to start it, measured by us on one bottle (Bogle Family Vineyards Cabernet Sauvignon, 750 ml): the cork pulled
+# straight out by hand with a winged corkscrew (used only as a puller) hung on a digital luggage scale, peak reading
+# 26.84 kg, 26.84 x 9.81 = 263.3 N. In line with the 120-400 N published for wine corks (e.g. Giunchi et al., J. Food
+# Eng. 88 (2008) 576-580: 196 +- 20 N for a natural cork).
+F_PEAK = 263.3
 NECK_K, NECK_D = 3.0e5, 2.0e3  # the friction hold's spring (N/m) and damping (N s/m), capped at the friction force
 CORK_FREE = CORK_L + 0.0005  # pulled this far, the cork's inner end is past the lip: out of the neck
 CORK_C = (0.72, 0.55, 0.36)
@@ -194,9 +196,14 @@ def _bottle() -> Body:
                       color=GLASS, start_xyzw=BOTTLE_Q, com=(0.0, 0.01, 0.0), solver_iterations=32)
 
 
+NECK_REST_Y, NECK_REST_T = -0.133, 0.013  # the neck rest: a U-yoke under the neck, its face 1.5 mm from the shoulder
+NECK_REST_GAP = 0.0165  # the yoke's notch: 2 mm round the 29 mm neck
+
+
 def _cradle() -> Body:
     """A wooden pouring cradle, in the bottle's (tipped) frame: two slats under the body on two posts, a back board
-    behind the bottle's base, and a base board on the table."""
+    behind the bottle's base, a neck rest (a U-yoke under the neck, which the shoulder bears on, so the bottle cannot
+    slide out toward its neck) on a third post, and a base board on the table."""
     shapes, t, w = [], 0.008, 0.035
     for s in (-1.0, 1.0):
         d = np.array([s * math.sin(math.radians(40.0)), 0.0, -math.cos(math.radians(40.0))])
@@ -209,8 +216,18 @@ def _cradle() -> Body:
         foot = top - up * (foot_world[2] - TOP - 0.006)
         shapes.append(segment(top, foot, 0.016, WOOD))
     shapes.append(BoxShape((0.0, BODY_Y + 0.0065, -0.012), (0.070, 0.010, 0.060), WOOD_D))  # the back board
-    base_centre = BOTTLE_R.T @ (np.array([BOTTLE_POS[0], BOTTLE_POS[1] + 0.005, TOP + 0.003]) - BOTTLE_POS)
-    shapes.append(BoxShape(tuple(base_centre.tolist()), (0.09, 0.22, 0.006), WOOD, quat_xyzw=_quat(_rx(TILT))))
+    g, y, bottom = NECK_REST_GAP, NECK_REST_Y, -0.045  # the neck rest: a bar under the neck and two low prongs
+    shapes.append(BoxShape((0.0, y, (bottom - g) / 2), (0.070, NECK_REST_T, -g - bottom), WOOD_D))
+    for sx in (-1.0, 1.0):
+        shapes.append(BoxShape((sx * (g + 0.035) / 2, y, (-g - 0.008) / 2), (0.035 - g, NECK_REST_T, g - 0.008), WOOD_D))
+    top = np.array([0.0, y, bottom])
+    foot_world = BOTTLE_POS + BOTTLE_R @ top
+    shapes.append(segment(top, top - up * (foot_world[2] - TOP - 0.006), 0.016, WOOD))
+    level = BOTTLE_R @ np.array([0.0, 1.0, 0.0])
+    level = np.array([level[0], level[1], 0.0]) / np.linalg.norm(level[:2])
+    base_world = np.array([BOTTLE_POS[0], BOTTLE_POS[1] + 0.005, TOP + 0.003]) - 0.030 * level
+    base_centre = BOTTLE_R.T @ (base_world - BOTTLE_POS)
+    shapes.append(BoxShape(tuple(base_centre.tolist()), (0.09, 0.28, 0.006), WOOD, quat_xyzw=_quat(_rx(TILT))))
     return Body.build("cradle", pos=tuple(BOTTLE_POS.tolist()), mass=1.0, shapes=shapes, kinematic=True,
                       friction=(0.6, 0.5), color=WOOD, start_xyzw=BOTTLE_Q)
 
@@ -860,12 +877,18 @@ DEPTH_IN = 0.040  # screw the worm this far into the cork
 DEPTH_PLAN = 0.0415  # the hand's plan: each 90 degree stroke turns the knob about 86 degrees
 PHI_START = PHI_DOWN - DEPTH_IN / PINION_R  # where the wings are then
 PHI_AIM = PHI_START - math.radians(3.0)  # the hands start behind where the paddles may be
-PUSH_LEAD = 0.04  # the hands aim this far ahead of the paddles (m)
+PUSH_LEAD = (0.05, 0.07)  # the hands aim this far ahead of the paddles while both press (m; at the start, at the end)
+FINISH_LEAD = 0.04  # the left's lead as it takes the wings the rest of the way down
+FINISH_HOLD = 1.0  # then it holds the wings down this long (s)
 PUSH_BACK = PAD_R + 0.013  # the TCP behind the paddle's middle when touching it
 PUSH_Z = 0.006  # the TCP above the paddle's middle
-PRESS_S, FINISH_S = 7.0, 2.5
-PHI_TWO = math.radians(150.0)  # both hands press to here; then the left hand alone takes the wings down
-BELL_GRIP_U, BELL_GRIP_Z = 0.045, 0.012  # the top-down grip on the bell (along the axis from the lip; TCP above it)
+PRESS_S, FINISH_S = 10.0, 1.0
+PHI_TWO = math.radians(172.0)  # both hands press to here; then the left hand alone takes the wings down
+RACK_GRIP_U, RACK_GRIP_Z = 0.112, 0.004  # the grip on the rack, between the wings' heads and the knob: along the axis
+# from the lip; the TCP this far back up the hand from the rack's axis
+DRAW_OFF, DRAW_S = 0.10, 2.5  # the straight pull that takes the cork's last few mm out: aimed this far along the neck
+GRIP_LEAN = math.radians(45.0)  # that grip leans its fingers this far toward the bottle: the pull then runs nearly
+# along the hand, so the wrist's pitch joint carries little of it
 PUT = np.array([0.24, -0.20, TOP + 0.045])  # where the corkscrew is laid down
 # turning the handle: a side grip pointing down the corkscrew's axis, its fingers closing across the flat handle
 IN = -OUT
@@ -908,15 +931,28 @@ def _push_point(phi: float, side: int, back: float) -> tuple[np.ndarray, np.ndar
     return pad_at(phi, side) - back * th + [0.0, 0.0, PUSH_Z], th
 
 
-def _press(arm: str, side: int, phi0: float, phi1: float, total: float, n: int, lead: float,
+def _press(arm: str, side: int, phi0: float, phi1: float, total: float, n: int, lead,
            yaw0: float | None) -> tuple[list[Waypoint], float]:
+    """Push a paddle along its arc from phi0 to phi1, aiming ``lead`` ahead of it (or (from, to), tapering)."""
     out, yaw = [], yaw0
+    lead0, lead1 = lead if isinstance(lead, tuple) else (lead, lead)
     for k in range(1, n + 1):
         phi = phi0 + (phi1 - phi0) * k / n
         p, th = _push_point(phi, side, PUSH_BACK)
         yaw = _push_yaw(phi, side, yaw)
-        out.append(_w(total / n, p + lead * th, FINGER_CLOSED, "press the wing down", grip_rotation(yaw)))
+        ahead = lead0 + (lead1 - lead0) * k / n
+        out.append(_w(total / n, p + ahead * th, FINGER_CLOSED, "press the wing down", grip_rotation(yaw)))
     return out, yaw
+
+
+def _lean(rot: np.ndarray, d: np.ndarray, beta: float) -> np.ndarray:
+    """A top-down grip ``rot`` tilted so its approach axis leans from straight down toward the level direction of
+    ``d`` by ``beta``."""
+    dh = np.array([d[0], d[1], 0.0]) / math.hypot(d[0], d[1])
+    n = np.cross([0.0, 0.0, -1.0], dh)
+    n /= np.linalg.norm(n)
+    k = np.array([[0.0, -n[2], n[1]], [n[2], 0.0, -n[0]], [-n[1], n[0], 0.0]])
+    return (np.eye(3) + math.sin(beta) * k + (1.0 - math.cos(beta)) * k @ k) @ rot
 
 
 def _right() -> tuple[list[Waypoint], float]:
@@ -957,26 +993,33 @@ def _right() -> tuple[list[Waypoint], float]:
     out.append(_w(1.5, p0, FINGER_CLOSED, "down beside its paddle", grip_rotation(yaw0)))
     out.append(_w(1.5, p0, FINGER_CLOSED, "settle", grip_rotation(yaw0)))
     t_press = sum(w.duration for w in out)
-    press, yaw = _press("right", 1, PHI_AIM, PHI_TWO, PRESS_S, 28, PUSH_LEAD, yaw0)
+    press, yaw = _press("right", 1, PHI_AIM, PHI_TWO, PRESS_S, 40, PUSH_LEAD, yaw0)
     out += press
     last = np.array(out[-1].pos)
     up = _reachable_lift("right", last, grip_rotation(yaw))
     out.append(_w(1.0, last + [0.0, 0.0, up], FINGER_CLOSED, "lift off the wing", grip_rotation(yaw)))
-    out.append(_w(FINISH_S, last + [0.0, 0.0, up], FINGER_CLOSED, "wait", grip_rotation(yaw)))
-    # take the corkscrew off the bottle by its bell (wings down), with the cork on its worm, and lay it on the table
-    w_ang = math.atan2(FRONT[1], FRONT[0])  # the fingers close across the bell, toward the wings
-    yaw_b = min((w_ang - math.pi / 2, w_ang + math.pi / 2), key=abs)  # grip_rotation(0) closes along y
-    rot_b = grip_rotation(yaw_b)
-    bell = _c(BELL_GRIP_U) + [0.0, 0.0, BELL_GRIP_Z]
-    out += [_w(1.5, bell + [0.0, 0.0, 0.06], FINGER_OPEN, "over the bell", rot_b),
-            _w(1.2, bell, FINGER_OPEN, "down round the bell", rot_b),
-            _w(0.6, bell, FINGER_CLOSED, "take the corkscrew", rot_b),
-            _w(1.5, bell + OUT * 0.05, FINGER_CLOSED, "draw it off the bottle with the cork", rot_b),
-            _w(1.2, bell + OUT * 0.05 + [0.0, 0.0, 0.05], FINGER_CLOSED, "lift it clear", rot_b)]
+    out.append(_w(FINISH_S + FINISH_HOLD, last + [0.0, 0.0, up], FINGER_CLOSED, "wait", grip_rotation(yaw)))
+    # the corkscrew's stroke is about the cork's length, so its last few mm are still in the neck: take the corkscrew by
+    # its rack (pulling the rack pulls the worm, and the bell with it once the rack is fully out) and pull it straight
+    # off along the neck, with the cork on its worm; then lay it on the table
+    w_ang = math.atan2(FRONT[1], FRONT[0])
+    yaw_b = min((w_ang - math.pi / 2, w_ang + math.pi / 2), key=abs)  # grip_rotation(0) closes along y: across the rack
+    rot_b = _lean(grip_rotation(yaw_b), -OUT, GRIP_LEAN)  # leaning toward the bottle
+    approach = rot_b[:, 2]
+    grip = _c(RACK_GRIP_U) - RACK_GRIP_Z * approach
+    out += [_w(1.5, grip - 0.06 * approach, FINGER_OPEN, "over the rack", rot_b),
+            _w(1.2, grip, FINGER_OPEN, "fingers round the rack", rot_b),
+            _w(0.6, grip, FINGER_CLOSED, "take the corkscrew", rot_b),
+            _w(0.4, grip, FINGER_CLOSED, "hold it", rot_b)]
+    off = grip + OUT * DRAW_OFF
+    up = _reachable_lift("right", off, rot_b)
+    out += [_w(DRAW_S, off, FINGER_CLOSED, "pull the cork the rest of the way out and the corkscrew off", rot_b),
+            _w(0.8, off, FINGER_CLOSED, "wait", rot_b),
+            _w(1.2, off + [0.0, 0.0, up], FINGER_CLOSED, "lift it clear", rot_b)]
     put = PUT
-    out += [_w(2.0, put + [0.0, 0.0, 0.04], FINGER_CLOSED, "carry it aside", rot_b),
-            _w(1.2, put, FINGER_CLOSED, "lower it to the table", rot_b),
-            _w(0.6, put, FINGER_OPEN, "let go", rot_b),
+    out += [_w(2.0, put + [0.0, 0.0, 0.05], FINGER_CLOSED, "carry it aside", rot_b),
+            _w(1.2, put + [0.0, 0.0, 0.02], FINGER_CLOSED, "lower it to the table", rot_b),
+            _w(0.6, put + [0.0, 0.0, 0.02], FINGER_OPEN, "let go", rot_b),
             _w(1.0, put + [0.0, 0.0, 0.06], FINGER_OPEN, "up", rot_b)]
     out += _home("right", put + [0.0, 0.0, 0.06], rot_b, "arm home")
     out.append(_w(3.0, out[-1].pos, FINGER_CLOSED, "rest", out[-1].yaw))
@@ -996,11 +1039,12 @@ def _left(t_press: float, total: float) -> list[Waypoint]:
     out.append(_w(1.5, p0 + [0.0, 0.0, up], FINGER_CLOSED, "over the back wing", rot))
     out.append(_w(1.5, p0, FINGER_CLOSED, "down beside its paddle", rot))
     out.append(_w(max(t_press - sum(w.duration for w in out), 0.5), p0, FINGER_CLOSED, "settle", rot))
-    press, yaw = _press("left", -1, PHI_AIM, PHI_TWO, PRESS_S, 28, PUSH_LEAD, yaw0)
+    press, yaw = _press("left", -1, PHI_AIM, PHI_TWO, PRESS_S, 40, PUSH_LEAD, yaw0)
     out += press
-    finish, yaw = _press("left", -1, PHI_TWO, PHI_DOWN, FINISH_S, 10, PUSH_LEAD, yaw)
+    finish, yaw = _press("left", -1, PHI_TWO, PHI_DOWN, FINISH_S, 4, FINISH_LEAD, yaw)
     out += finish
     last = np.array(out[-1].pos)
+    out.append(_w(FINISH_HOLD, last, FINGER_CLOSED, "hold the wings down", grip_rotation(yaw)))
     up = _reachable_lift("left", last, grip_rotation(yaw))
     out.append(_w(1.0, last + [0.0, 0.0, up], FINGER_CLOSED, "lift off the wing", grip_rotation(yaw)))
     out += _home("left", last + [0.0, 0.0, up], grip_rotation(yaw), "arm home")
