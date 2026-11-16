@@ -1,15 +1,15 @@
-"""A compact two-slot toaster stands on the worktop, its plug in a power strip behind it on the left; its red power
+"""A compact two-slot toaster stands on the worktop, plugged into a power strip behind it on the left; its red power
 light is on. A half slice of toast has popped up too low: it sits in the front slot with its top just below the slot,
 out of reach. Beside the toaster lie a pair of bamboo toast tongs with silicone tips, a steel dinner fork in front of
 it, and a plate to the right.
 
-Task: get the toast out of the toaster and onto the plate, without reaching into the toaster while it is plugged in
-and without using the steel fork; leave the toaster unplugged with its lever down, the tongs lying on the worktop and
-both arms back where they started.
+Task: get the toast out of the toaster and onto the plate without putting a gripper or the steel fork into the
+toaster, and leave the toaster's lever down and the tongs on the worktop. Unplugging is neither required nor scored.
 
-One way (the scripted demo): one hand pulls the plug, then lifts the lever into its extra-lift position and keeps it
-there (it drops back down as soon as it is let go), while the other takes the tongs, pinches the toast's top, lifts it
-out and drops it on the plate; then the lever goes back down and the tongs are laid back on the worktop.
+One way (the scripted demo, which leaves the toaster plugged in): one hand lifts the lever into its extra-lift
+position and keeps it there (it drops back down as soon as it is let go), while the other takes the tongs, pinches the
+toast's top, lifts it out and drops it on the plate; then the lever goes back down and the tongs are laid back on the
+worktop.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=unplug_a_toaster_and_lift_a_low_slice_out_with_wooden_tongs.py \\
            --instruction "..." --scorer task_score ...
@@ -78,7 +78,11 @@ UNPLUG_OFF, UNPLUG_UP = 0.030, 0.015  # out of the socket: moved this far sidewa
 PLATE = np.array([0.370, -0.200])
 PLATE_R, PLATE_H = 0.085, 0.012
 FORK = np.array([0.130, 0.070])  # the fork's middle, lying along y in front of the toaster
-FORK_MOVED = 0.020
+FORK_PTS = (-0.090, -0.045, 0.0, 0.044, 0.068, 0.085)  # points along the fork (its frame, +y to the tines' tips)
+# -- into the toaster: a gripper (its grip point or either fingertip) or the fork inside a slot ------------------------
+SLOT_MARGIN = 0.010  # within 1 cm of a slot's opening, sideways and at its ends
+SLOT_ABOVE = 0.005  # and no higher than 5 mm above the toaster's top (deeper is inside the slot)
+TIP_REACH = 0.013  # the fingertips reach this far past the grip point (TCP), along the approach
 # -- hidden lights -------------------------------------------------------------------------------------------------------
 HIDDEN = np.array([0.40, 0.0, 0.30])
 LED_AT = np.array([TX - TLX / 2 - 0.0008, TY + 0.080, TOP + 0.030])
@@ -89,7 +93,6 @@ CRUST, CRUMB = (0.55, 0.32, 0.12), (0.86, 0.66, 0.36)
 WHITE, PORCELAIN, RIM = (0.93, 0.93, 0.92), (0.95, 0.95, 0.94), (0.84, 0.86, 0.90)
 RED = (0.95, 0.08, 0.06)
 
-HOME_WITHIN = 0.05
 SUCCESS_HOLD_S = 1.0
 
 
@@ -259,13 +262,11 @@ OBJECTS = [_toaster(), _carriage(), _toast(), _arm("tong_a", 1.0), _arm("tong_b"
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"plugged": True, "unsafe": False, "fork": False, "led": True, "tcps": None, "s": {}}
+    return {"plugged": True, "into": False, "led": True, "tcps": None, "s": {}}
 
 
 _EP = _fresh()
 _DEBUG = {"on": bool(os.environ.get("TOAST_DEBUG")), "steps": 0}
-ZONE = (SLOT_X[0] - SLOT_W / 2 - 0.020, SLOT_X[1] + SLOT_W / 2 + 0.020, TY - SLOT_L / 2 - 0.020, TY + SLOT_L / 2 + 0.020,
-        TT + 0.050)
 
 
 @on_reset
@@ -275,14 +276,21 @@ def _new_episode() -> None:
     _DEBUG["steps"] = 0
 
 
-def _tcps(base, origin) -> list[np.ndarray]:
-    out = []
+def _grippers(base, origin) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    """Each gripper's TCP, and the points checked for reaching into the toaster: the TCP and both fingertips."""
+    tcps, pts = [], []
     for arm in ("left_robot", "right_robot"):
         robot = base.scene[arm]
         i = next(j for j, n in enumerate(robot.body_names) if n == "gripper" or n.endswith("/gripper"))
         g = as_numpy(robot.data.body_link_pose_w)[0][i]
-        out.append(g[:3] - origin + rotation(g[3:7]) @ np.array(TCP_OFFSET))
-    return out
+        r = rotation(g[3:7])
+        tcp = g[:3] - origin + r @ np.array(TCP_OFFSET)
+        names = list(robot.joint_names)
+        half = abs(float(as_numpy(robot.data.joint_pos)[0][names.index("joint7")])) if "joint7" in names else 0.047
+        tip = tcp + r[:, 2] * TIP_REACH  # the fingers close along the gripper's x axis
+        tcps.append(tcp)
+        pts += [tcp, tip + r[:, 0] * half, tip - r[:, 0] * half]
+    return tcps, pts
 
 
 def _pose(base, origin, name):
@@ -299,8 +307,11 @@ def _place(base, origin, name, at) -> None:
                                               device=asset.device))
 
 
-def _in_zone(p) -> bool:
-    return ZONE[0] <= p[0] <= ZONE[1] and ZONE[2] <= p[1] <= ZONE[3] and p[2] <= ZONE[4]
+def in_slot(p) -> bool:
+    """p is inside a slot: within SLOT_MARGIN of either slot's opening and no higher than SLOT_ABOVE over the top."""
+    if p[2] > TT + SLOT_ABOVE or abs(p[1] - TY) > SLOT_L / 2 + SLOT_MARGIN:
+        return False
+    return any(abs(p[0] - xs) <= SLOT_W / 2 + SLOT_MARGIN for xs in SLOT_X)
 
 
 def tong_opening(ra, rb) -> float:
@@ -318,19 +329,19 @@ def _follow(env) -> None:
     pt, rt = _pose(base, origin, "toast")
     pp, _ = _pose(base, origin, "plug")
     pc, _ = _pose(base, origin, "carriage")
-    pf, _ = _pose(base, origin, "fork")
+    pf, rf = _pose(base, origin, "fork")
     pads = [pa + ra @ np.array([PAD_IN + 0.004, TONG_L - PAD_L / 2, 0.0]),
             pb + rb @ np.array([-PAD_IN - 0.004, TONG_L - PAD_L / 2, 0.0])]
-    _EP["tcps"] = _tcps(base, origin)
+    _EP["tcps"], grip_pts = _grippers(base, origin)
+    fork_pts = [pf + rf @ np.array([0.0, y, 0.0025]) for y in FORK_PTS]
+    if any(in_slot(p) for p in grip_pts + fork_pts):
+        _EP["into"] = True  # a gripper or the steel fork went into the toaster: latched
+    # the plug (not scored: only the power light follows it)
     off = math.hypot(pp[0] - SOCKET[0], pp[1] - SOCKET[1])
     if _EP["plugged"] and (off > UNPLUG_OFF or pp[2] > TOP + STRIP_H + UNPLUG_UP):
         _EP["plugged"] = False
     elif not _EP["plugged"] and off <= 0.010 and pp[2] <= TOP + STRIP_H + 0.004:
         _EP["plugged"] = True  # pushed back in
-    if _EP["plugged"] and any(_in_zone(p) for p in pads + _EP["tcps"]):
-        _EP["unsafe"] = True  # reached into the toaster while it was plugged in: latched
-    if math.hypot(pf[0] - FORK[0], pf[1] - FORK[1]) > FORK_MOVED or pf[2] > TOP + FORK_MOVED:
-        _EP["fork"] = True  # the steel fork was used (moved): latched
     if _EP["led"] != _EP["plugged"]:
         _place(base, origin, "power_light", LED_AT if _EP["plugged"] else HIDDEN)
         _EP["led"] = _EP["plugged"]
@@ -348,8 +359,10 @@ def _follow(env) -> None:
         if _DEBUG["steps"] % 5 == 0:
             tl, tr = _EP["tcps"]
             mm = lambda v: np.round((np.asarray(v) - [0, 0, TOP]) * 1000).astype(int).tolist()  # noqa: E731
-            print(f"[toast] t={_DEBUG['steps'] / 20:5.1f}s plugged={_EP['plugged']} unsafe={_EP['unsafe']}"
-                  f" fork={_EP['fork']} lift={lifted * 1000:.0f} open={tong_opening(ra, rb):5.1f}"
+            gp = [round((min(p[2] for p in grip_pts[3 * k:3 * k + 3]) - TT) * 1000) for k in range(2)]
+            print(f"[toast] t={_DEBUG['steps'] / 20:5.1f}s plugged={_EP['plugged']} into={_EP['into']}"
+                  f" grip_low_over_top={gp} fork_low={round((min(p[2] for p in fork_pts) - TOP) * 1000)}"
+                  f" lift={lifted * 1000:.0f} open={tong_opening(ra, rb):5.1f}"
                   f" bend={math.degrees(math.acos(max(-1, min(1, float(ra[:, 2] @ rb[:, 2]))))):4.1f}"
                   f" toast={mm(mid)} tilt={math.degrees(math.acos(max(-1, min(1, rt[2, 2])))):.0f}"
                   f" padA={mm(pads[0])} padB={mm(pads[1])} hingeA={mm(pa)} plug={mm(pp)} s={_EP['s']}"
@@ -359,37 +372,20 @@ def _follow(env) -> None:
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def score(objects) -> float:
-    """0.0 once anything reached into the toaster while it was plugged in, or once the steel fork was moved. Otherwise,
-    at the end: 1.0 with the toaster unplugged, the toast on the plate, the lever back down, the tongs lying on the
-    worktop and both arms back where they started; 0.5 with the toaster unplugged and the toast on the plate; 0.25
-    with the toaster unplugged and the toast out of the toaster; else 0.0."""
-    if _EP["unsafe"] or _EP["fork"]:
+    """Outcomes only; whether the toaster is plugged in plays no part. 0.0 once a gripper or the steel fork has gone
+    into the toaster (latched for the rest of the trial). Otherwise, at the end: 1.0 with the toast on the plate, the
+    toaster's lever back down and the tongs lying on the worktop; 0.5 with the toast on the plate; 0.25 with the toast
+    out of the toaster; else 0.0."""
+    if _EP["into"]:
         return 0.0
     s = _EP["s"]
-    if _EP["plugged"] or not s.get("out"):
+    if not s.get("out"):
         return 0.0
     if not s.get("on_plate"):
         return 0.25
-    if s.get("lever_down") and s.get("tongs_down") and _arms_home():
+    if s.get("lever_down") and s.get("tongs_down"):
         return 1.0
     return 0.5
-
-
-_HOME: dict = {}
-
-
-def _arms_home() -> bool:
-    """Both arms back where they started (each TCP within HOME_WITHIN of its start)."""
-    from yam_arena import ik, station
-    from yam_arena.constants import READY
-
-    tcps = _EP.get("tcps")
-    if tcps is None:
-        return False
-    if "tcps" not in _HOME:
-        _HOME["tcps"] = [np.asarray(ik.tcp_pose(np.array(READY, float), station.BASES[a])[0], float)
-                         for a in ("left", "right")]
-    return all(float(np.linalg.norm(t - h)) < HOME_WITHIN for t, h in zip(tcps, _HOME["tcps"]))
 
 
 def success(objects) -> bool:
@@ -399,16 +395,14 @@ def success(objects) -> bool:
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
-# The left hand pulls the plug straight up out of the power strip and sets it down beside it (the power light goes
-# out), then takes the lever's knob and lifts it into the extra-lift position, holding it there. Meanwhile the right
-# takes the tongs from the worktop, squeezing them a little, and waits beside the toaster. Once the lever is up, the
-# right slides the open tongs along the slot round the toast's top, squeezes them shut on it, lifts it out, carries it
-# over the plate and lets it drop there by opening the tongs. The left lowers the lever and goes home; the right lays
-# the tongs back down where they were and goes home.
+# The toaster stays plugged in. The left hand takes the lever's knob and lifts it into the extra-lift position, holding
+# it there. Meanwhile the right takes the tongs from the worktop, squeezing them a little, and waits beside the
+# toaster. Once the lever is up, the right slides the open tongs along the slot round the toast's top, squeezes them
+# shut on it, lifts it out, carries it over the plate and lets it drop there by opening the tongs. The left lowers the
+# lever and goes home; the right lays the tongs back down where they were and goes home.
 
 LEAD_S, LEAD_STEPS = 3.0, 15
 OVER = 0.060
-PLUG_FINGER = -0.018
 KNOB_FINGER = -0.016
 TONG_PRE = -0.030  # fingers open round the open tongs (4.8 cm across at the grip)
 TONG_OPEN = -0.019  # relaxed: the tongs held open about 8 degrees (pads about 3.2 cm apart)
@@ -484,24 +478,13 @@ def demo():
 
     L, R = [], []
     up = np.array([0.0, 0.0, OVER])
-    g0 = grip_rotation(0.0)
     gl = grip_rotation(-math.pi / 2)  # the left: fingers closing along x, across the lever's knob
     gr = grip_rotation(math.pi / 2)  # the right: fingers closing along x, across both arms of the tongs
 
-    # the left pulls the plug out of the power strip and sets it down beside it
-    plug = np.array([SOCKET[0], SOCKET[1], TOP + STRIP_H + PLUG_Z - GRIP_DZ - 0.006])
-    L += _joint_path("left", np.array(READY, float), _good_ik("left", plug + up, g0), "over the toaster's plug", PLUG_FINGER)
-    L.append(_w(1.0, plug, PLUG_FINGER, "down round the plug", g0))
-    L.append(_w(0.5, plug, FINGER_CLOSED, "take the plug", g0))
-    L.append(_w(0.9, plug + [0.0, 0.0, 0.050], FINGER_CLOSED, "pull it straight up out of the socket", g0))
-    down = np.array([SOCKET[0], SOCKET[1] - 0.075, TOP + PLUG_Z - GRIP_DZ - 0.006 + 0.002])
-    L.append(_w(1.2, down + [0.0, 0.0, 0.050], FINGER_CLOSED, "move it aside", g0))
-    L.append(_w(0.8, down, FINGER_CLOSED, "set it down on the worktop", g0))
-    L.append(_w(0.4, down, PLUG_FINGER, "let go of the plug", g0))
-    L.append(_w(0.6, down + up, PLUG_FINGER, "rise clear of the plug", g0))
-    # then takes the lever's knob and lifts it into the extra-lift position
+    # the left takes the lever's knob and lifts it into the extra-lift position (the toaster stays plugged in)
     knob = np.array([TX, KNOB_Y, KNOB_REST + 0.004])
-    L.append(_w(1.8, knob + up, KNOB_FINGER, "over the toaster's lever", gl))
+    L += _joint_path("left", np.array(READY, float), _good_ik("left", knob + up, gl), "over the toaster's lever",
+                     KNOB_FINGER)
     L.append(_w(1.0, knob, KNOB_FINGER, "down round the lever's knob", gl))
     L.append(_w(0.5, knob, FINGER_CLOSED, "take the lever's knob", gl))
     lifted = knob + [0.0, 0.0, LIFT + LEVER_AIM]
@@ -559,5 +542,5 @@ def demo():
     for plan in (L, R):
         last = plan[-1]
         plan.append(_w(t_end - sum(w.duration for w in plan), last.pos, last.finger,
-                       "hold still: the trial ends once the full score has held 1 s with both arms home", last.yaw))
+                       "hold still: the trial ends once the full score has held 1 s", last.yaw))
     return {"left": L, "right": R}
