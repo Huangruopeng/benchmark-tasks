@@ -7,7 +7,10 @@ the gun, along the table's left edge, is the white rim of a bath against a tiled
 the tiles is not sealed yet. In front of the gun, on a cardboard tray, lies a new 310 ml cartridge of grey sanitary
 silicone, its nozzle already cut.
 
-Task: load the caulking gun, seal the joint between the bath and the tiles, and put the gun down.
+Task: seal the joint between the bath and the tiles with an unbroken bead of the silicone, without smearing silicone
+anywhere else, and leave the gun lying on the table. (The gun starts empty, so it has to be loaded, but only the
+outcome is scored: how much of the joint the bead seals, how much silicone ended up anywhere else, and where the gun is
+left.)
 
 How the gun works here (the mechanism of a real smooth-rod gun):
 - The trigger is a hinged lever with a return spring. Squeezed toward the grip, its short upper arm pushes the gripping
@@ -21,8 +24,8 @@ How the gun works here (the mechanism of a real smooth-rod gun):
 - The rod's push plate pushes the cartridge's piston. The silicone resists the piston with 150 N (its flow pressure):
   far more than a push on the rod's hook can give, easily given through the trigger's leverage.
 - Flow approximation: the sealant pushed out (the piston's advance times the bore's area) leaves the nozzle's tip a
-  quarter second later and is laid along the tip's path; it counts where the bead it makes lies in the joint, touching
-  both the rim and the tiles.
+  quarter second later and is laid along the tip's path; it seals the joint where the bead it makes touches both the
+  rim and the tiles, and it is a mess where it was laid more than 1 cm from the corner.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=load_a_caulking_gun_and_seal_the_bath_joint.py \\
            --instruction "..." --scorer task_score ...
@@ -121,10 +124,12 @@ TOUCH = 0.002  # the bead touches a surface if the tip is within its radius plus
 SEG_LEN, SEG_STEPS, SEG_V = 0.005, 6, 0.4e-6  # a segment is laid every 5 mm of tip travel, 0.3 s, or 0.4 ml
 FIL_R, FIL_L, N_FIL = 0.0065, 0.010, 64  # the laid bead in the corner: rounds sunk to show its section
 N_BLOB, BLOB_R = 12, 0.004  # sealant laid anywhere else
-COVER_FULL, GAP_FULL, COVER_HALF = 0.95, 2, 0.50  # full: 95% covered, no gap over 2 mm; half: 50% covered
+COVER_FULL, GAP_FULL = 0.95, 2  # sealed: 95% of the joint covered, no unsealed stretch over 2 mm
+COVER_HALF, COVER_QUARTER = 0.50, 0.25  # partial credit: half, a quarter of the joint sealed
+NEAR = 0.010  # laid with the tip within 1 cm of both the tiles and the rim's top: in the corner, not a mess
+MESS_MAX = 0.1e-6  # m^3: at most 0.1 ml (0.1 g) of silicone laid anywhere else
 HIDE = (0.300, 0.410, TOP + 0.050)  # inside the rim, where the unlaid bead waits
-# -- put down -------------------------------------------------------------------------------------------------------------
-CLEAR = 0.06  # each gripper's TCP at least this far from the gun's frame, trigger and rod
+# -- left lying on the table ---------------------------------------------------------------------------------------------
 DOWN_Z, DOWN_TILT = 0.020, 25.0  # the grip's foot within 2 cm of the table, the gun tilted at most 25 degrees
 
 RED, RED_DARK, ZINC, STEEL, RUBBER = (0.72, 0.10, 0.08), (0.50, 0.07, 0.06), (0.80, 0.82, 0.84), (0.62, 0.64, 0.67), \
@@ -382,7 +387,7 @@ def _sink_for(section: float) -> float:
 def _fresh() -> dict:
     return {"seal": 0.0, "lock": None, "free": False, "clutch": False, "stop": None, "pprev": 0.0, "adv_max": 0.0, "v_in": 0.0,
             "v_out": 0.0, "v_press": 0.0, "seg": None, "sec": np.zeros(N_BIN), "fil": 0, "blob": 0, "tcps": None,
-            "s": {}, "stray": 0.0, "laid": 0.0}
+            "s": {}, "stray": 0.0, "mess": 0.0, "laid": 0.0}
 
 
 _EP = _fresh()
@@ -443,6 +448,12 @@ def _corner(p, r: float) -> bool:
     return (BX0 <= p[0] <= BX1 and -0.002 <= WALL_Y - p[1] <= r + TOUCH and -0.002 <= p[2] - RIM_Z <= r + TOUCH)
 
 
+def _near(p) -> bool:
+    """Laid at p, sealant stays within 1 cm of the corner (on the tiles at most 1 cm above the rim, on the rim's top at
+    most 1 cm out from the tiles): too thin or too far off to seal there, but no mess."""
+    return BX0 <= p[0] <= BX1 and -0.002 <= WALL_Y - p[1] <= NEAR and -0.002 <= p[2] - RIM_Z <= NEAR
+
+
 def _lay(base, origin, p0, p1, vol) -> None:
     """Lay ``vol`` (m^3) of sealant along the tip's path p0 -> p1."""
     ln = float(np.linalg.norm(p1 - p0))
@@ -464,9 +475,12 @@ def _lay(base, origin, p0, p1, vol) -> None:
             _EP["fil"] += 1
             _place(base, origin, name, (x, WALL_Y + d, RIM_Z - d))
     else:
-        _EP["stray"] += vol
+        _EP["stray"] += vol  # not in the joint
+        mess = not (_near(p0) and _near(p1))
+        if mess:
+            _EP["mess"] += vol  # more than 1 cm from the corner: silicone where it should not be
         if _DEBUG["on"]:
-            print(f"[caulk-stray] v={vol * 1e6:.3f}ml r={r * 1000:.1f} p0=({p0[0] * 1000:.0f},{(WALL_Y - p0[1]) * 1000:.1f},"
+            print(f"[caulk-stray] mess={mess} v={vol * 1e6:.3f}ml r={r * 1000:.1f} p0=({p0[0] * 1000:.0f},{(WALL_Y - p0[1]) * 1000:.1f},"
                   f"{(p0[2] - RIM_Z) * 1000:.1f}) p1=({p1[0] * 1000:.0f},{(WALL_Y - p1[1]) * 1000:.1f},"
                   f"{(p1[2] - RIM_Z) * 1000:.1f})", file=sys.stderr, flush=True)
         name = f"blob{min(_EP['blob'], N_BLOB - 1)}"
@@ -484,10 +498,6 @@ def bead_stats() -> tuple[float, int]:
         run = 0 if v else run + 1
         gap = max(gap, run)
     return float(ok.mean()), int(gap)
-
-
-def _box_dist(p_local, lo, hi) -> float:
-    return float(np.linalg.norm(np.maximum(np.maximum(lo - p_local, p_local - hi), 0.0)))
 
 
 @on_step
@@ -562,23 +572,15 @@ def _follow(env) -> None:
               and along >= math.cos(math.radians(8.0)))
     piston_back = float((rg.T @ (pps - pg))[1]) - PISTON_T / 2
     loaded = seated and s >= piston_back - 0.002
-    # put down: the grip's foot on (or near) the table, upright enough, both grippers clear of the gun
+    # left lying on the table: the grip's foot on (or near) the table, the gun upright enough
     tilt = math.degrees(math.acos(max(-1.0, min(1.0, float(rg[2, 2])))))
     foot = pg + rg @ np.array([0.0, (HANDLE_Y[0] + HANDLE_Y[1]) / 2, FOOT_Z])
     tcps = _tcps(base, origin)
     _EP["tcps"] = tcps
-    lo_g, hi_g = OBJECTS_BY["gun"].local_bounds()
-    lo_t, hi_t = OBJECTS_BY["trigger"].local_bounds()
-    lo_r, hi_r = OBJECTS_BY["rod"].local_bounds()
-    clear = True
-    for t in tcps:
-        dg = _box_dist(rg.T @ (t - pg), lo_g, hi_g)
-        dtr = _box_dist(rtr.T @ (t - (pg + rg @ PIVOT_T)), lo_t, hi_t)
-        drd = _box_dist(rg.T @ (t - pr), lo_r, hi_r)
-        clear = clear and min(dg, dtr, drd) >= CLEAR
     down = float(foot[2]) - TOP <= DOWN_Z and tilt <= DOWN_TILT
     cov, gap = bead_stats()
-    _EP["s"] = {"seated": seated, "loaded": loaded, "down": down, "clear": clear, "cov": cov, "gap": gap}
+    # (seated and loaded are printed for debugging only: they are steps, not outcomes, and are not scored)
+    _EP["s"] = {"seated": seated, "loaded": loaded, "down": down, "cov": cov, "gap": gap, "mess": _EP["mess"]}
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 100 == 0:
@@ -601,13 +603,13 @@ def _follow(env) -> None:
             print(f"[caulk] t={_DEBUG['steps'] * dt:5.1f}s lever={lever:5.1f} free={free} trig={trig:6.1f}"
                   f" toff={np.linalg.norm(ptr_g - PIVOT_T) * 1000:4.2f} plate={plate * 1000:5.2f} clutch={_EP['clutch']} stop={(_EP['stop'] or 0) * 1000:6.2f} rp={(rel - plate) * 1000:6.2f} s={s * 1000:6.1f} lock={((_EP['lock'] or 0) + _S_START) * 1000:6.1f}"
                   f" adv={adv * 1000:6.2f} vin={_EP['v_in'] * 1e6:5.2f}ml vout={_EP['v_out'] * 1e6:5.2f}ml"
-                  f" laid={_EP['laid'] * 1e6:5.2f} stray={_EP['stray'] * 1e6:5.2f}"
+                  f" laid={_EP['laid'] * 1e6:5.2f} stray={_EP['stray'] * 1e6:5.2f} mess={_EP['mess'] * 1e6:5.3f}"
                   f" tube=({v[0] * 1000:.0f},{v[1] * 1000:.0f},{v[2] * 1000:.0f}) seated={seated} loaded={loaded}"
                   f" tip_c=({(tip[0]) * 1000:.0f},{(WALL_Y - tip[1]) * 1000:.1f},{(tip[2] - RIM_Z) * 1000:.1f})"
                   f" cov={cov:.2f} gap={gap} fil={_EP['fil']} blob={_EP['blob']}"
                   f" gun={np.round((pg - [0, 0, TOP]) * 1000).astype(int).tolist()} tilt={tilt:4.1f}"
                   f" pry=({math.degrees(math.asin(max(-1, min(1, rg[2, 1])))):.1f},{math.degrees(math.atan2(-rg[2, 0], rg[2, 2])):.1f},{math.degrees(math.atan2(rg[1, 0], rg[0, 0])):.1f})"
-                  f" foot={(foot[2] - TOP) * 1000:.0f} down={down} clear={clear}"
+                  f" foot={(foot[2] - TOP) * 1000:.0f} down={down}"
                   f" L={np.round((tl - [0, 0, TOP]) * 1000).astype(int).tolist()}"
                   f" R={np.round((trc - [0, 0, TOP]) * 1000).astype(int).tolist()} fing=({fl:.4f},{fr:.4f})"
                   f" Rg={np.round(rg.T @ (trc - pg) * 1000).astype(int).tolist()} score={score(None)}",
@@ -620,19 +622,20 @@ OBJECTS_BY = {o.name: o for o in OBJECTS}
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def score(objects) -> float:
-    """At the end. Sealed: at least 95% of the joint's 192 mm carries a bead at least 4 mm across (12.6 mm^2 of
-    sealant per mm) touching both the rim and the tiles, with no unsealed stretch longer than 2 mm (the joint's ends
-    included); only sealant the gun dispensed counts. 1.0: sealed, and the gun put down (its grip's foot within 2 cm of
-    the table, tilted at most 25 degrees) with both grippers clear of it (each TCP at least 6 cm from its frame,
-    trigger and rod); 0.75: sealed; 0.5: at least half of the joint sealed; 0.25: the gun loaded (the cartridge seated
-    in its cradle nozzle first, the push plate against its piston); else 0.0."""
+    """Outcomes at the end only. A 1 mm length of the joint's 192 mm is sealed when it carries a bead at least 4 mm
+    across (12.6 mm^2 of sealant per mm) touching both the rim and the tiles; only sealant the gun dispensed counts.
+    Sealed: at least 95% of the joint, with no unsealed stretch longer than 2 mm (the joint's ends included). Clean: at
+    most 0.1 ml of silicone laid more than 1 cm from the corner. Lying on the table: the grip's foot within 2 cm of the
+    table, the gun tilted at most 25 degrees. 1.0: sealed, clean and the gun lying on the table; 0.75: sealed and clean;
+    0.5: at least half of the joint sealed; 0.25: at least a quarter of it sealed; else 0.0. How the gun was loaded or
+    the trigger worked, the order of things and where the hands are play no part."""
     s = _EP["s"]
     cov, gap = s.get("cov", 0.0), s.get("gap", N_BIN)
-    if cov >= COVER_FULL and gap <= GAP_FULL:
-        return 1.0 if (s.get("down") and s.get("clear")) else 0.75
+    if cov >= COVER_FULL and gap <= GAP_FULL and s.get("mess", 0.0) <= MESS_MAX:
+        return 1.0 if s.get("down") else 0.75
     if cov >= COVER_HALF:
         return 0.5
-    if s.get("loaded"):
+    if cov >= COVER_QUARTER:
         return 0.25
     return 0.0
 
