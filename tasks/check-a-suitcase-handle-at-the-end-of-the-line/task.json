@@ -1,0 +1,25 @@
+{
+  "title": "Check a suitcase's pull handle locks at every height at the end of the line, and tag it if one gives",
+  "category": "Impact on jobs",
+  "keywords": [
+    "suitcase",
+    "luggage",
+    "telescopic handle",
+    "end-of-line inspection",
+    "quality control",
+    "lock test",
+    "reject tag",
+    "hidden defect",
+    "bimanual",
+    "Travelpro Platinum Elite"
+  ],
+  "instruction": "This suitcase is at the end-of-line handle check. Check that its pull handle locks at every height; if any height fails, hang a reject tag on the case. Leave the handle closed and both arms back where they started.",
+  "context": "Every finished wheeled case gets a handle check before packing. A luggage inspection guide says: each time a section is pulled out, check it is locked by pressing on it after the click; it should not retract, and a section that fails to lock is a critical defect. A worn lock pin is a known fault: the handle clicks at a height but slides back under load. Here the 55 cm hard-shell case lies flat on its front on a felt-covered bench, back panel up, top end toward the robot's right. The release button in the grip's end face frees the handle, so the push has to come from beside it, along the rails. That push (about 20 N) is more than the 10 N that slides the empty case on the felt, so one hand braces the case while the other works the handle. The unit is good, or worn at one of its four heights, depending on the seed; nothing shows which until the handle is tried. A worn unit gets a red reject tag from the stand at the front of the bench, hung on the case.",
+  "setup": "Millimetres from the midpoint between the arm bases: x forward, y to the robot's left, heights above the table top. Grey felt, 3 thick, covers x 50 to 570, y -630 to 630. A hard-shell cabin case (navy grooved polycarbonate, 55 x 40 x 20 cm overall with wheels and handle, 3.5 kg, empty) lies on its front, back panel up (204 up). Its body is 443 long (along y), 366 wide and 200 deep: top end at y -13, wheel end at y 430, with four double spinner casters reaching y 497; middle line x 310. The pull handle is closed: a black grip 190 long (x 215 to 405), 20 thick and 34 tall stands on two posts in a 12-deep recess in the top end, its end face 38 off the case (y -51), its middle 169 up. It has a 30-wide finger gap behind it. A grey release button 50 x 16 sits in the middle of that face: 4 proud, 4 travel, 5 N at rest and 8 N pressed. The aluminium rails, 160 apart, run inside along the back panel. With the button in, the handle slides out along -y; it locks closed and at 364, 415, 466 and 530 out (36, 38, 40 and 42.5 in from the floor, case standing). A black carry handle bar on the case's near side, 22 to 34 off it, spans y 153 to 265, 114 to 134 up. A steel stand at the front of the bench has a rod along y at x 72, 133 up, from y -135 to 70. On it hang three red rigid reject tags at y -98, -30 and 38: 64 x 80 cards facing the robot, 22 g, each with a moulded hook (33 wide inside) and a knob on top. Every collider and the mechanism are listed in README.md.",
+  "scoring": "Judged at the end of the run, except tipping, which counts at any time. Checked: on a good unit, the handle was locked (pins in, button out) at each of its four heights at some point. On a worn unit, the worn lock was made to give (its pin pushed out of its hole) at some point. Verdict right: a good unit has no tag on it; a worn one has a tag hanging by its hook from the case (its side carry handle or its closed grip), off the bench, with no gripper within 6 cm. 0.0 for a wrong verdict, an unchecked verdict, or a case tipped over 30 degrees. 1.0 (success after 1 s still): checked, verdict right, handle closed and locked (within 3 mm), case within 50 mm and 10 degrees of where it lay, and both arms back (each TCP within 5 cm of its start). 0.5: checked and verdict right, but any of the last three not met. In a real trial: push each height by hand, look for the tag, check the handle is locked in, and measure the case's position.",
+  "run_limit": "2,400 steps (2 minutes at 20 Hz)",
+  "reset_notes": "Press the button and push the handle in until it clicks closed. Take any tag off the case and hang it back on the stand's rod. Lay the case back on its front at the marked place, top end toward the robot's right. The worn lock is a property of the unit: a real trial uses a unit with a known worn hole, or a good one.",
+  "fidelity": "Rigid bodies, PhysX 240 Hz. Shell: a grooved mesh over box colliders. Handle: one slide plus a follower for the middle tubes, and a sprung button. Pins are not bodies: the task file stops the slide at a hole once the button is up. The worn hole is a spring capped at 14 N. Estimates: felt friction 0.30, bushings 25 N s/m, button 5-8 N, stop heights read to the grip top. Tags are rigid PVC with moulded hooks.",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-QQ83W2"
+}
