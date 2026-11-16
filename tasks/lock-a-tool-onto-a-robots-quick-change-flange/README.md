@@ -2,21 +2,23 @@
 
 A robot arm, switched off for a tool change, reaches its wrist in low over the table, its tool flange facing the right
 arm. It has just parked its gripper tool in the aluminium tool rack beside it; in the rack's other slot waits a blue
-suction-cup tool. One hand takes the suction tool by its handle and holds its plate against the flange, its three lugs
-between the three claws of the flange's locking ring; the other presses the ring's lever down, turning the ring until
-its claws have drawn the plate onto the flange and locked it, and the light on the wrist turns from red to green. Then
-both hands let go, the tool hanging on the robot, and both arms go back to where they started. The task is one task
-file, [`lock_a_tool_onto_a_robots_quick_change_flange.py`](lock_a_tool_onto_a_robots_quick_change_flange.py), for the
+suction-cup tool. One hand takes the suction tool by its handle and holds its plate on the flange's two locating
+dowels, its three lugs between the three claws of the flange's locking ring; the other presses the ring's lever down,
+turning the ring until its claws have taken the plate, drawn it onto the flange and locked it, and the light on the
+wrist turns from red to green. Then both hands let go, the tool hanging on the robot, and both arms go back to where
+they started. The task is one task file,
+[`lock_a_tool_onto_a_robots_quick_change_flange.py`](lock_a_tool_onto_a_robots_quick_change_flange.py), for the
 `yam_arena` embodiment (scene, scoring and the scripted demo), plus [`bodykit.py`](bodykit.py), which it imports from
 the same folder.
 
 What it tests: holding a part in place against gravity with one hand while the other works a lock; picking the right
 tool; finishing with both hands free.
 
-Why two hands: nothing holds the tool up on the flange until it is locked, and the ring takes only a tool that is
-already on the flange while the ring is still open. With one hand (the right taking the tool and holding it on the
-flange as in the demo, the left never moving) the demo scored 0.25: the tool sat on the flange with the ring
-open, and fell to the table as soon as the hand let go.
+Why two hands: nothing holds the tool on the dowels' tips until the ring has taken it, and the ring takes only a tool
+that is already seated on the dowels while the ring is still open. With one hand (the right taking the tool and holding
+it on the dowels' tips as in the demo, the left never moving) the demo scored 0.25: the tool sat seated with the ring
+open for 6 s, and fell 54 mm as soon as the hand let go. (A real plate could also be pushed fully onto its dowels, where
+it would hang; see "Simulation approximation".)
 
 ## How it is modelled
 
@@ -31,16 +33,18 @@ Every changer size below is a constant in the task file.
   more than 2 degrees past its hold has given, and the task file moves the hold there. So the ring gives at 0.12 N m
   and stays where it is left, standing in for the wave washer's friction.
 - The claws, lugs, dowels, bushings, screw counterbores, retaining disc and marks are drawn at their build sizes, but
-  they collide with nothing: the tools pass through the ring.
-- The lock: after every control step the task file checks each tool against the flange. It is seated when each dowel
-  is within 1.5 mm of its bushing's axis where the dowel's axis meets the plate's face (the diamond pin across its
-  lands only), the plate's face is within 5.25 mm of the flange's face at its middle, its axis is within 1.95 degrees
-  of the flange's, and it is turned within 3.9 degrees of handle-up. That is the range the bushings' lead-ins capture
-  (see "What the dowels capture" below). A tool seated while the ring is within 8 degrees of open is locked on once
-  the ring has turned 25 degrees: a fixed joint (a `Glue` from `bodykit.py`, to a hidden fixed body under the table)
-  switches on and holds the tool square on the flange, and the green light is moved over the red one. Turned back
-  below 25 degrees, the tool no longer counts as locked and the light goes red. The joint switches off once the ring
-  is back within 8 degrees of open, where the lugs line up with the gaps between the claws.
+  they collide with nothing: the tools pass through the ring. The tool plates have no bores, so in place of the dowels'
+  tips two collision-only stops (`dowel_stops`), 6 mm across and 5.6 mm out of the face where the dowels stand (inside
+  the drawn dowels), stop a plate pushed onto the dowels with their tips 0.4 mm into its bushings' chamfers. They are
+  moved away while the ring holds a tool, and come back once no tool is where they stand.
+- The lock: after every control step the task file checks each tool against the flange (`_seat_check`). It is seated
+  when both dowels fit in its bushings at their full size, in a pose the real parts allow, every lug front is within
+  the lips' reach and, to go on, its lugs are between the lips (see "What the dowels capture" below). A tool seated
+  while the ring is within 8 degrees of open is taken as the ring passes 8 degrees, where the lips come over the lugs:
+  a fixed joint (a `Glue` from `bodykit.py`, to a hidden fixed body under the table) switches on and holds the tool
+  drawn home onto the face, centred and square. From 25 degrees it counts as locked, and the green light is moved over
+  the red one. Turned back below 25 degrees, the tool no longer counts as locked and the light goes red. The joint
+  switches off once the ring is back within 8 degrees of open, where the lugs line up with the gaps between the claws.
 
 Importing `bodykit.py` hooks `yam_arena.scene` when the simulator starts, without changing yam_arena, gives `score()`
 each body's own pose, and lets the task file act on the simulation after every control step.
@@ -110,31 +114,119 @@ Conventions:
 
 ### What the dowels capture
 
-This is the simulation's seating window, the same for both tools. A plate counts as seated, and the ring can take it,
-only where the real dowels would catch it: both dowels inside their bushings' lead-in chamfers (1.5 x 45 degrees,
-1.5 mm wide and 1.5 mm deep). Two things would add margin and are not counted: the bores' running clearance (0.004 to
-0.017 mm a side) and the dowels' own ISO 8734 lead-in (about 1.2 mm).
+This is the simulation's seating rule, the same for both tools (`_seat_check` and `_dowel_fit` in the task file). It
+accepts a plate pose only where the full-size dowels physically fit in the bushings, so the offset and tilt it allows
+shrink as the dowels go in.
 
-| Limit | Value | Where it comes from |
-|---|---|---|
-| Each dowel's offset from its bushing's axis, where the dowel's axis meets the plate's face | 1.5 mm | The chamfer's width. A dowel whose edge (3 mm from its axis) lands inside the chamfer's 9 mm mouth (4.5 mm from the bore's axis) is pushed to the middle as the plate goes on: 4.5 - 3.0 = 1.5 mm. The round dowel is checked in every direction, the diamond pin only across its lands (sideways): its relieved sides leave the other direction free |
-| Turn from handle-up | 3.9 degrees | A turn moves each bushing 22 mm x sin(turn) sideways, so asin(1.5 / 22) = 3.91 degrees uses the whole 1.5 mm. A plate both turned and off-centre sideways must keep its sideways offset plus 22 mm x sin(turn) within 1.5 mm, since one of the two dowels sees the sum |
-| Tilt of the plate's axis | 1.95 degrees | The bushings are 44 mm apart. Tilted, one is 44 mm x sin(tilt) nearer the face than the other, and pushed on, it meets its dowel first. Both dowel tips are inside their 1.5 mm deep chamfers at once only while that difference is at most 1.5 mm: asin(1.5 / 44) = 1.95 degrees. Tilted more, the nearer dowel enters its bore proper, where the 0.008 to 0.034 mm clearance lets the plate tilt hardly at all, before the farther one is caught, and binds |
-| Gap from the plate's face to the flange's face, at its middle | 5.25 mm | The dowels stand 6 mm out of the face. Tilted 1.95 degrees, the farther bushing (22 mm out) is 22 x sin(1.95 degrees) = 0.75 mm farther out than the middle: 6 - 0.75 = 5.25 mm, where both dowel tips have reached their chamfers |
+For each dowel:
 
-With the plate square and not turned, the first limit puts its middle within 1.5 mm of the axis.
+- **d** is how far its tip (its deepest edge) has gone past the plate's face. For a square plate, the gap at the
+  plate's middle is 6 mm - d.
+- **e** is how far its axis is off the bushing's axis where it crosses the plate's face.
+- **t** is its tilt against the bushing's axis (the plate's tilt).
 
-The rest of the changer agrees with this window:
+At depth d the dowel's widest point reaches e + d tan t + 3 mm / cos t from the bushing's axis. The hole there has a
+radius of 3 mm + 0.004 mm + (1.5 mm - d) in the 45 degree chamfer (d up to 1.5 mm), and 3 mm + 0.004 mm in the bore
+beyond it. So the dowel is clear of its bushing while
 
-- **Claws:** at the window's edge, the farthest lug corner (36 mm out) stands at most 5.25 + 36 x sin(1.95 degrees) +
-  3.0 = 9.5 mm in front of the face. The lips' lead-in ramps start at 9.0 mm, and their 1 x 45 degree chamfer reaches
-  10.0 mm, so they catch every lug.
-- **The lips' funnel:** the plate's rim (30 mm out) clears the lips' inner edge (32 mm) at any offset under 2 mm. The
-  funnel in front (4 x 45 degrees, from 72 down to 64 mm across) is only a guard: it brings a plate up to 6 mm off down
-  to 2 mm. Counting their own 1.2 mm lead-ins, the dowels of a real changer catch about 1.5 + 1.2 = 2.7 mm, more than
-  the funnel leaves; the window counts only the 1.5 mm.
-- **Lugs:** the 40-degree gaps between the lips leave 8 degrees either side of a 24-degree lug. Inside the window a lug
-  moves round at most 3.9 degrees from the turn plus 2.9 degrees from a 1.5 mm offset 30 mm out: 6.8 degrees.
+> e + d tan t + 3 mm x (1/cos t - 1) <= 0.004 mm + max(0, 1.5 mm - d)
+
+- **In the chamfer** the axis may be off by up to 1.5 - d mm (+ 0.004 mm): 1.104 mm at d = 0.4 mm, 0.504 mm at
+  d = 1.0 mm.
+- **In the bore** it may be off by only 0.004 mm, and the tilt is then held to about atan(0.004 mm / d): 0.05 degrees at
+  d = 5 mm. So the plate must have been centred by the chamfers before the gap closes.
+- **Every build:** 0.004 mm is the fit's smallest radial clearance. A 6 mm E8 bore on an m6 dowel gives 0.008 to
+  0.034 mm on the diameter, so 0.004 to 0.017 mm on the radius. Both dowels are checked in every direction as full
+  6 mm pins (the diamond pin's relief only adds room), and the dowels' own ISO 8734 end chamfers are left out. So every
+  accepted pose fits every build within tolerance.
+
+Seated also needs:
+
+- both tips past the plate's face (d > 0 for both dowels);
+- the plate's face nowhere past the flange's: its gap at the middle minus 36 mm x sin t is at least 0;
+- every lug front within the lips' reach: gap + 3.0 mm + 36 mm x sin t is at most 10.0 mm. The lead-in ramps start at
+  9.0 mm, and their 1 mm chamfer reaches 10.0 mm;
+- to go on, its lugs between the lips: the plate's turn against the ring's, plus asin(offset / 30 mm), is within the
+  8 degrees the gaps leave.
+
+**The largest offset accepted for a square, unturned plate.** Each row is printed from the task file and checked
+against a brute-force test. The test samples the dowel's surface every 1 degree and 0.1 mm, and measures each point
+against the bushing's chamfer and bore at the tightest fit. At zero tilt the rule is exact: the clearance at the limit
+is 0, and 0.01 mm more intersects.
+
+| Gap at the middle (mm) | d (mm) | Largest offset e (mm) | Clearance at that offset (µm) | Clearance 0.01 mm further (µm) |
+|---|---|---|---|---|
+| 6.00 | 0 | none: the tips have not reached the plate | | |
+| 5.90 | 0.10 | 1.404 | 0 | -10 |
+| 5.75 | 0.25 | 1.254 | 0 | -10 |
+| 5.60 | 0.40 | 1.104 | 0 | -10 |
+| 5.50 | 0.50 | 1.004 | 0 | -10 |
+| 5.25 | 0.75 | 0.754 | 0 | -10 |
+| 5.00 | 1.00 | 0.504 | 0 | -10 |
+| 4.75 | 1.25 | 0.254 | 0 | -10 |
+| 4.60 | 1.40 | 0.104 | 0 | -10 |
+| 4.50 | 1.50 | 0.004 | 0 | -10 |
+| 4.00 | 2.00 | 0.004 | 0 | -10 |
+| 1.00 | 5.00 | 0.004 | 0 | -10 |
+| 0.00 | 6.00 | 0.004 | 0 | -10 |
+
+**Tilted plates.** A sample of accepted poses. The plate is shifted sideways (x) by the offset. Tilt about x pitches
+it, so its two dowels go in to different depths; tilt about z leans both dowels sideways in their bushings. "Need" is
+the larger of the two dowels' left sides and "room" the smaller right side. The rule is conservative when tilted: the
+measured clearance exceeds room - need.
+
+| Gap (mm) | Offset (mm) | Tilt (degrees, about) | d top / bottom (mm) | Need / room (mm) | Clearance (µm) |
+|---|---|---|---|---|---|
+| 5.60 | 1.000 | 0.04 (x) | 0.39 / 0.42 | 1.0003 / 1.0865 | 88.6 |
+| 5.60 | 0.500 | 1.00 (x) | 0.07 / 0.84 | 0.5151 / 0.6678 | 217.9 |
+| 5.25 | 0.250 | 1.00 (x) | 0.42 / 1.19 | 0.2712 / 0.3178 | 117.2 |
+| 5.25 | 0 | 1.50 (x) | 0.25 / 1.40 | 0.0453 / 0.0998 | 128.0 |
+| 5.00 | 0.500 | 0.04 (z) | 1.00 / 1.00 | 0.5007 / 0.5023 | 5.8 |
+| 5.00 | 0 | 1.00 (x) | 0.67 / 1.44 | 0.0289 / 0.0678 | 89.1 |
+| 4.60 | 0.004 | 1.00 (z) | 1.45 / 1.45 | 0.0298 / 0.0519 | 80.8 |
+| 4.50 | 0 | 0.04 (x) | 1.49 / 1.52 | 0.0011 / 0.0040 | 3.0 |
+| 4.00 | 0 | 0.04 (x) | 1.99 / 2.02 | 0.0014 / 0.0040 | 2.6 |
+| 1.00 | 0 | 0.04 (x) | 4.99 / 5.02 | 0.0035 / 0.0040 | 0.5 |
+
+**The review's example.** A plate 1 mm from the face has its dowels 5 mm in (d = 5 mm), in the bore. Each dowel must
+then be within 0.004 mm of its bushing's axis:
+
+| Gap 1.00 mm: offset (mm), tilt (degrees) | Accepted | Need / room (mm) | Clearance (µm) |
+|---|---|---|---|
+| 1.000, 0 | no | 1.0000 / 0.0040 | -996 (intersects) |
+| 0.100, 0 | no | 0.1000 / 0.0040 | -96 |
+| 0.010, 0 | no | 0.0100 / 0.0040 | -6 |
+| 0.003, 0 | yes | 0.0030 / 0.0040 | 1 |
+| 0.003, 0.05 | no | 0.0074 / 0.0040 | -3.4 |
+
+**Over all poses.**
+
+- **Grid:** 20,520 poses (gap 0 to 6.25 mm, offset 0 to 1.6 mm along x or z, tilt 0 to 3 degrees about x or z, both
+  ways). The rule accepts 4,248, and none of them intersects in the brute-force test; the smallest clearance among
+  them is 0.08 µm. The 364 accepted poses with a dowel in the bore have offsets of at most 0.002 mm and tilts of at
+  most 0.1 degrees. 449 grid poses that would fit are rejected: the rule is conservative.
+- **Random:** 20,000 poses (gap 0 to 7 mm, offset up to 2 mm in any direction, tilted or turned up to 3 degrees about a
+  random axis, ring at 0 to 8 degrees). The rule accepts 2,762, and none intersects.
+
+**In the simulation**, the plate rests on the stops with the dowels' tips 0.4 mm into its chamfers, so each dowel may
+be up to 1.104 mm off. In the demo run, while the plate sat there with the ring open, d was 0.30 to 0.40 mm, e at most
+0.78 mm against at least 1.16 mm of room, and the tilt at most 0.17 degrees.
+
+The rest of the changer agrees with this rule:
+
+- **Claws:** a seated plate's lug fronts are within 10.0 mm of the face, where the lips' lead-in ramps (9.0 mm, 10.0 mm
+  with their chamfer) catch them. In the simulation the plate rests 5.63 mm out, its lug fronts at 8.63 mm. The ramp
+  falls 0.45 mm per degree (5.4 mm over 12 degrees), so it reaches them at 8.8 degrees.
+- **The lips' funnel:** the plate's rim (30 mm out) clears the lips' inner edge (32 mm) at any offset under 2 mm.
+  Seated offsets are at most 1.504 mm.
+- **Lugs:** the 40-degree gaps between the lips leave 8 degrees either side of a 24-degree lug. A plate shifted by an
+  offset e moves a lug 30 mm out round by asin(e / 30 mm): 2.9 degrees at 1.5 mm.
+
+**Taking the tool.** With a tool seated and the ring within 8 degrees of open, turning the ring past 8 degrees brings
+the lips' leading ends over the lugs, and the tool can no longer come off. On the real changer the lead-in ramps then
+draw it home along the dowels by 20 degrees, the chamfers centring it to the bore's clearance on the way, and the clamp
+ramps pull it tight by 25. The simulation does this at once at 8 degrees: the fixed joint holds the plate on the face,
+centred and square.
 
 ### Lever movement
 
@@ -170,11 +262,14 @@ face, the other a flag on the ring from 25 degrees. The trial is judged from the
 
 - **No contact:** the claws, lips, lugs and dowels are drawn at these sizes but do not touch anything. The lips are
   drawn without their chamfers, and with the lead-in ramp as two steps.
-- **Seating and lock:** seating is a pose check over the bushings' capture range above. Because the dowels do not
-  touch, a held plate inside that range keeps whatever offset and tilt it has (up to those limits) until the lock
-  pulls it square; a real plate is centred and squared by the dowels and the face as it goes on. The lock is a fixed
-  joint, switched on when the ring reaches 25 degrees with a tool seated. It holds the tool square until the ring is
-  back within 8 degrees of open; a real tool hangs there with some play once the ring is below 25 degrees.
+- **Dowel tips:** the tool plates have no bores, so two collision-only stops, 6 mm across and 5.6 mm out of the face,
+  stand in for the dowels' tips: a pushed plate rests on them with the tips 0.4 mm into its chamfers. A real plate
+  pushed on harder goes past the chamfers, which centre it, and then hangs on its dowels without a hand. In the
+  simulation it cannot be pushed past the tips.
+- **Seating and lock:** seating is the geometric check above. Because the drawn dowels do not centre it, a held plate
+  keeps whatever offset and tilt it has inside that check until the ring takes it. From 8 degrees a fixed joint holds
+  the tool drawn home, centred and square, with no play. A real tool is drawn home by the ramps between 8 and 20
+  degrees, and hangs with some play below 25 degrees.
 - **Ring friction:** the wave washer's friction is the moving-hold spring (it gives at 0.12 N m). The clamp ramps' extra
   torque, up to about 0.2 N m, is not modelled.
 
@@ -199,11 +294,14 @@ The scripted demo reaches full score:
 
 1. The right hand comes straight down on the suction tool's handle, fingers closing across it, and lifts it out of the
    rack.
-2. It carries the tool to the flange and holds its plate against the flange's face, between the claws. On the way it
-   turns the wrist 3.4 degrees about the vertical, against the twist the finger pads give a held tool, so the plate
-   meets the flange square, and it aims 4.5 mm higher, against the hold offset measured in debug runs.
+2. It carries the tool to the flange and holds its plate on the dowels' tips (on the stops), its lugs between the
+   claws. On the way it turns the wrist 3.4 degrees about the vertical, against the twist the finger pads give a held
+   tool, and pitches it back 0.6 degrees, against the pitch the tool's weight and the push at the handle give it, so
+   the plate meets the dowels square. It aims 4.5 mm higher, against the hold offset measured in debug runs, and 2.5 mm
+   past the tips, since the arm stops short of a pushed target.
 3. The left hand comes straight down on the lever's pad, fingers closed, and presses it down along its swing to 32
-   degrees. The claws draw the plate on and lock it, and the light turns green.
+   degrees. Past 8 degrees the claws take the plate and draw it home; from 25 degrees it is locked, and the light turns
+   green.
 4. The right lets go and draws back, and the left rises. The tool hangs on the robot, and both arms go back to where
    they started.
 
@@ -223,16 +321,17 @@ for log in ~/yam-eval/flange-dream/*.json; do inspect-robots video "$log"; done
 Set `FLANGE_DEBUG=1` to print what the score is built from twice a second:
 
 - how far the ring has turned;
-- how far the suction tool is from sitting on the flange (gap, offset and its two parts, each dowel's offset from its
-  bushing, tilt and its two parts, turn);
-- whether it is seated with the ring open, and whether it is held by the lock;
-- whether the gripper tool is held by the lock;
+- how far the suction tool is from sitting on the flange (gap, offset and its two parts, tilt and its two parts, turn)
+  and, for each dowel, d, e, need and room as in "What the dowels capture";
+- which seating checks pass, whether it is seated, seated with the ring open, or held by the ring, and whether the
+  stops are away;
+- whether the gripper tool is held by the ring;
 - whether both hands are clear;
 - where each TCP is from the tool's handle and the lever's pad.
 
 ## Runtime per trial
 
-On one RTX 5090: about 4 minutes for a Dream-1 trial of 1,200 steps (243 s on the clock, with Dream answering in 0.76 s on average), and about 1 minute for the scripted demo (394 steps, 19.7 s of simulated time, 73 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 4 minutes for a Dream-1 trial of 1,200 steps (235 s on the clock, with Dream answering in 0.71 s on average), and about 1 minute for the scripted demo (394 steps, 19.7 s of simulated time, 71 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
@@ -240,52 +339,71 @@ None needed: with `-E object_jitter=0` the layout is fixed, and the scripted dem
 
 ## Changes in this revision
 
-This is a revision of TK-UU8KFN. Its review said:
+This is a revision of TK-Z5S8AY. Its review said:
 
-> **Not accepted** (TK-UU8KFN).
+> **Not accepted** (TK-Z5S8AY).
 >
-> Clarity and reproducibility (not met): The claimed 6 mm lateral seating window exceeds what the specified 6 mm
-> dowels and 1.5 mm bore lead-ins can capture.
+> Clarity and reproducibility (not met): The seating predicate accepts a 1 mm dowel offset at a 1 mm face gap even
+> though the full-diameter dowel would intersect the bushing bore.
 >
-> What to change: The revision supplies the requested mechanism dimensions and retains the simulation fidelity note.
-> One point remains open: the stated 6 mm lateral seating range is not justified by the 6 mm dowels and 1.5 mm bore
-> lead-ins, so the simulated lock can engage from a pose the physical dowels cannot capture. Please set the seating
-> window to a physically achievable combination of lateral offset, tilt and face gap for the specified dowels and
-> bushings, update the description and fidelity note accordingly, and rerun the full-score demo.
+> What to change: The mechanism dimensions and fidelity note are retained, but the previous seating-window issue
+> remains open. For example, the current window permits a 1 mm dowel offset when the plate is 1 mm from the flange; the
+> 6 mm dowel then projects 5 mm into the plate, beyond the 1.5 mm lead-in and into the closely fitted bore. Couple the
+> permitted offset and tilt to insertion depth so every accepted pose is physically achievable, update the setup and
+> fidelity note, and rerun the full-score demo with the corrected predicate.
 
-The review before that (TK-TECUBS) asked for the dowel locations, the mating cam and lug dimensions and profiles, and
-how the ring is mounted, retained and stopped; that was done in the previous revision and is kept. The first review
-(TK-S6GB3S) asked for a buildable flange, tool plate and lock, with dimensions and mounting, and the simulation
-approximation kept in the fidelity note; that is kept too.
+The review before that (TK-UU8KFN) asked for a seating window physically achievable with the specified dowels and
+bushings; the previous revision tightened the window, and this one completes it by coupling it to depth. The review
+before that (TK-TECUBS) asked for the dowel locations, the cam and lug profiles, and how the ring is mounted, retained
+and stopped; that was done and is kept. The first review (TK-S6GB3S) asked for a buildable flange, tool plate and lock,
+with the simulation approximation kept in the fidelity note; that is kept too.
 
 What changed in response:
 
-- **Clarity and reproducibility (not met), the seating window:** it now follows from the dowels and bushings and is
-  exactly what the scorer checks (constants in the task file computed from the dowel and bushing sizes). The window
-  counts only the bushings' 1.5 x 45 degree lead-in chamfers, 1.5 mm wide and 1.5 mm deep. It leaves out the bores'
-  0.004 to 0.017 mm running clearance and the dowels' own ISO 8734 lead-in (about 1.2 mm).
-- **Lateral offset: 1.5 mm, was 6 mm.** Each dowel must be within 1.5 mm of its bushing's axis where it meets the
-  plate's face: its edge, 3 mm from its axis, inside the chamfer's 4.5 mm mouth radius. The round dowel is checked in
-  every direction, the diamond pin across its lands. So a square, unturned plate's middle is within 1.5 mm of the axis.
-  Being checked at each dowel, it includes the turn: a turn moves each bushing 22 mm x sin(turn) sideways.
-- **Tilt: 1.95 degrees, was 9.** The bushings are 44 mm apart. Both dowel tips are inside their 1.5 mm deep chamfers
-  at once only while the tilt puts one bushing at most 1.5 mm nearer the face than the other: asin(1.5 / 44) = 1.95
-  degrees.
-- **Face gap: 5.25 mm at the plate's middle, was 6 mm.** The dowels stand 6 mm out. Tilted 1.95 degrees, the farther
-  bushing is 22 x sin(1.95 degrees) = 0.75 mm farther out, so 6 - 0.75 = 5.25 mm keeps both tips in their chamfers.
-- **Turn: 3.9 degrees, was 8:** asin(1.5 / 22) = 3.91 degrees.
-- **Consistency checks:** at the window's edge the farthest lug stands at most 9.5 mm in front of the face, where the
-  claws' lead-in ramps (9.0 mm, 10.0 mm with their chamfer) catch it. The lugs stay inside the 8 degrees they have in
-  the claws' gaps (at most 3.9 + 2.9 = 6.8 degrees). With their own 1.2 mm lead-ins, the real dowels catch about
-  2.7 mm, more than the 2 mm the lips' funnel leaves. The dowel ends are now given as the ISO 8734 standard ones (the
-  last revision said a 1.5 mm rounded nose).
-- **Description and fidelity note updated:** the setup now states the window and the bushings' bores and chamfers. The
-  README has a new "What the dowels capture" table with each limit and its arithmetic, replacing "What the lead-ins
-  take". The fidelity note (489 characters) states the window and adds that a held plate is not centred or squared by
-  the dowels in the simulation.
-- **Full-score demo re-run:** the hand that holds the tool now turns its wrist 3.4 degrees about the vertical against
-  the finger pads' twist, so the plate meets the flange square. Its sideways aim moved from 3.5 mm to 0 to match. In a
-  debug run, from seating until the lock engaged, each dowel was at most 0.77 mm from its bushing's axis, the tilt at
-  most 0.41 degrees, the turn at most 0.47 degrees and the gap 0.2 to 1.0 mm. The scripted demo scores 1.0 (394
-  steps); Dream-1 scores 0.0 (it reaches for the tool in the rack and does not lift it). The one-hand check still scores
-  0.25: the tool is seated with the ring open and falls when the hand lets go.
+- **Clarity and reproducibility (not met), the seating predicate:** the predicate is now geometric and depends on
+  depth. For each dowel, d is how far its tip has gone into the plate, e is how far its axis is off the bushing's, and
+  t is the tilt. A pose is accepted only while e + d tan t + 3 mm x (1/cos t - 1) <= 0.004 mm + max(0, 1.5 mm - d).
+  - In the 1.5 mm chamfer the allowed offset is the chamfer's radius at that depth, 1.5 - d mm, plus 0.004 mm.
+  - In the bore it is 0.004 mm, the smallest radial clearance of the 6 mm E8/m6 fit (0.008 to 0.034 mm on the
+    diameter). The tilt is then held to about atan(0.004 mm / d).
+  - Both dowels are checked as full 6 mm pins in every direction, at the tightest fit, without their end chamfers.
+  - It also needs both tips past the plate's face, the plate's face nowhere past the flange's, every lug front within
+    the lips' 10.0 mm reach, and, to go on, the lugs between the lips.
+- **Couple the permitted offset and tilt to insertion depth:**
+  - **Largest offset:** 1.404 mm at d = 0.1 mm, 1.104 mm at 0.4 mm, 0.504 mm at 1.0 mm, 0.104 mm at 1.4 mm, and
+    0.004 mm from 1.5 mm on.
+  - **Tilt in the bore:** at most about 0.05 degrees at d = 5 mm.
+  - **The review's example is rejected:** a plate 1 mm from the face (d = 5 mm) needs each dowel within 0.004 mm. A
+    1 mm offset intersects by 0.996 mm.
+- **Every accepted pose physically achievable, checked against the geometry:**
+  - The README's "What the dowels capture" gives the rule, a table of the largest accepted offset at each gap, and
+    tables of tilted samples and of the review's example. All are printed from the task file.
+  - Every row is checked by a brute-force test: the dowel's surface, sampled every 1 degree and 0.1 mm, against the
+    bushing's chamfer and bore.
+  - At zero tilt the rule is exact: the clearance is 0 at the limit, and 0.01 mm further intersects by 10 µm.
+  - Of 20,520 grid poses, 4,248 are accepted, and none intersects (smallest clearance 0.08 µm). Of 20,000 random poses
+    (also turned, and with the ring at 0 to 8 degrees), 2,762 are accepted, and none intersects.
+- **What the simulation does now:**
+  - The drawn dowels cannot centre a plate, so an uncentred plate pushed past the chamfers is not achievable and is no
+    longer accepted.
+  - Two collision-only stops, 6 mm across and 5.6 mm out of the face, stand in for the dowels' tips. A pushed plate
+    rests on them with the tips 0.4 mm into its chamfers.
+  - When the ring passes 8 degrees, where the lips come over the lugs, it takes a tool seated there. A fixed joint
+    holds the tool drawn home onto the face, centred and square, which a real ring's ramps do by 20 degrees. From 25
+    degrees the tool counts as locked.
+  - Before, the window was a fixed box (offset 1.5 mm, gap 5.25 mm, tilt 1.95 degrees, turn 3.9 degrees), and the tool
+    locked at 25 degrees from wherever it was held.
+- **Setup and fidelity note updated:**
+  - The setup states the rule, the 10 mm lug reach and the lugs-between-the-lips condition, and the taking at 8
+    degrees (3,786 characters).
+  - The fidelity note (485 characters) states the depth-coupled check, the stops and the fixed joint from 8 degrees.
+  - The README's "How it is modelled" and "Simulation approximation" describe the stops. They also state that a real
+    plate pushed past the chamfers would be centred by them and hang on its dowels.
+- **Full-score demo re-run under the corrected predicate:**
+  - The holding wrist is also pitched back 0.6 degrees, against the measured pitch from the tool's weight and the push
+    at the handle, so both dowel tips reach their chamfers.
+  - While the plate sat on the tips with the ring open, d was 0.30 to 0.40 mm, e at most 0.78 mm against at least
+    1.16 mm of room, and the tilt at most 0.17 degrees. The ring took the tool at 8 degrees and locked it.
+  - The scripted demo scores 1.0 (394 steps). Dream-1 scores 0.0 (1,200 steps): it reaches toward the suction tool
+    in the rack and does not lift it. The one-hand check scores 0.25: the tool sat seated on the dowels' tips with the
+    ring open for 6 s, and fell when the hand let go.

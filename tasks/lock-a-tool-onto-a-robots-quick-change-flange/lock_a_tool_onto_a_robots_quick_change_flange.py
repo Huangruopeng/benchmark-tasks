@@ -4,12 +4,13 @@ rack's other slot waits a suction-cup tool. A locking ring sits round the flange
 arms; a light on the wrist shows red, unlocked.
 
 Task: change the robot's tool to the suction-cup tool. One hand takes it from the rack by its handle and holds its plate
-flat against the flange: the tool falls if let go before it is locked on. The other presses the ring's lever down, at
-least 25 degrees: the ring's three claws hook the plate's three lugs, draw it onto the flange and lock it on, and the
-light turns green. Then both hands let go, the tool hanging on the robot, and both arms go back to where they started.
-The ring only takes a tool that is already held on the flange while it is within 8 degrees of open (the lugs pass
-between the claws' lips only then); turned back below 25 degrees the tool is no longer locked, and back within 8 degrees
-of open it comes free.
+on the flange's two dowels, their tips in its bushings' lead-in chamfers: the tool falls if let go before the ring has
+it. The other presses the ring's lever down: past 8 degrees the claws' lips come over the plate's three lugs and draw
+it home onto the flange, and from 25 degrees it is locked on and the light turns green. Then both hands let go, the tool
+hanging on the robot, and both arms go back to where they started. The ring only takes a tool already seated on the
+dowels, in a pose the full-size dowels and bushings allow (see _seat_check), while it is within 8 degrees of open (the
+lugs pass between the lips only then); turned back below 25 degrees the tool is no longer locked, and back within 8
+degrees of open it comes free.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=lock_a_tool_onto_a_robots_quick_change_flange.py \\
            --instruction "..." --scorer task_score ...
@@ -87,7 +88,7 @@ COM_DOWN = -0.005  # each tool's mass sits a little below its axis, under the ha
 SUCTION_AT = np.array([0.30, -0.12, FZ])  # the suction tool's plate face, in the rack
 GRIPPER_AT = np.array([0.18, -0.12, FZ])  # the parked gripper tool's
 LOCKS = {"suction_tool": "suction_lock", "gripper_tool": "gripper_lock"}
-SEAT = np.array([FX, FACE_Y - 0.0005, FZ])  # where a locked tool's plate face is held
+SEAT = np.array([FX, FACE_Y, FZ])  # where a held tool's plate face is held: on the flange's face, centred and square
 ANCHOR_AT = np.array([0.45, -0.30, TOP - 0.05])  # a hidden fixed body the lock holds a tool to
 
 ORANGE, GREY, STEEL, DARK, BLACK, BLUE, RED, GREEN, WHITE = (0.93, 0.50, 0.10), (0.45, 0.46, 0.48), \
@@ -95,20 +96,28 @@ ORANGE, GREY, STEEL, DARK, BLACK, BLUE, RED, GREEN, WHITE = (0.93, 0.50, 0.10), 
     (0.10, 0.85, 0.20), (0.95, 0.95, 0.93)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
-# Seated = on the dowels' tips, inside the range the bushings' lead-ins capture (the dowels themselves are drawn only).
-# Each tool plate takes the dowels in two bushings, 22 mm out at 12 and 6 o'clock, with 6 mm E8 bores (0.008-0.034 mm
-# clearance on the m6 dowels) and 1.5 x 45 degree lead-in chamfers. Neither the clearance nor the dowels' own end
-# chamfer (ISO 8734: about 1.2 mm on a 6 mm pin) is counted.
+# Seated = on the dowels, in a pose the full-size dowels and bushings physically allow (the README's "What the dowels
+# capture"). Each tool plate takes the dowels in two bushings, 22 mm out at 12 and 6 o'clock: 6 mm E8 bores, 0.008 to
+# 0.034 mm larger than the m6 dowels, with 1.5 x 45 degree lead-in chamfers. For each dowel, d is how far its tip
+# (its deepest edge) has gone past the plate's face, e how far its axis is off the bushing's where it crosses the face,
+# and t its tilt against the bushing's axis. The dowel's widest point, at depth d, reaches e + d tan t + 3 mm / cos t
+# from the bushing's axis; the hole there is 3 mm + BORE_PLAY + (1.5 mm - d) wide in the chamfer, 3 mm + BORE_PLAY in
+# the bore. So a dowel is clear of its bushing while e + d tan t + 3 mm (1/cos t - 1) <= BORE_PLAY + max(0, 1.5 mm - d):
+# its axis may be up to 1.5 - d (+ 0.004) mm off in the chamfer, and only 0.004 mm off, with t <= about atan(0.004 / d),
+# in the bore. Both dowels are checked in every direction as full 6 mm pins (the diamond pin's relief only adds room),
+# at the tightest fit, and the dowels' own ISO 8734 end chamfers are left out: every accepted pose fits every build.
+FIT = (0.008e-3, 0.034e-3)  # the dowels' running clearance in the bushings (on the diameter)
+BORE_PLAY = FIT[0] / 2  # 0.004 mm: how far off its bore's axis a dowel can sit, at the tightest fit
 BUSH_LEAD = 0.0015  # the bushings' lead-in chamfer: 1.5 mm wide (radially) and 1.5 mm deep
-SEAT_CATCH = BUSH_LEAD  # seated: each dowel's axis within this of its bushing's bore axis where it enters the plate's
-# face (the diamond pin: across its lands only, its relieved sides leave the other direction free) ...
-SEAT_TILT = math.degrees(math.asin(BUSH_LEAD / (2 * DOWEL_R)))  # ... the plate's axis within this of the flange's
-# (1.95 deg): tilted more, the bushings 44 mm apart differ along the axis by more than the 1.5 mm chamfer depth, so the
-# nearer dowel enters its bore proper (and binds, the plate still tilted) before the farther one reaches its chamfer ...
-SEAT_GAP = DOWEL_OUT - DOWEL_R * math.sin(math.radians(SEAT_TILT))  # ... its face within this of the flange's face at
-# its middle (5.25 mm): with that tilt the farther bushing is 0.75 mm farther out, still within the dowels' 6 mm ...
-SEAT_ROLL = math.degrees(math.asin(BUSH_LEAD / DOWEL_R))  # ... and turned within this of handle-up (3.91 deg: a turn
-# moves each bushing 22 mm x sin(turn) sideways; it is also inside the 8 degrees the lugs have in the claws' gaps)
+LUG_CATCH = -LIP_RAMP[0] + 0.001  # 10.0 mm: the lips' lead-in ramps (with their 1 mm chamfer) reach a lug front this
+# far in front of the face. Seated also needs every lug front within it, the plate's face nowhere past the flange's,
+# and each lug inside its gap between the lips (OPEN, 8 degrees either side, counting the plate's turn against the
+# ring's and the sideways shift of a lug 30 mm out)
+STOP_OUT = 0.0056  # the simulation's stand-in for the tips in the chamfers: the drawn dowels do not touch and the
+# plate has no bores, so two collision-only stops, 6 mm across, 5.6 mm out of the face where the dowels are, stop a
+# pushed plate with the dowels' tips 0.4 mm into its bushings' chamfers (hidden while the ring holds a tool)
+STOPS_AT = np.array([FX, FACE_Y, FZ])
+STOPS_AWAY = np.array([0.45, -0.20, TOP - 0.05])
 LET_GO = 0.04  # each TCP at least this far from the tool's handle and the lever's pad
 HOME_WITHIN = 0.05
 SUCCESS_HOLD_S = 1.0
@@ -249,11 +258,19 @@ def _light() -> Body:
                       shapes=[SphereShape((0.0, 0.0, 0.0), 0.0068, GREEN, collide=False)])
 
 
-OBJECTS = [_robot(), _anchor(), _ring(), _rack(), _suction_tool(), _gripper_tool(), _light()]
+def _stops() -> Body:
+    """The stand-in for the dowels' tips in the bushings' chamfers: two 6 mm discs' worth of collision, inside the drawn
+    dowels and 0.4 mm shorter; origin on the flange's axis at its face."""
+    return Body.build("dowel_stops", pos=tuple(STOPS_AT.tolist()), mass=0.01, kinematic=True, color=STEEL,
+                      shapes=[CylShape(_on_axis(phi, DOWEL_R, -STOP_OUT / 2), DOWEL_D / 2, STOP_OUT, STEEL, axis="Y")
+                              for phi in DOWEL_AT], ignore=("ring",))
+
+
+OBJECTS = [_robot(), _anchor(), _ring(), _stops(), _rack(), _suction_tool(), _gripper_tool(), _light()]
 # the ring turns about the flange's axis; pressing the lever down turns it the negative way about +y
 hinge("lock_ring", "robot", "ring", anchor=(FX, FACE_Y + (RING_Y[0] + RING_Y[1]) / 2, FZ), axis="Y",
       limits_deg=(-RING_MAX, OPEN_STOP), spring=RING_HOLD, damping=RING_DRAG, target_deg=0.0)
-# the locks: off until the ring locks a tool on (then the tool is held where it sits on the flange)
+# the locks: off until the ring takes a seated tool (then the tool is held home on the flange, centred and square)
 for _tool, _lock in LOCKS.items():
     glue(_lock, "lock_anchor", _tool, anchor=tuple(ANCHOR_AT.tolist()))
 
@@ -261,8 +278,8 @@ for _tool, _lock in LOCKS.items():
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"held": 0.0, "tcps": None, "s": {}, "light": False,
-            "tools": {name: {"inserted": False, "locked": False, "ever": False, "ever_locked": False}
+    return {"held": 0.0, "tcps": None, "s": {}, "light": False, "stops_away": False,
+            "tools": {name: {"inserted": False, "caught": False, "ever": False, "ever_locked": False}
                       for name in LOCKS}}
 
 
@@ -332,25 +349,44 @@ def _seat_error(pos, rot) -> tuple[float, float, float, float]:
     return gap, off, tilt, roll
 
 
-def _dowel_offsets(pos, rot) -> tuple[float, float]:
-    """How far each dowel's axis is from its bushing's bore axis, where it meets the plate's face (m): the round dowel
-    (12 o'clock) in any direction, the diamond pin (6 o'clock) across its lands (the plate's x, sideways)."""
+def _dowel_fit(pos, rot) -> list[dict]:
+    """Each dowel against its bushing (12 o'clock, then 6): ``depth`` d, how far the dowel's deepest tip edge is past
+    the plate's face; ``off`` e, how far its axis is off the bushing's where it crosses the face; ``tilt`` t (rad);
+    ``need`` = e + d tan t + r (1/cos t - 1), how far its widest point at depth d reaches beyond its own 3 mm radius;
+    ``room`` = BORE_PLAY + max(0, BUSH_LEAD - d), how much wider than 3 mm the hole is there; ``clear``: need <= room
+    (lengths in m)."""
+    pos = np.asarray(pos, float)
     out = []
     for phi in DOWEL_AT:
         bx, bz = _round(phi, DOWEL_R)
-        p = rot.T @ (np.array([FX + bx, FACE_Y, FZ + bz]) - np.asarray(pos, float))  # the dowel's root, plate frame
-        d = rot.T @ np.array([0.0, 1.0, 0.0])  # the dowel's axis, plate frame
-        hit = p - d * (p[1] / d[1])  # where the dowel's axis meets the plate's face (plate y = 0)
-        dx, dz = float(hit[0] - bx), float(hit[2] - bz)
-        out.append(math.hypot(dx, dz) if phi == DOWEL_AT[0] else abs(dx))
-    return out[0], out[1]
+        root = rot.T @ (np.array([FX + bx, FACE_Y, FZ + bz]) - pos)  # where the dowel leaves the flange, plate frame
+        v = rot.T @ np.array([0.0, -1.0, 0.0])  # along the dowel, out toward the plate (the bushing runs along -y)
+        tilt = math.acos(max(-1.0, min(1.0, -float(v[1]))))
+        depth = -float((root + DOWEL_OUT * v)[1]) + DOWEL_D / 2 * math.sin(tilt)
+        hit = root + v * (-float(root[1]) / float(v[1]))  # where the dowel's axis crosses the plate's face
+        off = math.hypot(float(hit[0]) - bx, float(hit[2]) - bz)
+        need = off + depth * math.tan(tilt) + DOWEL_D / 2 * (1.0 / math.cos(tilt) - 1.0)
+        room = BORE_PLAY + max(0.0, BUSH_LEAD - depth)
+        out.append({"depth": depth, "off": off, "tilt": tilt, "need": need, "room": room, "clear": need <= room})
+    return out
 
 
-def _seated(pos, rot) -> bool:
+def _seat_check(pos, rot, turned: float) -> dict:
+    """Whether a tool is seated on the dowels with the ring ``turned`` degrees: both dowels in their bushings (each tip
+    past the plate's face and clear of the bushing, as :func:`_dowel_fit`), the plate's face nowhere past the flange's,
+    every lug front within the lips' reach (LUG_CATCH) and every lug inside its gap between the lips."""
     gap, off, tilt, roll = _seat_error(pos, rot)
-    round_off, diamond_off = _dowel_offsets(pos, rot)
-    return (-0.003 <= gap <= SEAT_GAP and tilt <= SEAT_TILT and abs(roll) <= SEAT_ROLL
-            and round_off <= SEAT_CATCH and diamond_off <= SEAT_CATCH)
+    dowels = _dowel_fit(pos, rot)
+    reach = LUG_R[1] * math.sin(math.radians(tilt))  # how far the plate's edge (its lugs, 36 mm out) leans either way
+    lug_turn = abs(-roll - turned) + math.degrees(math.asin(min(1.0, off / LUG_R[0])))  # roll is about +y: -roll is
+    # the plate's turn as the ring's is counted (counterclockwise seen facing the flange)
+    checks = {"dowels": all(d["depth"] > 0.0 and d["clear"] for d in dowels), "face": gap - reach >= 0.0,
+              "catch": gap + LUG_T + reach <= LUG_CATCH, "lugs": lug_turn <= OPEN}
+    return {"gap": gap, "tilt": tilt, "fits": dowels, "lug_turn": lug_turn, **checks, "seated": all(checks.values())}
+
+
+def _seated(pos, rot, turned: float) -> bool:
+    return _seat_check(pos, rot, turned)["seated"]
 
 
 def _pad_top(turned: float) -> np.ndarray:
@@ -369,29 +405,46 @@ def _follow(env) -> None:
     if abs(turned - _EP["held"]) > SLIP:  # pushed past its hold: the ring gives, and stays where it is left
         _EP["held"] = turned
         set_hinge_drive("lock_ring", target_deg=-turned)
-    poses = {}
+    poses, checks = {}, {}
     for name, lock in LOCKS.items():
         t = as_numpy(base.scene[name].data.root_link_pose_w)[0]
         pos, rot = t[:3] - origin, rotation(t[3:7])
         poses[name] = (pos, rot)
         st = _EP["tools"][name]
-        seated = _seated(pos, rot)
-        if st["locked"]:
+        checks[name] = _seat_check(pos, rot, turned)
+        seated = checks[name]["seated"]
+        if st["caught"]:
             if turned < OPEN:  # turned back until the lugs line up with the gaps between the lips: the tool is free
                 set_glue_on(lock, False)
-                st["locked"] = st["inserted"] = False
-        else:
-            if seated and turned < OPEN:  # on the flange with the ring open: the ring can take it
-                st["inserted"] = True
-            elif not seated:
-                st["inserted"] = False
-            if st["inserted"] and turned >= LOCK:
+                st["caught"] = st["inserted"] = False
+        elif turned < OPEN:  # the ring open: a tool seated on the dowels can be taken. Its lugs must pass between the
+            # lips to go on (seated); once on, the ring turning toward OPEN brings the lips' leading ends over them,
+            # which is how it takes them, so staying on needs only the dowels, the face and the lips' reach
+            c = checks[name]
+            st["inserted"] = c["dowels"] and c["face"] and c["catch"] and (st["inserted"] or seated)
+        else:  # the lips have reached the lugs: a tool seated a step ago and still on the dowels is held, drawn home
+            c = checks[name]  # onto the face along the dowels and square (a real ring's ramps do it by RAMP_IN)
+            if st["inserted"] and c["dowels"] and c["face"] and c["catch"]:
                 set_glue_on(lock, True)
-                st["locked"] = st["ever_locked"] = True
+                st["caught"] = True
+            st["inserted"] = False  # (the lips now cover the gaps: no other tool can go on)
+        st["ever_locked"] = st["ever_locked"] or (st["caught"] and turned >= LOCK)
         st["ever"] = st["ever"] or st["inserted"]
-    # locked: held by the lips and the ring still on their flat dwell (turned back below LOCK, the lugs ride down the
-    # clamp ramps: still held by the lips until the ring is back within OPEN of open, but no longer pulled tight)
-    locked = turned >= LOCK and any(st["locked"] for st in _EP["tools"].values())
+    # the stops stand in for the dowel tips only until the ring holds a tool (it then sits on the dowels proper); they
+    # come back once no tool is held and none is where they would be
+    held = any(st["caught"] for st in _EP["tools"].values())
+    if held and not _EP["stops_away"]:
+        _place(base, origin, "dowel_stops", STOPS_AWAY)
+        _EP["stops_away"] = True
+    elif not held and _EP["stops_away"] and all(
+            c["gap"] - LUG_R[1] * math.sin(math.radians(c["tilt"])) > STOP_OUT + 0.002
+            or math.hypot(float(p[0]) - FX, float(p[2]) - FZ) > PLATE_R + DOWEL_R + DOWEL_D
+            for (p, _), c in zip(poses.values(), checks.values())):
+        _place(base, origin, "dowel_stops", STOPS_AT)
+        _EP["stops_away"] = False
+    # locked: held by the lips and the ring on their flat dwell (turned back below LOCK, the lugs ride down the clamp
+    # ramps: still held by the lips until the ring is back within OPEN of open, but no longer pulled tight)
+    locked = turned >= LOCK and held
     if locked != _EP["light"]:
         _place(base, origin, "lock_light", LAMP if locked else HIDDEN)
         _EP["light"] = locked
@@ -406,15 +459,19 @@ def _follow(env) -> None:
         if _DEBUG["steps"] % 10 == 0:
             tl, tr = _EP["tcps"]
             gap, off, tilt, roll = _seat_error(pos, rot)
-            d12, d6 = _dowel_offsets(pos, rot)
+            c = checks["suction_tool"]
+            dw = " ".join(f"d={d['depth'] * 1000:5.2f} e={d['off'] * 1000:5.3f} need={d['need'] * 1000:5.3f} "
+                          f"room={d['room'] * 1000:5.3f}" for d in c["fits"])
             yaw = math.degrees(math.atan2(float(rot[0, 1]), float(rot[1, 1])))
             pitch = math.degrees(math.atan2(float(rot[2, 1]), float(rot[1, 1])))
             st = _EP["tools"]["suction_tool"]
-            print(f"[flange] t={_DEBUG['steps'] / 20:5.1f}s ring={turned:5.1f}deg suction: gap={gap * 1000:6.1f}mm "
-                  f"off={off * 1000:5.1f}mm (x {(pos[0] - FX) * 1000:5.1f} z {(pos[2] - FZ) * 1000:5.1f}) "
-                  f"dowels={d12 * 1000:4.2f}/{d6 * 1000:4.2f}mm tilt={tilt:5.2f} (yaw {yaw:5.2f} pitch {pitch:5.2f}) "
-                  f"roll={roll:6.2f} inserted={st['inserted']} "
-                  f"locked={st['locked']} gripper_tool_locked={_EP['tools']['gripper_tool']['locked']} clear={clear} "
+            print(f"[flange] t={_DEBUG['steps'] / 20:5.1f}s ring={turned:5.1f}deg suction: gap={gap * 1000:6.2f}mm "
+                  f"off={off * 1000:5.2f}mm (x {(pos[0] - FX) * 1000:5.2f} z {(pos[2] - FZ) * 1000:5.2f}) "
+                  f"dowels[{dw}] tilt={tilt:5.2f} (yaw {yaw:5.2f} pitch {pitch:5.2f}) roll={roll:6.2f} "
+                  f"lug_turn={c['lug_turn']:4.1f} checks={[k for k in ('dowels', 'face', 'catch', 'lugs') if c[k]]} "
+                  f"seated={c['seated']} inserted={st['inserted']} caught={st['caught']} "
+                  f"stops_away={_EP['stops_away']} gripper_tool_caught={_EP['tools']['gripper_tool']['caught']} "
+                  f"clear={clear} "
                   f"rightTCP-handle={np.round((tr - handle) * 1000).astype(int).tolist()} "
                   f"leftTCP-pad={np.round((tl - pad) * 1000).astype(int).tolist()} score={_points(_status())}",
                   file=sys.stderr, flush=True)
@@ -425,7 +482,7 @@ def _follow(env) -> None:
 def _status() -> dict:
     tools = _EP["tools"]
     tight = float(_EP["s"].get("turned", 0.0)) >= LOCK  # the ring on the lips' flat dwell
-    return {"locked": tools["suction_tool"]["locked"] and tight, "wrong": tools["gripper_tool"]["ever_locked"],
+    return {"locked": tools["suction_tool"]["caught"] and tight, "wrong": tools["gripper_tool"]["ever_locked"],
             "ever": tools["suction_tool"]["ever"], "clear": bool(_EP["s"].get("clear"))}
 
 
@@ -442,8 +499,8 @@ def _points(s) -> float:
 def score(objects) -> float:
     """0.0 if the gripper tool was ever locked on. Else 1.0 with the suction tool locked on the flange (the ring still
     turned 25 degrees or more), both hands let go (each TCP at least 4 cm from its handle and the lever's pad) and both
-    arms back where they started; 0.5 with it locked on otherwise; 0.25 if it was ever held on the flange (seated, with
-    the ring open); else 0.0."""
+    arms back where they started; 0.5 with it locked on otherwise; 0.25 if it was ever seated on the dowels with the ring
+    open; else 0.0."""
     pts = _points(_status())
     if pts >= 1.0 and not _arms_home():
         return 0.5  # locked on and let go, but the arms not back
@@ -474,22 +531,28 @@ def success(objects) -> bool:
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
 # The right hand comes straight down on the suction tool's handle, fingers closing across it, lifts it out of the rack,
-# carries it to the flange and holds its plate flat against the flange. The left hand comes straight down on the
-# lever's pad, fingers closed, and presses it down along its swing, 32 degrees: the ring turns and locks the tool on
-# (the light turns green). The right lets go and draws back, the left rises, the tool hanging on the robot, and both
+# carries it to the flange and holds its plate on the dowels' tips. The left hand comes straight down on the lever's
+# pad, fingers closed, and presses it down along its swing, 32 degrees: past 8 degrees the ring takes the tool and draws
+# it home, and from 25 it is locked on (the light turns green). The right lets go and draws back, the left rises, the tool hanging on the robot, and both
 # arms go back to where they started.
 
 TOOL_GRIP = grip_rotation(math.pi / 2)  # straight down, fingers closing along x, across the handle
 HOLD_TWIST = -3.4  # the pads twist the held tool 3.4 deg about the vertical (measured): carried and held with the
 # wrist turned back this much about the vertical, so its plate meets the flange square
 _c, _s = math.cos(math.radians(HOLD_TWIST)), math.sin(math.radians(HOLD_TWIST))
-HOLD_GRIP = np.array([[_c, -_s, 0.0], [_s, _c, 0.0], [0.0, 0.0, 1.0]]) @ np.asarray(TOOL_GRIP, float)
+HOLD_PITCH = 0.6  # pushed onto the dowels' tips, the held plate's face pitches 0.6 deg face-down (its weight and the
+# push at the handle, above the axis; measured): held with the wrist pitched back this much about x, so both tips
+# reach their chamfers
+_p = math.radians(HOLD_PITCH)
+HOLD_GRIP = (np.array([[1.0, 0.0, 0.0], [0.0, math.cos(_p), -math.sin(_p)], [0.0, math.sin(_p), math.cos(_p)]])
+             @ np.array([[_c, -_s, 0.0], [_s, _c, 0.0], [0.0, 0.0, 1.0]]) @ np.asarray(TOOL_GRIP, float))
 PAD_GRIP = grip_rotation(0.0)  # straight down, fingers closed (closing along y)
 IN_HANDLE = 0.013  # the right TCP this far below the handle's top
 LIFT = 0.018  # out of the rack (its lips are 1 cm high)
 SHORT = 0.02  # the plate brought level with the flange this far short of it, then on
-PUSH_IN = 0.001  # aimed this far into the flange
+PUSH_IN = 0.0025  # aimed this far past the dowels' tips (the arm stops 1-2 mm short of a pushed target)
 AIM = np.array([0.0, 0.0, 0.0045])  # held so, the plate sits 4.5 mm low (measured): aim against it
+TIPS = np.array([FX, FACE_Y - STOP_OUT, FZ])  # the plate's face on the dowels' tips (on the stops)
 TIP = 0.013  # closed fingertips below the TCP
 PRESS = 0.005  # aimed this far into the pad
 TURN_TO = 32.0
@@ -554,10 +617,10 @@ def _right(press_done: float) -> tuple[list[Waypoint], float]:
     out += [_w(1.0, pick, FINGER_OPEN, "down round it", TOOL_GRIP),
             _w(0.6, pick, FINGER_CLOSED, "take it", TOOL_GRIP),
             _w(1.0, pick + [0.0, 0.0, LIFT], FINGER_CLOSED, "lift it out of the rack", TOOL_GRIP)]
-    on = _in_hand(SEAT + AIM + [0.0, PUSH_IN, 0.0])
+    on = _in_hand(TIPS + AIM + [0.0, PUSH_IN, 0.0])
     out += [_w(1.6, on + [0.0, -SHORT, LIFT], FINGER_CLOSED, "carry it to the flange, its plate facing it", HOLD_GRIP),
             _w(0.8, on + [0.0, -SHORT, 0.0], FINGER_CLOSED, "level with the flange", HOLD_GRIP),
-            _w(0.8, on, FINGER_CLOSED, "its plate flat against the flange", HOLD_GRIP)]
+            _w(0.8, on, FINGER_CLOSED, "its plate on the dowels' tips", HOLD_GRIP)]
     seated_at = sum(w.duration for w in out)
     back = on + [0.0, -0.03, 0.04]
     out += [_w(max(press_done + 0.8 - seated_at, 0.3), on, FINGER_CLOSED, "hold it on while the lever is pressed",
