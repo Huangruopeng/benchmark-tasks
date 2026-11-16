@@ -1,14 +1,18 @@
-"""On the station table, a two-piece Boston shaker stands upright in front of the arms on the centre line: a large
-28 oz stainless steel tin holding the drink (24 beads, each standing for 5 ml of a 120 ml drink) and four 2.5 cm ice
-cubes, with the small 18 oz tin resting mouth down in its mouth, not yet sealed. The two tins seal by a friction press
-fit: pressed home, the small tin's rim jams inside the large tin's tapered mouth and holds until pulled apart.
+"""On the station table, a two-piece Boston shaker stands upright in front of the arms on the centre line: a 28 oz
+stainless steel shaker tin holding the drink (24 beads, each standing for 5 ml of a 120 ml drink) and four 2.5 cm ice
+cubes, with the 18 oz tin set straight into its mouth, mouth down, not yet sealed. Both tins are real catalogue items
+at their listed sizes. Set straight in, the small tin's rim (87.3 mm across) meets the large tin's tapered wall all
+round 23.4 mm below the mouth, where the large tin is 87.3 mm across inside; pressed 1.0 mm further in, the rim jams
+0.16 mm tight in the taper (a friction press fit) and seals.
 
 Task: seal the shaker, shake the drink with its ice, then open the shaker, leaving the drink in the large tin standing
-on the table, without spilling any. A sealed shaker is 29.9 cm long and weighs 0.53 kg, and its tins hold together
-until pulled apart with 12 N: opening it needs the large tin held down while the small one is pulled off.
+on the table, without spilling any. Shaking chills the air sealed inside, and the partial vacuum adds to the press fit's
+hold until a strike at the seam lets air in; even then the fit holds more than the whole shaker weighs, so opening it
+needs the large tin held down while the small one is pulled off.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=shake_a_cocktail_with_both_hands.py \\
            --instruction "..." --scorer task_score ...
+Print the numbers the text quotes:  python -c "import shake_a_cocktail_with_both_hands as m; m.print_numbers()"
 """
 
 from __future__ import annotations
@@ -33,16 +37,51 @@ allow_matrix_grips()
 
 SCENE = "station"
 TOP = TABLE_TOP[SCENE]
+IN, LB = 0.0254, 0.45359237
 
-# -- the tins (metres; outside radii; both are 32-sided cones of 2 mm steel) ------------------------------------------
-# The large tin (28 oz, 830 ml): origin at the centre of its underside, axis up.
-TIN_H, TIN_R0, TIN_R1, TIN_FLOOR, TIN_MASS = 0.175, 0.035, 0.0475, 0.008, 0.21  # 17.5 cm; 7.0 cm base, 9.5 cm mouth
-# The small tin (18 oz, 530 ml), built mouth down: origin at the centre of its rim (its mouth), +z toward its base.
-SM_H, SM_R0, SM_R1, SM_FLOOR, SM_MASS = 0.145, 0.0432, 0.0305, 0.006, 0.14  # 14.5 cm; 8.64 cm rim, 6.1 cm base
-WALL, SIDES = 0.002, 32  # weighted tins: thick floors (8 mm, 6 mm)
-# The press fit: the small tin's rim rests REST deep in the large tin's mouth; pressed home it sits SEAT deep, where
-# the large tin's taper has narrowed to the rim (the simulated tins keep a 0.8 mm gap there; a joint is the fit).
-REST, SEAT = 0.016, 0.021
+# -- the tins: a catalogue pair sold to work together, at their listed sizes (outside diameters) ----------------------
+# Large: a 28 oz full-size stainless steel shaker tin, listed 7 in tall, 3 5/8 in across the top, 2 1/2 in across the
+# bottom, shipping weight 0.41 lb. Origin at the centre of its underside, axis up.
+TIN_H, TIN_D_MOUTH, TIN_D_BASE, TIN_MASS = 7.0 * IN, 3.625 * IN, 2.5 * IN, round(0.41 * LB, 3)
+# Small: the matching 18 oz half-size tin, listed 5 1/4 in tall, 3 7/16 in across the top (its rim), 2 3/8 in across the
+# bottom, shipping weight 0.32 lb. Built mouth down: origin at the centre of its rim, +z toward its base.
+SM_H, SM_D_RIM, SM_D_BASE, SM_MASS = 5.25 * IN, 3.4375 * IN, 2.375 * IN, round(0.32 * LB, 3)
+T_STEEL, RHO_STEEL = 0.0005, 7930.0  # wall thickness (not listed: the listed weights and the 28 oz capacity give 0.5 mm)
+# Simulated walls and floors are thicker than the real 0.5 mm steel (thin walls let fast ice through). The large tin's
+# wall is thickened outward and the small tin's inward, so the surfaces that meet at the seal are at their real size.
+WALL, FLOOR, SIDES = 0.002, 0.005, 32
+
+# -- the fit (straight in, coaxial) ---------------------------------------------------------------------------------
+TAPER = (TIN_D_MOUTH - TIN_D_BASE) / TIN_H  # the large tin loses 0.1607 mm of diameter per mm of depth
+ALPHA = math.atan(TAPER / 2)  # its wall leans 4.6 deg off its axis
+
+
+def d_large_in(depth: float) -> float:
+    """The large tin's inside diameter at this depth below its mouth (m)."""
+    return TIN_D_MOUTH - 2 * T_STEEL - TAPER * depth
+
+
+REST = (TIN_D_MOUTH - 2 * T_STEEL - SM_D_RIM) / TAPER  # 23.4 mm: set straight in, the rim meets the wall all round
+PRESS_IN = 0.001  # pressed 1.0 mm further in ...
+SEAT = REST + PRESS_IN  # ... to 24.4 mm, the rim is 0.16 mm tight in the taper: sealed
+INTERFERENCE = TAPER * PRESS_IN
+
+# -- the seal's forces ----------------------------------------------------------------------------------------------
+MU = 0.3  # wet stainless steel on stainless steel
+F_SEAT = 15.0  # N: the press that drives the rim the 1.0 mm home
+WEDGE = (MU * math.cos(ALPHA) - math.sin(ALPHA)) / (MU * math.cos(ALPHA) + math.sin(ALPHA))  # pull-out / push-in
+F_FRIC = F_SEAT * WEDGE  # 8.7 N: the press fit alone (self-locking: tan 4.6 deg = 0.080 < MU)
+P_AIR, T_ROOM, T_COLD = 101325.0, 293.15, 273.15  # the air sealed in at 20 C, chilled by the ice to 0 C
+DP_VAC = P_AIR * (1.0 - T_COLD / T_ROOM)  # 6.9 kPa (1.0 psi) of partial vacuum
+D_SEAL = d_large_in(SEAT)  # 87.15 mm: the circle the vacuum pulls on
+F_VAC = DP_VAC * math.pi / 4 * D_SEAL ** 2  # 41 N
+K_SEAL = F_SEAT / PRESS_IN  # 15 N per mm: the joint's spring for the elastic interference
+D_SEAL_DAMP, K_FREE, D_FREE, F_MAX = 40.0, 1.0, 1.0, 60.0
+TOUCH = 0.00005  # the rim counts as on the wall within 0.05 mm of first contact (0.75 N)
+POP_STEPS = 3  # a seal lets go once drawn out past its hold for 3 control steps (0.15 s)
+F_VENT, VENT_BAND, VENT_STEPS = 10.0, 0.025, 2  # a side push of 10 N for 0.1 s on the large tin's top 25 mm (mouth to seal) vents it
+OFF_DEPTH = -0.005  # the rim this far above the mouth: the tins are apart
+CATCH_R, CATCH_DEG = 0.01, 15.0  # a small tin set back in the mouth this near square is caught again
 
 TIN_XY = (0.22, 0.0)
 
@@ -53,20 +92,12 @@ ICE, ICE_MASS, N_ICE = 0.025, 0.014, 4  # 2.5 cm cubes of ice, 14 g each
 STEEL, STEEL_S = (0.74, 0.75, 0.77), (0.66, 0.67, 0.70)
 DRINK_C, ICE_C = (0.30, 0.45, 0.85), (0.86, 0.93, 0.97)
 
-# -- the press fit (a slide joint along the tins' axis; its coordinate is the small tin's rim depth in the mouth) ----
-K_SEAL, D_SEAL, F_MAX = 2400.0, 8.0, 60.0
-SLIP_IN = 0.003  # unsealed, the rim slides further in once pushed 3 mm past where it sits (2400 N/m x 3 mm = 7.2 N)
-SLIP_OUT = 0.0005  # ... and out once pulled 0.5 mm (1.2 N): resting, the small tin lifts off freely
-SEATED_WITHIN = 0.0005  # within this of SEAT it is pressed home: sealed
-GIVE, POP_STEPS = 0.005, 3  # sealed, it lets go once drawn 5 mm out of its seat (12 N) for 3 control steps (0.15 s)
-OFF_DEPTH = -0.005  # the rim this far above the mouth: the tins are apart
-CATCH_R, CATCH_DEG = 0.01, 15.0  # a small tin set back in the mouth this near square is caught again
-
 # -- scoring --------------------------------------------------------------------------------------------------------
 TIP_SEALED = math.radians(30)  # the large tin tipped past this while not sealed: the seal was open while tipped
 SHAKE_TIP = math.radians(45)  # strokes count while sealed and tipped past this ...
 TURNS, LEG = 6, 0.025  # ... at least TURNS changes of direction along the axis, each after a leg of LEG or more
-MID = 0.15  # the sealed shaker's middle, this far up the large tin's axis
+SHAKER_L = TIN_H + SM_H - SEAT  # 28.7 cm sealed
+MID = SHAKER_L / 2  # the sealed shaker's middle, this far up the large tin's axis
 END_ZONE = 0.09  # an ice cube is at an end once its centre is within this of that end's floor and it touches that tin
 PASSES = 8  # the ice must reach alternate ends at least this many times in all, while sealed and tipped
 LOST_FULL, LOST_HALF = 1, 3  # beads (5 ml each) allowed out: 1.0 and 0.25 / 0.5
@@ -76,18 +107,83 @@ TOUCH_N = 0.01
 SUCCESS_HOLD_S = 1.0
 
 
-def _r_tin(z: float) -> float:
-    """The large tin's outside radius (apothem) at height z above its underside."""
-    return TIN_R0 + (TIN_R1 - TIN_R0) * z / TIN_H
+def _r_in(h: float) -> float:
+    """The large tin's real inside radius at height h above its underside (the simulated wall's inner face)."""
+    return (TIN_D_BASE - 2 * T_STEEL) / 2 + TAPER / 2 * h
 
 
-def _r_small(z: float) -> float:
-    """The small tin's outside radius at z from its rim toward its base."""
-    return SM_R0 + (SM_R1 - SM_R0) * z / SM_H
+def _r_small(s: float) -> float:
+    """The small tin's real outside radius at s from its rim toward its base (the simulated wall's outer face)."""
+    return SM_D_RIM / 2 - (SM_D_RIM - SM_D_BASE) / 2 * s / SM_H
 
 
-SEAL_GAP = _r_tin(TIN_H - SEAT) - WALL - SM_R0  # 0.8 mm: narrower than a drink bead, so nothing gets out there
-assert SEAL_GAP > 0.0007
+def _sheet(d_lo: float, d_hi: float, h: float, base_at_lo: bool = True):
+    """A tin's steel sheet (outside sizes): area (m^2) and the height of its centre of mass above the narrow end
+    (base) -- a frustum's side plus a flat base."""
+    r0, r1 = d_lo / 2, d_hi / 2
+    side = math.pi * (r0 + r1) * math.hypot(h, r1 - r0)
+    base = math.pi * r0 ** 2
+    z_side = h / 3 * (r0 + 2 * r1) / (r0 + r1)
+    return side + base, side * z_side / (side + base)
+
+
+def _capacity(d_lo: float, d_hi: float, h: float) -> float:
+    """Brim-full volume (m^3) of a frustum, given inside diameters."""
+    return math.pi * h / 12 * (d_lo ** 2 + d_lo * d_hi + d_hi ** 2)
+
+
+_AREA_L, _ZC_L = _sheet(TIN_D_BASE, TIN_D_MOUTH, TIN_H)
+_AREA_S, _ZC_S = _sheet(SM_D_BASE, SM_D_RIM, SM_H)
+COM_TIN = _ZC_L  # above the large tin's underside
+COM_SM = SM_H - _ZC_S  # from the small tin's rim
+SEAL_GAP = _r_in(TIN_H - SEAT) - _r_small(0.0)  # -0.08 mm: seated, the simulated rim overlaps the wall by the interference
+assert abs(_r_in(TIN_H - REST) - _r_small(0.0)) < 1e-9
+
+
+def numbers() -> dict:
+    """Every number the task text quotes, from the constants above."""
+    m_drink = N_BEADS * BEAD_MASS
+    full = TIN_MASS + SM_MASS + m_drink + N_ICE * ICE_MASS
+    zone_gap = (TIN_H - SEAT + SM_H - FLOOR - END_ZONE) - (FLOOR + END_ZONE)
+    return {
+        "large: H, mouth OD, base OD (mm)": (TIN_H * 1e3, TIN_D_MOUTH * 1e3, TIN_D_BASE * 1e3),
+        "large: mouth ID, base ID (mm)": ((TIN_D_MOUTH - 2 * T_STEEL) * 1e3, (TIN_D_BASE - 2 * T_STEEL) * 1e3),
+        "small: H, rim OD, base OD (mm)": (SM_H * 1e3, SM_D_RIM * 1e3, SM_D_BASE * 1e3),
+        "masses large, small (g)": (TIN_MASS * 1e3, SM_MASS * 1e3),
+        "0.5 mm sheet mass large, small (g)": (_AREA_L * T_STEEL * RHO_STEEL * 1e3, _AREA_S * T_STEEL * RHO_STEEL * 1e3),
+        "brim capacity large, small (ml)": (
+            _capacity(TIN_D_BASE - 2 * T_STEEL, TIN_D_MOUTH - 2 * T_STEEL, TIN_H - T_STEEL) * 1e6,
+            _capacity(SM_D_BASE - 2 * T_STEEL, SM_D_RIM - 2 * T_STEEL, SM_H - T_STEEL) * 1e6),
+        "28 oz, 18 oz (ml)": (28 * 29.5735, 18 * 29.5735),
+        "taper (mm dia per mm), wall angle (deg)": (TAPER, math.degrees(ALPHA)),
+        "rest depth, seat depth (mm)": (REST * 1e3, SEAT * 1e3),
+        "large ID at rest, at seat (mm)": (d_large_in(REST) * 1e3, d_large_in(SEAT) * 1e3),
+        "interference (mm, diametral)": INTERFERENCE * 1e3,
+        "sim radial gap at rest, at seat (mm)": (0.0, SEAL_GAP * 1e3),
+        "wedge ratio, F_seat, F_fric (N)": (WEDGE, F_SEAT, F_FRIC),
+        "tan(alpha) vs mu": (math.tan(ALPHA), MU),
+        "dP (kPa, psi)": (DP_VAC / 1e3, DP_VAC / 6894.757),
+        "seal circle (mm), F_vac (N), total hold (N)": (D_SEAL * 1e3, F_VAC, F_FRIC + F_VAC),
+        "K (N/mm), give fric, give full (mm)": (K_SEAL / 1e3, F_FRIC / K_SEAL * 1e3, (F_FRIC + F_VAC) / K_SEAL * 1e3),
+        "small tin weight, loose wedge pull-off extra (N)": (SM_MASS * 9.81, SM_MASS * 9.81 / (
+            MU * math.cos(ALPHA) + math.sin(ALPHA)) * (MU * math.cos(ALPHA) - math.sin(ALPHA))),
+        "drink (g), full shaker (kg), weight (N)": (m_drink * 1e3, full, full * 9.81),
+        "large tin + contents hanging (kg, N)": (TIN_MASS + m_drink + N_ICE * ICE_MASS,
+                                                 (TIN_MASS + m_drink + N_ICE * ICE_MASS) * 9.81),
+        "sealed length (mm), middle (mm)": (SHAKER_L * 1e3, MID * 1e3),
+        "end-zone gap (mm)": zone_gap * 1e3,
+        "COM large (mm above base), small (mm from rim)": (COM_TIN * 1e3, COM_SM * 1e3),
+        "small tin OD at right grip (mm), large OD at left grip (mm)": (_r_small(0.066) * 2e3,
+                                                                        (TIN_D_BASE + TAPER * 0.055) * 1e3),
+        "vent band (mm below mouth), seal ring (mm above base)": (VENT_BAND * 1e3, (TIN_H - SEAT) * 1e3),
+        "tipping push at 165 mm (N)": full * 9.81 * TIN_D_BASE / 2 / 0.165,
+    }
+
+
+def print_numbers() -> None:
+    for k, v in numbers().items():
+        vals = v if isinstance(v, tuple) else (v,)
+        print(f"{k}: " + ", ".join(f"{x:.4f}" for x in vals))
 
 
 def _cone(n: int, z0: float, z1: float, r0: float, r1: float, color, collide: bool = True, t: float = WALL) -> list:
@@ -103,37 +199,25 @@ def _cone(n: int, z0: float, z1: float, r0: float, r1: float, color, collide: bo
     return out
 
 
-def _lip(n: int, z: float, r: float, color) -> list:
-    """The large tin's rolled lip: a 3 mm bead round the outside of its mouth (looks only)."""
-    width = 2 * (r + 0.0015) * math.tan(math.pi / n) + 0.001
-    out = []
-    for k in range(n):
-        a = 2 * math.pi * k / n
-        u = (math.cos(a), math.sin(a), 0.0)
-        out.append(plate(((r + 0.0015) * u[0], (r + 0.0015) * u[1], z - 0.003),
-                         ((r + 0.0015) * u[0], (r + 0.0015) * u[1], z), width, 0.003, u, color, collide=False))
-    return out
-
-
 def _tin() -> Body:
-    shapes = [CylShape((0.0, 0.0, TIN_FLOOR / 2), TIN_R0 - 0.0005, TIN_FLOOR, STEEL)]
-    shapes += _cone(SIDES, 0.0, TIN_H, TIN_R0, TIN_R1, STEEL)
-    shapes += _lip(SIDES, TIN_H, TIN_R1, STEEL)
+    shapes = [CylShape((0.0, 0.0, FLOOR / 2), _r_in(0.0) + WALL - 0.0005, FLOOR, STEEL)]
+    shapes += _cone(SIDES, 0.0, TIN_H, _r_in(0.0) + WALL, _r_in(TIN_H) + WALL, STEEL)  # inner face at the real size
     return Body.build("tin", pos=(*TIN_XY, TOP + 0.0005), mass=TIN_MASS, shapes=shapes, friction=(0.35, 0.3), color=STEEL,
-                      solver_iterations=64)
+                      solver_iterations=64, com=(0.0, 0.0, COM_TIN))
 
 
 def _small_tin() -> Body:
-    shapes = [CylShape((0.0, 0.0, SM_H - SM_FLOOR / 2), SM_R1 - 0.0005, SM_FLOOR, STEEL_S)]
-    shapes += _cone(SIDES, 0.0, SM_H, SM_R0, SM_R1, STEEL_S)
+    shapes = [CylShape((0.0, 0.0, SM_H - FLOOR / 2), _r_small(SM_H) - 0.0005, FLOOR, STEEL_S)]
+    shapes += _cone(SIDES, 0.0, SM_H, _r_small(0.0), _r_small(SM_H), STEEL_S)  # outer face at the real size
     return Body.build("small_tin", pos=(*TIN_XY, TOP + 0.0005 + TIN_H - REST), mass=SM_MASS, shapes=shapes,
-                      friction=(0.35, 0.3), color=STEEL_S, solver_iterations=64)
+                      friction=(0.35, 0.3), color=STEEL_S, solver_iterations=64, com=(0.0, 0.0, COM_SM),
+                      ignore=("tin",))
 
 
 def _bead_spots() -> list[tuple[float, float, float]]:
     d = 2 * BEAD_R + 0.0008
-    z = TIN_FLOOR + BEAD_R + 0.0005
-    rmax = _r_tin(z) - WALL - BEAD_R - 0.0015
+    z = FLOOR + BEAD_R + 0.0005
+    rmax = _r_in(z) - BEAD_R - 0.0015
     pts = [((i + 0.5 * (j % 2)) * d, j * d * math.sqrt(3) / 2, z) for j in range(-6, 7) for i in range(-6, 7)]
     pts = sorted([p for p in pts if math.hypot(p[0], p[1]) <= rmax], key=lambda p: (round(math.hypot(p[0], p[1]), 6), p))
     return pts[:N_BEADS]
@@ -149,7 +233,7 @@ def _beads() -> list[Body]:
 def _ice() -> list[Body]:
     """Four cubes on top of the drink, in two layers of two side by side, the upper pair turned square to the lower."""
     tx, ty = TIN_XY
-    z0 = TIN_FLOOR + 2 * BEAD_R + 0.001 + ICE / 2
+    z0 = FLOOR + 2 * BEAD_R + 0.001 + ICE / 2
     h = (ICE + 0.0015) / 2
     spots = [(h, 0.0, z0), (-h, 0.0, z0), (0.0, h, z0 + ICE + 0.0015), (0.0, -h, z0 + ICE + 0.0015)]
     return [Body.build(f"ice_{i}", pos=(tx + x, ty + y, TOP + 0.0005 + z), mass=ICE_MASS, color=ICE_C,
@@ -168,21 +252,22 @@ CONTENTS = set(BEAD_NAMES + ICE_NAMES)
 
 # the press fit: the small tin's rim slides along the large tin's axis, its depth below the mouth the coordinate
 thread("seal", "tin", "small_tin", anchor0=(0.0, 0.0, TIN_H), axis0=(0.0, 0.0, -1.0), anchor1=(0.0, 0.0, 0.0),
-       axis1=(0.0, 0.0, -1.0), slide_limits=(-0.04, SEAT), turn_damping=0.2, slide_stiffness=K_SEAL,
-       slide_damping=D_SEAL, slide_max_force=F_MAX, always_on=True)
+       axis1=(0.0, 0.0, -1.0), slide_limits=(-0.04, SEAT + 0.003), turn_damping=0.2, slide_stiffness=K_SEAL,
+       slide_damping=D_SEAL_DAMP, slide_max_force=F_MAX, always_on=True)
 
 _J: dict = {}
 _author_threads_plain = bodykit._author_threads
 
 
 def _author_threads(stage, prim_path: str, spec) -> None:
-    """As bodykit's, but the fit starts at REST, and each body's prim path is noted for the contact view. The two tins
+    """As bodykit's, but the fit starts at REST, and each body's prim path is noted for the contact views. The two tins
     never collide with each other (the joint is the fit; contacts between the jointed tins fight it in PhysX), and the
     drink and the ice never collide with the arms: the fingers' collision hulls reach through a gripped tin's wall,
     and would push what is inside out through it."""
     _author_threads_plain(stage, prim_path, spec)
     _J[spec.name] = f"{prim_path}/body"
-    if spec.name in ICE_NAMES:  # report the ice's contacts, so the contact view below can read them
+    _J["env"] = prim_path.rsplit("/", 1)[0]
+    if spec.name in ICE_NAMES or spec.name == "tin":  # report contacts, so the contact views below can read them
         from pxr import PhysxSchema
 
         PhysxSchema.PhysxContactReportAPI.Apply(stage.GetPrimAtPath(f"{prim_path}/body")).CreateThresholdAttr(0.0)
@@ -204,6 +289,24 @@ def _author_threads(stage, prim_path: str, spec) -> None:
 
 bodykit._author_threads = _author_threads
 
+_SEAL_ATTRS: dict = {}
+
+
+def _seal_drive(stiffness: float, damping: float, target: float) -> None:
+    """Set the seal joint's slide spring (N/m), damping (N s/m) and target (rim depth, m), writing only changes."""
+    if "attrs" not in _SEAL_ATTRS:
+        from isaaclab.sim.utils.stage import get_current_stage
+        from pxr import UsdPhysics
+
+        drive = UsdPhysics.DriveAPI(get_current_stage().GetPrimAtPath(bodykit._THREAD_PATHS["seal"]), "transX")
+        _SEAL_ATTRS["attrs"] = (drive.GetStiffnessAttr(), drive.GetDampingAttr(), drive.GetTargetPositionAttr())
+        _SEAL_ATTRS["now"] = (None, None, None)
+    new = (float(stiffness), float(damping), float(target))
+    for attr, old, value in zip(_SEAL_ATTRS["attrs"], _SEAL_ATTRS["now"], new):
+        if old != value:
+            attr.Set(value)
+    _SEAL_ATTRS["now"] = new
+
 
 def _np(a) -> np.ndarray:
     if hasattr(a, "numpy") and not hasattr(a, "detach"):
@@ -211,25 +314,38 @@ def _np(a) -> np.ndarray:
     return as_numpy(a)
 
 
-_CT = {"view": None, "failed": ""}
+_CT = {"view": None, "tin_view": None, "failed": ""}
+PHYSICS_DT = 1.0 / 240.0
 
 
-def _ice_touches() -> np.ndarray | None:
-    """(N_ICE, 2): whether each ice cube touches the large tin, the small tin, now (PhysX contact forces)."""
-    if _CT["view"] is None and not _CT["failed"] and "tin" in _J and "small_tin" in _J:
+def _views():
+    """Two PhysX rigid-contact views, made once: the ice cubes against the two tins, and the large tin against every
+    link of both arms (with contact points and normals)."""
+    if _CT["view"] is None and not _CT["failed"] and {"tin", "small_tin", "env"} <= _J.keys():
         try:
             from isaaclab_physx.physics import PhysxManager
+            from yam_arena.robot import asset_link_paths
 
             sim = PhysxManager.get_physics_sim_view()
             _CT["view"] = sim.create_rigid_contact_view([_J[n] for n in ICE_NAMES],
                                                         filter_patterns=[[_J["tin"], _J["small_tin"]]] * N_ICE,
                                                         max_contact_data_count=0)
+            every = [f"{_J['env']}/{arm}{p}" for arm in ("LeftArm", "RightArm") for p in asset_link_paths().values()]
+            _CT["tin_view"] = sim.create_rigid_contact_view([_J["tin"]], filter_patterns=[every],
+                                                            max_contact_data_count=256)
+            _CT["n_links"] = len(every)
         except Exception as e:  # noqa: BLE001
             _CT["failed"] = repr(e)[:300]
-    if _CT["view"] is None:
+    return _CT["view"]
+
+
+def _ice_touches() -> np.ndarray | None:
+    """(N_ICE, 2): whether each ice cube touches the large tin, the small tin, now (PhysX contact forces)."""
+    view = _views()
+    if view is None:
         return None
     try:
-        m = _np(_CT["view"].get_contact_force_matrix(dt=1.0 / 240.0)).reshape(N_ICE, 2, 3)
+        m = _np(view.get_contact_force_matrix(dt=PHYSICS_DT)).reshape(N_ICE, 2, 3)
     except Exception as e:  # noqa: BLE001
         _CT["failed"], _CT["view"] = repr(e)[:300], None
         return None
@@ -237,12 +353,39 @@ def _ice_touches() -> np.ndarray | None:
     return np.linalg.norm(m, axis=2) > TOUCH_N
 
 
+def _side_blow(origin, t_pos, t_rot) -> float:
+    """The sideways force (N, across the large tin's axis) that the arms press on the large tin's wall within
+    VENT_BAND below its mouth, now (PhysX contact forces, points and normals)."""
+    if _views() is None or _CT["tin_view"] is None:
+        return 0.0
+    try:
+        f, pts, nrm, _sep, _counts, _starts = _CT["tin_view"].get_contact_data(dt=PHYSICS_DT)
+        f, pts, nrm = _np(f).reshape(-1), _np(pts).reshape(-1, 3), _np(nrm).reshape(-1, 3)
+    except Exception as e:  # noqa: BLE001
+        _CT["tin_failed"] = repr(e)[:200]
+        return 0.0
+    counts, starts = _np(_counts).reshape(-1).astype(int), _np(_starts).reshape(-1).astype(int)
+    axis = t_rot[:, 2]
+    total = 0.0
+    _CT["blow_all"] = 0.0
+    for k in (k for c, s0 in zip(counts, starts) for k in range(s0, s0 + c)):
+        z = float((t_rot.T @ (pts[k] - origin - t_pos))[2])
+        across = math.sqrt(max(0.0, 1.0 - float(np.dot(nrm[k], axis)) ** 2))
+        _CT["blow_all"] += abs(float(f[k])) * across
+        if z < TIN_H - VENT_BAND or z > TIN_H + 0.003:
+            continue
+        total += abs(float(f[k])) * across
+        _CT["blow_z"] = round(z * 1000, 1)
+    return total
+
+
 # -- followed after every control step ------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"on": True, "hold": REST, "sealed": False, "pull": 0, "pops": 0, "ever_sealed": False,
+    return {"on": True, "mode": "touch", "sealed": False, "pull": 0, "pops": 0, "ever_sealed": False,
             "open_tipped": False, "turns": 0, "last": None, "s": 0.0, "ext": 0.0, "lo": 0.0, "hi": 0.0, "dir": 0,
-            "ice_end": [None] * N_ICE, "passes": 0, "max_tip": 0.0, "depth": REST, "max_give": 0.0, "tcps": None}
+            "ice_end": [None] * N_ICE, "passes": 0, "max_tip": 0.0, "depth": REST, "max_give": 0.0, "tcps": None,
+            "vac_base": 0, "vents": 0, "blow": 0, "max_blow": 0.0, "max_press": 0.0}
 
 
 _EP = _fresh()
@@ -254,8 +397,9 @@ def _new_episode() -> None:
     _EP.clear()
     _EP.update(_fresh())
     _DEBUG["steps"] = 0
+    _SEAL_ATTRS.pop("attrs", None)
     try:
-        set_slide_target("seal", REST)
+        _seal_drive(K_SEAL, D_SEAL_DAMP, REST)
         set_thread_on("seal", True)
     except Exception:  # noqa: BLE001
         pass
@@ -292,14 +436,39 @@ def _track_stroke(centre, axis, counting: bool) -> None:
         e["dir"], e["ext"] = -e["dir"], s
 
 
-def _seal_step(depth: float, off: float, angle: float) -> None:
-    """The press fit, from the small tin's rim depth in the mouth (m), its distance off the axis (m) and its tilt
-    against the large tin (deg)."""
+def vacuum_share() -> float:
+    """How much of the full vacuum the sealed shaker holds now: the air chills as the drink is shaken, a sixth more at
+    each change of direction counted since it was sealed or last vented."""
+    if not _EP["sealed"]:
+        return 0.0
+    return min(1.0, (_EP["turns"] - _EP["vac_base"]) / TURNS)
+
+
+def hold_force() -> float:
+    """The pull (N) the seal holds now: the press fit, plus the vacuum."""
+    return F_FRIC + vacuum_share() * F_VAC
+
+
+def _set_mode(mode: str) -> None:
+    """The seal joint's slide drive: 'touch' (the rim on the wall: pushing further in meets the interference spring,
+    15 N per mm), 'sealed' (held at the seat by the same spring) or 'free' (the rim off the wall: it slides freely)."""
+    _EP["mode"] = mode
+    if mode == "touch":
+        _seal_drive(K_SEAL, D_SEAL_DAMP, REST)
+    elif mode == "sealed":
+        _seal_drive(K_SEAL, D_SEAL_DAMP, SEAT)
+    else:
+        _seal_drive(K_FREE, D_FREE, REST)
+
+
+def _seal_step(depth: float, off: float, angle: float, blow: float) -> None:
+    """The press fit, from the small tin's rim depth in the mouth (m), its distance off the axis (m), its tilt against
+    the large tin (deg) and the side blow on the large tin's seam (N)."""
     e = _EP
     if not e["on"]:
         if 0.0 <= depth <= SEAT + 0.01 and off <= CATCH_R and angle <= CATCH_DEG:  # set back in the mouth: caught
-            e.update(on=True, hold=min(depth, SEAT), sealed=False, pull=0)
-            set_slide_target("seal", e["hold"])
+            e.update(on=True, sealed=False, pull=0)
+            _set_mode("touch" if depth >= REST - TOUCH else "free")
             set_thread_on("seal", True)
         return
     if depth < OFF_DEPTH:  # drawn out of the mouth: apart
@@ -308,20 +477,27 @@ def _seal_step(depth: float, off: float, angle: float) -> None:
         return
     if e["sealed"]:
         e["max_give"] = max(e["max_give"], SEAT - depth)
-        if depth < SEAT - GIVE:  # drawn out of its seat: held 0.15 s, the seal lets go
+        e["blow"] = e["blow"] + 1 if blow >= F_VENT else 0
+        if e["blow"] == VENT_STEPS:  # a blow at the seam lets the air in: the vacuum is gone
+            e["vac_base"], e["vents"] = e["turns"], e["vents"] + 1
+        if depth < SEAT - hold_force() / K_SEAL:  # drawn out past its hold: held 0.15 s, the seal lets go
             e["pull"] += 1
             if e["pull"] >= POP_STEPS:
-                e.update(sealed=False, pull=0, hold=depth, pops=e["pops"] + 1)
-                set_slide_target("seal", depth)
+                e.update(sealed=False, pull=0, pops=e["pops"] + 1)
+                _set_mode("touch" if depth >= REST - TOUCH else "free")
         else:
             e["pull"] = 0
         return
-    if depth >= SEAT - SEATED_WITHIN:  # pressed home: sealed
-        e.update(sealed=True, ever_sealed=True, hold=SEAT, pull=0)
-        set_slide_target("seal", SEAT)
-    elif depth > e["hold"] + SLIP_IN or depth < e["hold"] - SLIP_OUT:  # pushed in (7.2 N) or drawn out (1.2 N)
-        e["hold"] = depth
-        set_slide_target("seal", depth)
+    if depth >= REST - TOUCH:
+        e["max_press"] = max(e["max_press"], K_SEAL * (depth - REST))
+    if depth >= SEAT:  # pressed home (15 N): sealed
+        e.update(sealed=True, ever_sealed=True, pull=0, vac_base=e["turns"], blow=0)
+        _set_mode("sealed")
+    elif depth >= REST - TOUCH:
+        if e["mode"] != "touch":
+            _set_mode("touch")
+    elif e["mode"] != "free":
+        _set_mode("free")
 
 
 @on_step
@@ -336,7 +512,9 @@ def _follow(env) -> None:
     depth, off = TIN_H - float(q[2]), math.hypot(float(q[0]), float(q[1]))
     angle = math.degrees(math.acos(max(-1.0, min(1.0, float(t_rot[:, 2] @ s_rot[:, 2])))))
     e["depth"] = depth
-    _seal_step(depth, off, angle)
+    blow = _side_blow(origin, t_pos, t_rot)
+    e["max_blow"] = max(e["max_blow"], blow)
+    _seal_step(depth, off, angle, blow)
     tip = math.acos(max(-1.0, min(1.0, float(t_rot[2, 2]))))
     sealed = e["sealed"]
     if tip > TIP_SEALED and not sealed:
@@ -355,9 +533,9 @@ def _follow(env) -> None:
         zb = float((t_rot.T @ (p - t_pos))[2])
         zs = float((s_rot.T @ (p - s_pos))[2])
         end = None
-        if zb <= TIN_FLOOR + END_ZONE and (touches is None or touches[i, 0]):
+        if zb <= FLOOR + END_ZONE and (touches is None or touches[i, 0]):
             end = "large"
-        elif zs >= SM_H - SM_FLOOR - END_ZONE and (touches is None or touches[i, 1]):
+        elif zs >= SM_H - FLOOR - END_ZONE and (touches is None or touches[i, 1]):
             end = "small"
         if end is not None:
             if e["ice_end"][i] is not None and e["ice_end"][i] != end:
@@ -370,16 +548,21 @@ def _follow(env) -> None:
         g = as_numpy(robot.data.body_link_pose_w)[0][k]
         tcps.append(g[:3] - origin + rotation(g[3:7]) @ np.array(TCP_OFFSET))
     e["tcps"] = tcps
-    if _DEBUG["on"] and _DEBUG["steps"] % 10 == 0:
+    if _DEBUG["on"] and (_DEBUG["steps"] % 10 == 0 or blow > 1.0):
         lt = t_rot.T @ (tcps[0] - t_pos)
         rt = s_rot.T @ (tcps[1] - s_pos)
-        print(f"[shake] t={_DEBUG['steps'] / 20:5.1f}s depth={depth * 1000:5.1f}mm off={off * 1000:4.1f}mm "
-              f"ang={angle:4.1f} on={e['on']} sealed={sealed} pops={e['pops']} give={e['max_give'] * 1000:4.1f}mm "
+        print(f"[shake] t={_DEBUG['steps'] / 20:5.2f}s depth={depth * 1000:6.2f}mm off={off * 1000:4.1f}mm "
+              f"ang={angle:4.1f} on={e['on']} mode={e['mode']} sealed={sealed} pops={e['pops']} "
+              f"give={e['max_give'] * 1000:4.2f}mm press={e['max_press']:4.1f}N vac={vacuum_share():4.2f} "
+              f"hold={hold_force():4.1f}N blow={blow:5.1f}N maxblow={e['max_blow']:5.1f} vents={e['vents']} "
+              f"blowz={_CT.get('blow_z')} blow_all={_CT.get('blow_all', 0.0):5.1f} "
               f"tip={math.degrees(tip):5.1f} turns={e['turns']} passes={e['passes']} ends={e['ice_end']} "
               f"tin_at={np.round((t_pos - [TIN_XY[0], TIN_XY[1], TOP]) * 1000, 1).tolist()} "
               f"left_in_tin={np.round(lt * 1000, 1).tolist()} right_in_small={np.round(rt * 1000, 1).tolist()} "
+              f"rtcp={np.round(tcps[1] * 1000, 1).tolist()} "
               f"contacts={'ok %d reads' % _CT.get('reads', 0) if _CT['view'] is not None else 'FAILED ' + _CT['failed'][:80]} "
-              f"touch={None if touches is None else touches.astype(int).tolist()}", file=sys.stderr, flush=True)
+              f"{_CT.get('tin_failed', '')} touch={None if touches is None else touches.astype(int).tolist()}",
+              file=sys.stderr, flush=True)
         for name in ICE_NAMES + BEAD_NAMES:
             p = _pose(base, origin, name)[0]
             if not (_inside_tin(t_pos, t_rot, p) or _inside_small(s_pos, s_rot, p)):
@@ -396,12 +579,12 @@ def _follow(env) -> None:
 
 def _inside_tin(t_pos, t_rot, w) -> bool:
     q = t_rot.T @ (np.asarray(w, float) - t_pos)
-    return TIN_FLOOR < q[2] < TIN_H and math.hypot(q[0], q[1]) < _r_tin(float(q[2])) - WALL
+    return FLOOR < q[2] < TIN_H and math.hypot(q[0], q[1]) < _r_in(float(q[2]))
 
 
 def _inside_small(s_pos, s_rot, w) -> bool:
     q = s_rot.T @ (np.asarray(w, float) - s_pos)
-    return 0.0 < q[2] < SM_H - SM_FLOOR and math.hypot(q[0], q[1]) < _r_small(float(q[2])) - WALL
+    return 0.0 < q[2] < SM_H - FLOOR and math.hypot(q[0], q[1]) < _r_small(float(q[2])) - WALL
 
 
 def _tally(objects) -> dict:
@@ -460,7 +643,8 @@ def success(objects) -> bool:
 # The right hand grips the small tin from the right side, the left grips the large tin low from the left, each with
 # its fingers closing front and back. The right presses the small tin home; then the shaker follows one shared path,
 # given as where the large tin's underside centre is and how far the shaker is tipped forward (about world y), with
-# each hand fixed on its tin. Finally the left holds the large tin down while the right pulls the small tin off.
+# each hand fixed on its tin. Set down, the left holds the large tin down, upright; the right lets go, strikes the large
+# tin's seam with its closed fingertips to let the air in, grips the small tin again and pulls it off.
 
 
 def _rx(a):
@@ -484,13 +668,17 @@ H_LEFT = 0.055  # the left grip on the large tin, above its underside
 SM_GRIP = 0.066  # the right grip on the small tin, above its rim
 H_RIGHT = TIN_H - SEAT + SM_GRIP  # ... above the large tin's underside once sealed
 OUT = 0.07
-PRESS = 0.035  # the right aims this far below the seated grip to press the small tin home
+PRESS = 0.05  # the right aims this far below the seated grip to press the small tin home
 SQUEEZE = 0.005  # while the shaker is off the table each hand aims this far toward the other along its axis
 LIFT, PIVOT = 0.03, 0.15  # lift the shaker 3 cm, tip it about its middle
 SHAKE_AT, ROCK = math.radians(86), math.radians(21)  # shake between 65 and 107 deg (the wrist roll allows ~115)
 STROKE, LEGS, LEG_S, DWELL = 0.03, 12, 0.7, 0.3  # ... 3 cm along the axis each way, 12 legs, a pause at each end
 TIP_STEP = math.radians(15)
 HOLD_DOWN, PULL = 0.05, 0.10  # opening: the left presses 5 cm into the table, the right pulls 10 cm straight up
+STRIKE_H = 0.165  # the right's closed fingertips strike the large tin's wall about this high up (in its top 25 mm)
+TIP_REACH = 0.0128  # the closed fingertips reach this far past the grip point
+STRIKE_IN = 0.045  # ... aimed this far into the wall, toward the left hand that holds the tin
+LEFT_OPEN = _ry(0.0) @ _rx(LEFT_DOWN) @ SIDE_GRIP["left"]  # holding it down alone, the left stands the tin upright
 LEAD_S, LEAD_STEPS = 3.0, 15
 B0 = np.array([TIN_XY[0], TIN_XY[1], TOP + 0.0005])
 PIVOT_AT = B0 + [0.0, 0.0, LIFT + PIVOT]
@@ -573,7 +761,14 @@ SHAKE = _shake_path()
 RIGHT_IN = [1.5, 0.8]  # the right hand: slide in round the small tin, grip it
 LEFT_IN = [1.5, 0.8]  # then the left: slide in round the large tin, grip it
 PRESSING = [1.0, 0.6, 0.8]  # then the right presses the small tin home, holds, eases off
-OPENING = [0.8, 1.5, 0.6, 1.5, 0.8, 1.2, 2.0]  # hold down, pull off, pause, up, left lets go, left out, hold still
+STRIKING = [0.5, 0.8, 1.2, 0.6, 0.6, 0.5, 1.2, 1.2, 0.8]  # let go, out, down beside the seam, strike, hold, back,
+#                                                           up beside the small tin, in round it, grip it
+OPENING = [0.8, 1.5, 0.6, 1.5, 0.8, 1.2, 2.0]  # hold, pull off, pause, up, left lets go, left out, hold still
+
+
+def _strike_y() -> float:
+    """Where the right TCP is (world y) when its closed fingertips touch the large tin's wall at STRIKE_H."""
+    return TIN_XY[1] - (_r_in(STRIKE_H) + WALL + TIP_REACH)
 
 
 def _right() -> list[Waypoint]:
@@ -594,6 +789,18 @@ def _right() -> list[Waypoint]:
         pos, r = _hand("right", b, tip, sq)
         out.append(_w(dt, pos, FINGER_CLOSED, label, r))
     pos, r = _hand("right", B0, 0.0)
+    y0, zs = _strike_y(), TOP + 0.0005 + STRIKE_H
+    beside = np.array([TIN_XY[0], y0 - 0.03, zs])
+    struck = np.array([TIN_XY[0], y0 + STRIKE_IN, zs])
+    out += [_w(STRIKING[0], pos, FINGER_OPEN, "let go of the small tin", r),
+            _w(STRIKING[1], pos + side, FINGER_OPEN, "out to the side", r),
+            _w(STRIKING[2], beside, FINGER_CLOSED, "down beside the seam, fingers closed", r),
+            _w(STRIKING[3], struck, FINGER_CLOSED, "strike the large tin at the seam: air in", r),
+            _w(STRIKING[4], struck, FINGER_CLOSED, "strike the large tin at the seam: air in", r),
+            _w(STRIKING[5], beside, FINGER_CLOSED, "back off", r),
+            _w(STRIKING[6], pos + side, FINGER_OPEN, "up beside the small tin", r),
+            _w(STRIKING[7], pos, FINGER_OPEN, "slide in round the small tin", r),
+            _w(STRIKING[8], pos, FINGER_CLOSED, "grip the small tin", r)]
     pulled = pos + [0.0, 0.0, PULL]
     up = pulled + [0.0, 0.0, 0.02]  # held over the large tin: anything wedged in the small tin can only fall back in
     out += [_w(OPENING[0], pos, FINGER_CLOSED, "hold while the left holds the large tin down", r),
@@ -617,9 +824,12 @@ def _left() -> list[Waypoint]:
     for dt, b, tip, sq, label in SHAKE:
         pos, r = _hand("left", b, tip, sq)
         out.append(_w(dt, pos, FINGER_CLOSED, label, r))
-    pos, r = _hand("left", B0, 0.0)
+    pos, r0 = _hand("left", B0, 0.0)
+    r = LEFT_OPEN
     down = pos - [0.0, 0.0, HOLD_DOWN]
-    out += [_w(OPENING[0], down, FINGER_CLOSED, "hold the large tin down", r),
+    out += [_w(STRIKING[0], pos, FINGER_CLOSED, "hold the large tin", r0),
+            _w(STRIKING[1], down, FINGER_CLOSED, "hold the large tin down, upright", r),
+            _w(sum(STRIKING[2:]) + OPENING[0], down, FINGER_CLOSED, "keep holding it down", r),
             _w(sum(OPENING[1:4]), down, FINGER_CLOSED, "keep holding it down", r),
             _w(OPENING[4], pos, FINGER_OPEN, "let go of the large tin", r),
             _w(OPENING[5], pos + side, FINGER_OPEN, "slide out", r),
