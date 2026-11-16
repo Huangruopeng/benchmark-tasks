@@ -21,6 +21,12 @@ The primary measure is the mass of grated cheese, in grams.
 **In a real trial** the grated cheese is weighed: after the trial, lift the grater, brush every shred from the board and
 from inside the grater into a tared bowl and weigh it on a kitchen scale reading to 0.1 g.
 
+**The cheese, for a real trial:** mild Cheddar, a semi-hard cow's-milk cheese aged 2 to 3 months (sold as "mild"),
+cut from a supermarket block to 6 x 2.4 x 3.5 cm (about 50 g), a fresh piece for every trial. Keep it wrapped in a
+refrigerator set to 4 °C (40 °F) for at least 2 hours, and start the trial within 5 minutes of taking it out, so that it
+is still cold when it is grated. Temperature and age are fixed because they change how much each stroke removes: warm
+cheese softens and smears into the holes, and an older, drier Cheddar crumbles.
+
 **In the simulation**, which can't cut cheese, grating is credited only for real pressed strokes, from PhysX contact
 data, never from distance alone:
 
@@ -138,7 +144,16 @@ None needed: with `-E object_jitter=0` the layout is fixed, and the scripted dem
 
 ## Changes in this revision
 
-This is a revision of TK-UV3V7E. Its review said:
+This is a revision of TK-NZ837D. Its review said:
+
+> Specify the type and age of cheese, as well as temperature to address reproducibility concerns.
+
+What changed in response: the setup and this README now specify the cheese as mild Cheddar, a semi-hard cow's-milk
+cheese aged 2 to 3 months, kept in a refrigerator set to 4 °C for at least 2 hours and grated within 5 minutes of
+being taken out (see "The cheese, for a real trial" above). Nothing else changed: the scene, the scorer, the demo and
+the Dream-1 run are those of the previous revision.
+
+The revision before that (TK-UV3V7E) was reviewed as follows:
 
 > Construct validity (not met): A robot can move the cheese end up and down within 4 mm of the face without touching it and earn full credit without producing grated cheese.
 >
