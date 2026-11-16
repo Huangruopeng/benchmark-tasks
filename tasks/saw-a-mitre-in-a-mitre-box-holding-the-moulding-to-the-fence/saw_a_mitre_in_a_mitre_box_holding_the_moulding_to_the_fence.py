@@ -1,13 +1,16 @@
 """On the station table stands a beech mitre box: a channel between a front wall and a back fence, with saw slots cut
 through both walls at 90 degrees and at 45 degrees either way, on a long base board. In front of it lies a length of
 black-lacquered pine picture-frame moulding with a gold lip, a pencil line across it at 45 degrees near its right end.
-To the right a backsaw (a steel blade with a brass back and a turned handle) stands in its wooden rest, blade down.
+To the right a 10-inch gents saw (a steel blade with a brass back and a turned handle) stands in its wooden rest,
+blade down.
 
 Task: saw the moulding right through at its pencil line in the mitre box's 45-degree slot, the moulding against the
-box's back fence; leave the saw standing back in its rest, the cut moulding lying on the table in front of the box and
-both arms back where they started. The moulding is light and slides in the box: the saw's strokes drag it along with
-the blade unless it is held. The wood is not cut in simulation: counted strokes stand in for the kerf's depth (real
-trials measure it; see task.json).
+box's back fence, so the cut is a true 45-degree mitre (within half a degree); leave the saw standing back in its rest,
+the cut moulding lying on the table in front of the box and both arms back where they started. The moulding is light
+and slides in the box: the saw's strokes drag it along with the blade unless it is held. The slots hold the saw's
+direction in the box, so the cut is true only if the moulding stays square against the fence. The wood is not cut in
+simulation: counted strokes stand in for the kerf's depth (real trials measure it; see task.json), and the cut's angle
+is the blade's angle in the moulding's own frame.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=saw_a_mitre_in_a_mitre_box_holding_the_moulding_to_the_fence.py \\
            --instruction "..." --scorer task_score ...
@@ -39,14 +42,18 @@ TOP = TABLE_TOP[SCENE]
 # -- the mitre box: the channel's centre line runs along y at XC; the 45-degree slots cross it at YX ------------------
 XC, YX = 0.350, -0.050
 IN_HALF = 0.030  # the channel is 6 cm wide inside
-WT, WH = 0.015, 0.050  # wall thickness, wall height over the floor
+WT, WH = 0.015, 0.040  # wall thickness, wall height over the floor (below the saw's back at full depth)
 FT = 0.015  # the floor (base board) thickness
 FLOOR = TOP + FT
 BOX_Y0, BOX_Y1 = -0.150, 0.080  # where the walls run
 BASE_Y1 = 0.280  # the base board runs on to the left, under the moulding's far end
 SX0, SX1 = XC - IN_HALF - WT - 0.008, XC + IN_HALF + WT + 0.008
 Y90 = 0.030  # the 90-degree slot
-GAP = 0.014  # each slot's opening across one 3 mm slice of a wall
+BLADE_T = 0.002  # the saw blade's thickness (simulated)
+SLOT_W = 0.0025  # each slot's width (square to it): 0.5 mm wider than the blade
+SLOT_MOUTH, MOUTH_D = 0.010, 0.008  # its top chamfered out to this width over this depth (a lead-in)
+SLOT_SPAN = (2 * IN_HALF + 2 * WT) * math.sqrt(2)  # a 45-degree slot's length through both walls, outer face to face
+SLOT_PLAY = math.degrees(math.atan((SLOT_W - BLADE_T) / SLOT_SPAN))  # how far the slots let the saw turn
 FENCE = XC + IN_HALF  # the back fence's face
 D = np.array([math.sqrt(0.5), math.sqrt(0.5), 0.0])  # along the 45-degree slot used (front right to back left)
 N = np.array([-math.sqrt(0.5), math.sqrt(0.5), 0.0])  # across it
@@ -60,7 +67,7 @@ M0 = (MX0, TOP)
 M_MASS, OFF_MASS = 0.080, 0.014
 NSL = 8  # slices across its width that make its 45-degree ends
 # -- the backsaw: its frame at the middle of the blade's toothed edge, the blade along x -----------------------------
-BL, BH = 0.240, 0.050
+BL, BH = 0.250, 0.050
 G = np.array([-BL / 2 - 0.058, 0.0, BH])  # where a hand holds its handle
 SAW_MASS = 0.16
 SAW_COM = (-0.100, 0.0, 0.042)
@@ -75,6 +82,7 @@ LAT, SAW_YAW, SAW_ROLL = 0.009, 8.0, 12.0  # the saw in the 45-degree slot
 ON_KERF_UP, ON_KERF_DOWN = 0.007, 0.008  # its teeth this near the bottom of the cut
 STROKE = 0.030  # a stroke: the saw pushed this far along the slot
 MOVE_TOL = 0.004  # ... while the moulding moves at most this much
+MITRE, MITRE_TOL = 45.0, 0.5  # the cut's angle to the moulding's edge (degrees): a frame corner closes without a gap
 STROKES_DONE = 8
 DEPTH_FULL = MH + 0.001
 STEP = DEPTH_FULL / STROKES_DONE
@@ -90,9 +98,10 @@ STEEL, TEETH, BRASS, ROSEWOOD = (0.76, 0.78, 0.81), (0.46, 0.47, 0.50), (0.80, 0
 DUST, SLIT, SCREW = (0.94, 0.86, 0.68), (0.16, 0.10, 0.06), (0.35, 0.35, 0.37)
 
 
-def _slot_gaps(xc: float, w: float) -> list[tuple[float, float]]:
-    """The openings (y ranges) the three slots cut through a 3 mm slice of a wall centred at xc."""
-    gaps = [(YX + (xc - XC), GAP + w), (YX - (xc - XC), GAP + w), (Y90, GAP)]
+def _slot_gaps(xc: float, w: float, width: float) -> list[tuple[float, float]]:
+    """The openings (y ranges) the three slots, `width` wide (square to each slot), cut through a slice of a wall
+    `w` thick centred at xc."""
+    gaps = [(YX + (xc - XC), width * math.sqrt(2) + w), (YX - (xc - XC), width * math.sqrt(2) + w), (Y90, width)]
     out = sorted((c - g / 2, c + g / 2) for c, g in gaps)
     merged = [list(out[0])]
     for a, b in out[1:]:
@@ -106,26 +115,42 @@ def _slot_gaps(xc: float, w: float) -> list[tuple[float, float]]:
 def _box() -> Body:
     """The mitre box on its base board (frame at (XC, 0) on the table)."""
     shapes = [BoxShape(((SX0 + SX1) / 2 - XC, (BOX_Y0 + BASE_Y1) / 2, FT / 2), (SX1 - SX0, BASE_Y1 - BOX_Y0, FT), PLY)]
+    zl = FT + WH - MOUTH_D  # where each slot's chamfered mouth starts
     for x0w in (XC - IN_HALF - WT, XC + IN_HALF):  # front wall, back fence: 5 slices each (collision only)
         for k in range(5):
             x0, x1 = x0w + k * WT / 5, x0w + (k + 1) * WT / 5
             xc = (x0 + x1) / 2
-            y = BOX_Y0
-            for a, b in _slot_gaps(xc, x1 - x0) + [(BOX_Y1, BOX_Y1)]:
-                if a > y:
-                    shapes.append(BoxShape((xc - XC, (y + a) / 2, FT + WH / 2), (x1 - x0, a - y, WH), None))
-                y = max(y, b)
-        # the wall as it looks: solid, with the thin saw kerfs of its three slots
+            for z0, z1, width in ((FT, zl, SLOT_W), (zl, FT + WH, SLOT_MOUTH)):
+                y = BOX_Y0
+                for a, b in _slot_gaps(xc, x1 - x0, width) + [(BOX_Y1, BOX_Y1)]:
+                    if a > y:
+                        shapes.append(BoxShape((xc - XC, (y + a) / 2, (z0 + z1) / 2), (x1 - x0, a - y, z1 - z0), None))
+                    y = max(y, b)
         xm = x0w + WT / 2 - XC
+        # each slot's mouth: two planes leaning out from the slot's edges at zl to the mouth's edges at the top
+        dv, dz = (SLOT_MOUTH - SLOT_W) / 2, MOUTH_D
+        lp, t = math.hypot(dv, dz), 0.003
+        for yk, psi in ((YX, math.pi / 4), (YX, -math.pi / 4), (Y90, 0.0)):
+            d, n = np.array([math.cos(psi), math.sin(psi)]), np.array([-math.sin(psi), math.cos(psi)])
+            for side in (1.0, -1.0):
+                v = side * (SLOT_W / 2 + dv / 2) + side * (t / 2) * dz / lp
+                z = zl + dz / 2 - (t / 2) * dv / lp
+                u = (xm + v * math.sin(psi)) / math.cos(psi)
+                c = np.array([0.0, yk]) + u * d + v * n
+                a = -side * math.atan2(dv, dz)
+                q = (math.cos(psi / 2) * math.sin(a / 2), math.sin(psi / 2) * math.sin(a / 2),
+                     math.cos(a / 2) * math.sin(psi / 2), math.cos(psi / 2) * math.cos(a / 2))
+                shapes.append(BoxShape((float(c[0]), float(c[1]), z), (WT / math.cos(psi), t, lp), None, quat_xyzw=q))
+        # the wall as it looks: solid, with the saw kerfs of its three slots and their chamfered mouths
         shapes.append(BoxShape((xm, (BOX_Y0 + BOX_Y1) / 2, FT + WH / 2), (WT, BOX_Y1 - BOX_Y0, WH), BEECH,
                                collide=False))
         for yk, yaw in ((YX + xm, math.pi / 4), (YX - xm, -math.pi / 4), (Y90, 0.0)):
             ln = WT * (math.sqrt(2) if yaw else 1.0) + 0.001
-            shapes.append(BoxShape((xm, yk, FT + WH + 0.0003), (ln, 0.0014, 0.0006), KERF, collide=False, yaw=yaw))
+            shapes.append(BoxShape((xm, yk, FT + WH + 0.0003), (ln, SLOT_MOUTH, 0.0006), KERF, collide=False, yaw=yaw))
             for side in (-1.0, 1.0):  # down the wall's inner and outer faces
                 xf = xm + side * (WT / 2 + 0.0003)
                 shapes.append(BoxShape((xf, YX + (xf if yaw > 0 else -xf) if yaw else Y90, FT + WH / 2),
-                                       (0.0006, 0.0014 * (math.sqrt(2) if yaw else 1.0), WH), KERF, collide=False))
+                                       (0.0006, SLOT_W * (math.sqrt(2) if yaw else 1.0), WH), KERF, collide=False))
     # the slots' dark kerfs in the floor, from use, and the screws holding the walls (drawn only)
     for s in (1.0, -1.0):
         shapes.append(BoxShape((0.0, YX, FT + 0.0002), (2 * IN_HALF * math.sqrt(2), 0.0015, 0.0004), KERF,
@@ -256,7 +281,7 @@ OBJECTS = [_box(), _rest(), _pin(), _moulding(), _offcut(), _kerf(), _saw(), _sl
 
 def _fresh() -> dict:
     return {"laid": False, "at_mark_s": 0.0, "strokes": 0, "push": None, "cut": False, "retracted": False,
-            "shown": set(), "tcps": None, "s": {}}
+            "angles": [], "bevels": [], "offsets": [], "shown": set(), "tcps": None, "s": {}}
 
 
 _EP = _fresh()
@@ -323,16 +348,31 @@ def _follow(env) -> None:
     up = float((sp + sr @ np.array([u, 0.0, 0.0]))[2]) - kerf_top if abs(u) <= BL / 2 else 1.0
     in_slot = (abs(lat) <= LAT and abs(syaw - 45.0) <= SAW_YAW and abs(roll) <= SAW_ROLL and -0.07 <= s <= 0.07
                and -ON_KERF_DOWN <= up <= ON_KERF_UP)
+    # the cut as the wood sees it: the blade's line in the moulding's own frame (its angle to the moulding's edge, its
+    # lean off square to the moulding's top, and how far the blade's plane lies from the pencil mark)
+    bm, nm = mr.T @ sr[:, 0], mr.T @ sr[:, 1]
+    mitre = math.degrees(math.atan2(float(bm[1]), float(bm[0])))
+    bevel = math.degrees(math.asin(max(-1.0, min(1.0, float(nm[2])))))
+    offset = float((mp - sp) @ sr[:, 1])
     st = _EP["push"]
     if in_slot and at_mark:
         if st is None or s < st["smin"] or s < st["smax"] - 0.010:  # drawn back: the next push starts from here
-            st = {"smin": s, "smax": s, "m0": mp.copy(), "moved": 0.0, "counted": False}
+            st = {"smin": s, "smax": s, "m0": mp.copy(), "moved": 0.0, "counted": False, "n": 0, "a": 0.0, "b": 0.0,
+                  "d": 0.0}
         st["smax"] = max(st["smax"], s)
         st["moved"] = max(st["moved"], float(np.linalg.norm(mp - st["m0"])))
+        if not st["counted"]:
+            st["n"] += 1
+            st["a"] += mitre
+            st["b"] += bevel
+            st["d"] += offset
         if not st["counted"] and s - st["smin"] >= STROKE:
             st["counted"] = True
             if st["moved"] <= MOVE_TOL and _EP["strokes"] < STROKES_DONE:
                 _EP["strokes"] += 1
+                _EP["angles"].append(st["a"] / st["n"])  # this stroke's cut, averaged over the push
+                _EP["bevels"].append(st["b"] / st["n"])
+                _EP["offsets"].append(st["d"] / st["n"])
                 set_slider_drive("kerf", target=-STEP * _EP["strokes"])
                 if _EP["strokes"] >= STROKES_DONE:
                     _EP["cut"] = True
@@ -357,7 +397,7 @@ def _follow(env) -> None:
             _write_pose(base, name, braw)
             _EP["shown"].add(name)
     _EP["tcps"] = tcps
-    _EP["s"] = {"at_mark": at_mark, "s": s, "lat": lat, "up": up}
+    _EP["s"] = {"at_mark": at_mark, "s": s, "lat": lat, "up": up, "mitre": mitre, "bevel": bevel}
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 5 == 0:
@@ -367,6 +407,9 @@ def _follow(env) -> None:
                   f" myaw={myaw:5.1f} mpitch={mpitch:5.1f} at_mark={at_mark} laid={_EP['laid']}"
                   f" saw s={s * 1000:6.1f} lat={lat * 1000:5.1f} up={up * 1000:6.1f} yaw={syaw:5.1f} roll={roll:5.1f} pitch={pitch:5.1f}"
                   f" in_slot={in_slot} moved={(push['moved'] * 1000 if push else -1):5.1f} strokes={_EP['strokes']}"
+                  f" mitre={mitre:6.2f} bevel={bevel:5.2f} off={offset * 1000:5.2f}"
+                  f" cuts={[round(a - MITRE, 2) for a in _EP['angles']]} bev={[round(b, 2) for b in _EP['bevels']]}"
+                  f" offs={[round(d * 1000, 2) for d in _EP['offsets']]}"
                   f" cut={_EP['cut']} kerf={(kerf_top - FLOOR) * 1000:5.1f}"
                   f" sawpos={np.round((sp - [XR, YR, REST_Z]) * 1000).astype(int).tolist()}"
                   f" fing={[round(f * 1000, 1) for f in fingers]}"
@@ -377,11 +420,18 @@ def _follow(env) -> None:
 
 # -- scoring --------------------------------------------------------------------------------------------------------
 
+def cut_true() -> bool:
+    """Every counted stroke cut at 45 degrees to the moulding's edge, within MITRE_TOL."""
+    return bool(_EP["angles"]) and all(abs(a - MITRE) <= MITRE_TOL for a in _EP["angles"])
+
+
 def score(objects) -> float:
-    """1.0: the moulding cut through, the saw back in its rest, the cut moulding out of the box on the table and both
-    arms back where they started, at the end; 0.75: cut through; 0.5: at least half the strokes (a kerf at least 11 mm
-    deep); 0.25: the moulding laid in the box against the fence with its mark at the 45-degree slot; else 0.0."""
-    if _EP["cut"]:
+    """1.0: the moulding cut through at 45 degrees (every counted stroke within 0.5 degrees of it), the saw back in its
+    rest, the cut moulding out of the box on the table and both arms back where they started, at the end; 0.75: cut
+    through at 45 degrees (within 0.5); 0.5: at least half the strokes (a kerf at least 11 mm deep), at any angle,
+    or cut through at another angle; 0.25: the moulding laid in the box against the fence with its mark at the
+    45-degree slot; else 0.0."""
+    if _EP["cut"] and cut_true():
         if objects is not None and _finished(objects) and _arms_home():
             return 1.0
         return 0.75
@@ -426,29 +476,37 @@ def success(objects) -> bool:
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
-# The left hand comes down on the moulding's far part, fingers closing across it, lifts it over the box's front wall,
-# lays it in the channel against the back fence with its pencil line at the 45-degree slot and holds it there, pressing
-# it down. The right hand takes the saw from its rest by the handle, lifts it, turns it to the slot and sets it in;
-# it saws eight strokes, each a little deeper, until the moulding is cut through, lifts the saw out and stands it back
-# in its rest. The left then lifts the cut moulding out of the box and lays it on the table in front of the box; both
-# arms go back to where they started.
+# The left hand comes down on the moulding's far part, fingers closing across it (turned against the moulding's turn in
+# the fingers, so it lies square), lifts it over the box's front wall, lays it in the channel against the back fence
+# with its pencil line at the 45-degree slot and holds it there, pressing it down. The right hand takes the saw from its
+# rest by the handle, lifts it, turns it to the slot and sets it in; it saws ten strokes, each a little deeper (the
+# eighth cuts the moulding through), eases the saw out with its toe raised a little and stands it back in its rest. The
+# left then lifts the cut moulding out of the box and lays it on the table in front of the box; both arms go back to
+# where they started.
 
 GRIP_Y = 0.120  # the left hand holds the moulding here (y)
 M_PRE = -(MW / 2 + 0.006)
 M_GRIP_Z = MH - 0.007  # TCP above the moulding's bottom
 SAW_PRE = -(0.010 + 0.006)
 PRESS_M = 0.002  # the moulding pressed this far down into the floor
-M_OFF = 0.011  # a gripped moulding sits this far +x of the TCP (the first finger to close shoves it)
+M_OFF = 0.0  # a gripped moulding sits this far +x of the TCP
+M_TWIST = math.radians(4.0)  # ... and turned this much (+ about z) by the slanted pads: the hand turns against it
+SAW_TWIST = math.radians(2.9)  # a gripped saw turns this much (+ about z) in the hand: the hand turns against it
 PUSH_X = 0.012  # laid 7 mm clear of the fence, then slid back this far (the fence stops it)
 PRESS_S = -0.008  # the saw aimed this far below the bottom of the cut (above it: the arm sags about 6 mm, and the
 #   saw's own weight rests it on the cut)
-N_STROKES = STROKES_DONE + 4  # the demo saws four strokes more than needed: the first ones go while the saw settles
-SAW_LAT = 0.012  # a gripped saw sits this far to its own left (+y) of where the TCP holds it (measured): aim against it
+N_STROKES = STROKES_DONE + 2  # the demo saws two strokes more than needed, in case one does not count
+SAW_LAT = 0.012  # with the hand square, a gripped saw's middle sits this far to its own left (+y) of where it would
+#   sit unturned (measured; mostly its 2.9-degree turn in the hand): aim against it
+SAW_LAT_SLOT = 0.0035  # ... and with the hand turned against that turn, over the slot
+SAW_SLID = 0.010  # the saw slides about 1.5 cm back along its handle in the hand while sawing: aim its return forward
 S_BACK, S_FWD = -0.030, 0.035
 CARRY = 0.105  # TCP height (above the table) carrying the moulding over the wall
 SAW_UP = 0.115  # the saw's teeth this high (above the table) carrying it
 LEAD_S, LEAD_STEPS = 3.0, 15
 T_LAID = 10.5  # the right hand sets the saw in the slot once the moulding is in place (s)
+EASE_S, EASE_TILT = 2.0, math.radians(4.0)  # the saw eased out of the cut over this long, its toe raised this much
+SET_TILT = math.radians(5.0)  # ... and set back down in its rest toe first, its toe this much down
 
 
 def _rz(a: float) -> np.ndarray:
@@ -491,7 +549,7 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
 def _left() -> list[Waypoint]:
     from yam_arena.constants import READY
 
-    rot = grip_rotation(-math.pi / 2)  # fingers closing along x, across the moulding
+    rot = _rz(-M_TWIST) @ grip_rotation(-math.pi / 2)  # fingers closing along x, across the moulding
     pick = np.array([MX0, GRIP_Y, TOP + M_GRIP_Z])
     put = np.array([MX - M_OFF - 0.007, GRIP_Y, FLOOR + M_GRIP_Z])
     out = _joint_path("left", np.array(READY, float), _good_ik("left", pick + [0.0, 0.0, 0.05], rot),
@@ -507,17 +565,22 @@ def _left() -> list[Waypoint]:
     return out
 
 
-def _saw_tcp(origin, yaw: float, lat: float = 0.0) -> np.ndarray:
-    """The TCP that puts the saw's frame at `origin`, turned `yaw`; `lat`: how far the saw sits across its handle
-    (its own y) from where the TCP holds it."""
-    return np.asarray(origin, float) + _rz(yaw) @ (G - [0.0, lat, 0.0])
+def _ry(a: float) -> np.ndarray:
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+
+
+def _saw_tcp(origin, yaw: float, lat: float = 0.0, tilt: float = 0.0) -> np.ndarray:
+    """The TCP that puts the saw's frame at `origin`, turned `yaw` and its toe raised `tilt`; `lat`: how far the saw
+    sits across its handle (its own y) from where the TCP holds it."""
+    return np.asarray(origin, float) + _rz(yaw) @ _ry(-tilt) @ (G - [0.0, lat, 0.0])
 
 
 def _right() -> tuple[list[Waypoint], float]:
-    """The right hand's part, and the time it lifts the saw out of the finished cut."""
+    """The right hand's part, and the time its saw is out of the finished cut."""
     from yam_arena.constants import READY
 
-    r0, r45 = grip_rotation(0.0), _rz(math.pi / 4) @ grip_rotation(0.0)
+    r0, r45 = grip_rotation(0.0), _rz(math.pi / 4 - SAW_TWIST) @ grip_rotation(0.0)
     at_rest = np.array([XR, YR, REST_Z])
     t_rest = _saw_tcp(at_rest, 0.0)
     out = _joint_path("right", np.array(READY, float), _good_ik("right", t_rest + [0.0, 0.0, 0.05], r0),
@@ -535,23 +598,33 @@ def _right() -> tuple[list[Waypoint], float]:
     t_now = sum(w.duration for w in out)
     out.append(_w(max(0.3, T_LAID - 1.6 - t_now), _saw_tcp(up, 0.0), FINGER_CLOSED,
                   "wait for the moulding to be in place", r0))
-    out.append(_w(1.6, _saw_tcp(over, math.pi / 4, SAW_LAT), FINGER_CLOSED, "turn it over the 45-degree slot", r45))
-    out.append(_w(1.2, _saw_tcp(slot(S_BACK, kerf0 - PRESS_S), math.pi / 4, SAW_LAT), FINGER_CLOSED,
+    out.append(_w(1.6, _saw_tcp(over, math.pi / 4, SAW_LAT_SLOT), FINGER_CLOSED, "turn it over the 45-degree slot", r45))
+    out.append(_w(1.2, _saw_tcp(slot(S_BACK, kerf0 - PRESS_S), math.pi / 4, SAW_LAT_SLOT), FINGER_CLOSED,
                   "set the saw in the slot, its teeth on the pencil line", r45))
     for k in range(N_STROKES):
         z = kerf0 - STEP * min(k, STROKES_DONE) - PRESS_S
         for j in range(1, 4):
-            out.append(_w(0.30, _saw_tcp(slot(S_BACK + (S_FWD - S_BACK) * j / 3, z), math.pi / 4, SAW_LAT), FINGER_CLOSED,
-                          f"push the saw along the slot ({k + 1} of {N_STROKES})", r45))
+            out.append(_w(0.30, _saw_tcp(slot(S_BACK + (S_FWD - S_BACK) * j / 3, z), math.pi / 4, SAW_LAT_SLOT),
+                          FINGER_CLOSED, f"push the saw along the slot ({k + 1} of {N_STROKES})", r45))
         z2 = kerf0 - STEP * min(k + 1, STROKES_DONE) - PRESS_S
-        out.append(_w(0.6, _saw_tcp(slot(S_BACK, max(z2, FLOOR - PRESS_S)), math.pi / 4, SAW_LAT), FINGER_CLOSED,
-                      "draw it back", r45))
+        out.append(_w(0.6, _saw_tcp(slot(S_BACK, max(z2, FLOOR - PRESS_S)), math.pi / 4, SAW_LAT_SLOT),
+                      FINGER_CLOSED, "draw it back", r45))
+    # lifted out slowly with its toe raised a little: the slots' friction would otherwise tip the toe down in the hand
+    r_ease = _rz(math.pi / 4 - SAW_TWIST) @ _ry(-EASE_TILT) @ grip_rotation(0.0)
+    out.append(_w(EASE_S, _saw_tcp(slot(S_BACK, FLOOR + WH + 0.012), math.pi / 4, SAW_LAT_SLOT, EASE_TILT),
+                  FINGER_CLOSED, "ease the saw up out of the cut and the slots", r_ease))
     t_out = sum(w.duration for w in out)
-    out.append(_w(1.0, _saw_tcp(slot(S_BACK, TOP + SAW_UP), math.pi / 4, SAW_LAT), FINGER_CLOSED,
-                  "lift the saw out of the cut", r45))
-    out.append(_w(1.6, _saw_tcp(up, 0.0, SAW_LAT), FINGER_CLOSED, "carry it back over its rest", r0))
-    back = _saw_tcp(at_rest + [0.0, 0.0, 0.003], 0.0, SAW_LAT)
-    out.append(_w(1.2, back, FINGER_CLOSED, "stand it back in its rest", r0))
+    out.append(_w(0.8, _saw_tcp(slot(S_BACK, TOP + SAW_UP), math.pi / 4, SAW_LAT_SLOT), FINGER_CLOSED,
+                  "lift it clear of the box", r45))
+    # set down toe first: the front V-block takes the blade, then the rear one and the cradle under the handle
+    r_toe = _ry(SET_TILT) @ grip_rotation(0.0)
+    rest_at = at_rest + [SAW_SLID, 0.0, 0.0]
+    out.append(_w(1.6, _saw_tcp(up, 0.0, SAW_LAT, -SET_TILT), FINGER_CLOSED, "carry it back over its rest, toe down",
+                  r_toe))
+    out.append(_w(1.0, _saw_tcp(rest_at + [0.0, 0.0, 0.008], 0.0, SAW_LAT, -SET_TILT), FINGER_CLOSED,
+                  "lower its blade into the front V-block", r_toe))
+    back = _saw_tcp(rest_at + [0.0, 0.0, 0.003], 0.0, SAW_LAT)
+    out.append(_w(0.8, back, FINGER_CLOSED, "lay the rest of it down: the rear V-block and the cradle", r0))
     out.append(_w(0.5, back, SAW_PRE, "let go", r0))
     out.append(_w(0.8, t_rest + [0.0, 0.0, 0.05], SAW_PRE, "rise clear of the handle", r0))
     out += _joint_path("right", _good_ik("right", t_rest + [0.0, 0.0, 0.05], r0), np.array(READY, float),
@@ -564,7 +637,7 @@ def demo():
 
     left = _left()
     right, t_out = _right()
-    rot = grip_rotation(-math.pi / 2)
+    rot = _rz(-M_TWIST) @ grip_rotation(-math.pi / 2)
     hold = np.array([MX - M_OFF - 0.007 + PUSH_X, GRIP_Y, FLOOR + M_GRIP_Z - PRESS_M])
     t_now = sum(w.duration for w in left)
     left.append(_w(max(0.3, t_out + 0.8 - t_now), hold, FINGER_CLOSED, "hold the moulding while it is sawn", rot))
