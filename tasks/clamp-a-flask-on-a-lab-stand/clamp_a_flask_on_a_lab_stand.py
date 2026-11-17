@@ -1,11 +1,12 @@
-"""A lab stand (a cast-iron base plate and a steel rod) carries a spring flask clamp on a boss head. Its arm reaches
-toward the middle of the table and ends in two cork-lined jaws, which a spring keeps shut. A red lever on top of the
-arm opens them while it is pressed down. A 100 mL round-bottom flask of borosilicate glass stands in a cork ring to
-the right.
+"""A lab stand (a 6 x 9 in cast-iron base with a 24 in x 1/2 in rod) stands at the back left. Through two boss heads
+and a 1/2 in crossbar it holds a remote-release spring flask clamp, built from clamp_drawing.py: an aluminium arm tube
+reaching toward the middle of the table and ending in two cork-lined jaws, which springs keep shut. A red lever on the
+arm opens them while it is pressed down: its stub pushes a push rod inside the tube, whose wedge spreads the jaws. A
+100 mL round-bottom flask of borosilicate glass stands in a cork ring to the right.
 
 Task: clamp the flask on the stand. One hand presses the lever down and keeps it down, so the jaws stay open. The other
-lifts the flask out of its cork ring by its neck and sets the neck between the open jaws, against the clamp's back. The
-lever is then let go, so the jaws close on the neck; the flask is let go, hanging in the clamp above the stand's base,
+lifts the flask out of its cork ring by its neck and sets the neck between the open jaws, against the clamp's head. The
+lever is then let go, so the jaws close on the neck; the flask is let go, hanging in the clamp clear of the table,
 and both arms go back to where they started. The flask must not be dropped or tipped over.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=clamp_a_flask_on_a_lab_stand.py \\
@@ -34,68 +35,108 @@ allow_matrix_grips()
 SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 
-# -- the stand and its clamp ------------------------------------------------------------------------------------------
+# -- the stand (a 6 x 9 in cast-iron base with a 24 in x 1/2 in rod), its crossbar and the clamp ---------------------------
+# The stand stands at the back left, out of the arms' way; a 1/2 in crossbar runs forward from it to the clamp's arm.
 CX = 0.28  # the clamp's middle line (x) ...
 JAW_Y = 0.0  # ... the jaws' middle (y) ...
 JAW_Z = TOP + 0.095  # ... and height
-PLATE = ((CX - 0.065, CX + 0.065), (-0.05, 0.28), 0.012)  # the base plate: x span, y span, thickness
-ROD = (CX, 0.250, 0.006, 0.16)  # x, y, radius, height above the plate
-ARM_W, ARM_H = 0.012, 0.010
-YOKE_Y = 0.020  # the clamp's back, which the neck goes against
+INCH = 0.0254
+BASE = (9 * INCH, 6 * INCH, 0.013)  # the cast-iron base: long (x), wide (y), thick
+ROD_XY, ROD_R, ROD_H = (0.48, 0.23), INCH / 4, 24 * INCH  # the stand's rod: where, radius (1/2 in), height
+BASE_C = (ROD_XY[0] + 0.025 - BASE[0] / 2, ROD_XY[1])  # the rod is screwed in 2.5 cm from the base's back end
+CROSS_Z = JAW_Z - 0.025  # the crossbar (a 1/2 in x 12 in support rod along x), held under the clamp's arm ...
+CROSS_X0, CROSS_LEN = CX - 0.030, 12 * INCH  # ... from here back
+TUBE_R = INCH / 4  # the clamp's arm: a 1/2 in aluminium tube along y, at the jaws' height; the push rod runs inside
+ARM_END_Y = ROD_XY[1] + 0.02
+BOSS = 0.030  # the two boss heads (stainless, about 3 cm)
+HEAD = (0.150, 0.030, 0.016)  # the clamp head: long (x), deep (y), tall; its front face is the neck's stop
+YOKE_Y = 0.020  # the clamp head's front face, which the neck goes against
 PAD = (0.006, 0.040, 0.016)  # a jaw's cork pad: thick, long (y), tall
 PAD_Y = (-0.022, 0.018)
-JAW_OPEN = 0.025  # each jaw's travel, fully open (m)
-JAW_K, JAW_F = 2000.0, 15.0  # the spring closing each jaw (N/m) and its most force (N)
-PIVOT = np.array([CX, 0.120, TOP + 0.120])  # the lever's pivot (an x axis)
-LEVER_LEN = 0.058
+GAP0 = 0.002  # the jaws' gap when shut on their stops
+# The linkage: pressing the lever turns its 25 mm stub, which pushes the push rod toward the jaws; the rod's wedge
+# (tan 1.5 per side) spreads the two jaws' rollers. Each jaw is pushed shut by its own compression spring.
+STUB = 0.025  # the lever's stub, pivot to push rod (m)
+WEDGE = 1.5  # jaw travel per mm of push rod travel (wedge flank 56.3 degrees from the rod's axis)
+LINK = STUB * WEDGE  # each jaw opens LINK * sin(lever angle)
+LEVER_STOP_DEG = 30.0  # the lever's stop, pressed: the jaws are fully open there
+JAW_OPEN = LINK * math.sin(math.radians(LEVER_STOP_DEG))  # each jaw's travel, fully open (m)
+JAW_F0, JAW_K = 3.0, 250.0  # each jaw's spring: preload on its stop (N) and rate (N/m)
+ETA = 0.9  # the linkage's efficiency (roller followers on the wedge)
+PIVOT = np.array([CX, 0.120, TOP + 0.120])  # the lever's pivot (an x axis), STUB above the push rod
+PAD_ARM = 0.050  # pivot to the middle of the lever's pad
 PAD_LEVER = (0.025, 0.025, 0.006)  # the lever's rubber pad, at its end
-LEVER_MIN_DEG, LEVER_FULL_DEG = -15.0, -12.0  # its stop, and where the jaws are fully open
-LEVER_SPRING = 0.008  # N m per degree, back to level
+LEVER_LEN = PAD_ARM + PAD_LEVER[1] / 2
+LEVER_DX = 0.0225  # the lever's arm is cranked this far to the side (+x) of the tube, so it passes beside it pressed
+
+
+def lever_torque(deg: float) -> float:
+    """The torque (N m) the two jaw springs put on the lever through the linkage when it is pressed ``deg``."""
+    a = math.radians(deg)
+    return 2 * (JAW_F0 + JAW_K * LINK * math.sin(a)) * LINK * math.cos(a) / ETA
+
+
+def pad_force(deg: float) -> float:
+    """The downward force (N) on the lever's pad that holds it pressed ``deg``."""
+    return lever_torque(deg) / (PAD_ARM * math.cos(math.radians(deg)))
+
+
+# The simulated lever's spring matches lever_torque at rest and at the stop (linear in between).
+LEVER_SPRING = (lever_torque(LEVER_STOP_DEG) - lever_torque(0.0)) / LEVER_STOP_DEG  # N m per degree
+LEVER_PRELOAD_DEG = lever_torque(0.0) / LEVER_SPRING  # its target, above the rest stop
 
 # -- the flask (100 mL round-bottom, borosilicate) and its cork ring ----------------------------------------------------
-BULB_R, NECK_R, NECK_TOP, LIP = 0.030, 0.0125, 0.0875, (0.015, 0.005)
+BULB_R, NECK_R, NECK_TOP, LIP = 0.032, 0.0125, 0.0875, (0.015, 0.005)
 JAW_ON_NECK = 0.042  # the jaws close on the neck this far above the bulb's middle
 RING = (np.array([CX, -0.170]), 0.0225, 0.040, 0.015)  # the cork ring: middle, hole radius, outer radius, height
 SIT_Z = TOP + RING[3] + math.sqrt(BULB_R ** 2 - RING[1] ** 2)  # the bulb's middle, sitting in the ring
 FLASK_MASS = 0.09
 
 STEEL, CHROME, BLACK, IRON = (0.45, 0.46, 0.48), (0.80, 0.81, 0.83), (0.08, 0.08, 0.09), (0.18, 0.18, 0.20)
+ALU = (0.70, 0.72, 0.75)
 CORK, RED, GLASS = (0.72, 0.55, 0.36), (0.78, 0.10, 0.08), (0.80, 0.90, 0.95)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 IN_X, IN_Y = 0.007, 0.016  # the neck this close to the jaws' middle line, and within their length
 GAP = (0.020, 0.030)  # the jaws' gap when closed on the neck (m)
+OPEN_GAP = 0.030  # the jaws count as open wider than this
 UPRIGHT_DEG = 10.0
-CLEAR = 0.005  # the hanging flask's bottom at least this far above the base plate
+CLEAR = 0.005  # the hanging flask's bottom at least this far above the table
 DROP_SPEED, TIP_DEG = 1.0, 45.0
 HOME_WITHIN = 0.05
 SUCCESS_HOLD_S = 1.0
 
 
 def _stand() -> Body:
-    """Base plate, rod, boss head, arm, the clamp's back (yoke) and the lever's bracket; origin on the plate's top under
-    the jaws."""
-    o = np.array([CX, JAW_Y, TOP + PLATE[2]])
+    """Base, rod, the two boss heads, the crossbar, the clamp's arm, its head and the lever's bracket; one fixed body,
+    origin on the table under the jaws."""
+    o = np.array([CX, JAW_Y, TOP])
 
     def at(x, y, z):
         return tuple((np.array([x, y, z]) - o).tolist())
 
-    (x0, x1), (y0, y1), th = PLATE
-    zt = TOP + th
-    arm_y0, arm_y1 = YOKE_Y + 0.010, ROD[1]
-    shapes = [BoxShape(at((x0 + x1) / 2, (y0 + y1) / 2, TOP + th / 2), (x1 - x0, y1 - y0, th), IRON),
-              CylShape(at(ROD[0], ROD[1], zt + ROD[3] / 2), ROD[2], ROD[3], CHROME),
-              BoxShape(at(ROD[0], ROD[1], JAW_Z), (0.030, 0.030, 0.030), BLACK),  # the boss head
-              CylShape(at(ROD[0] + 0.022, ROD[1], JAW_Z), 0.008, 0.014, BLACK, axis="X"),  # its thumbscrew
-              BoxShape(at(CX, (arm_y0 + arm_y1) / 2, JAW_Z), (ARM_W, arm_y1 - arm_y0, ARM_H), CHROME),  # the arm
-              BoxShape(at(CX, YOKE_Y + 0.005, JAW_Z), (0.080, 0.010, 0.012), CHROME),  # the yoke the jaws run in
-              BoxShape(at(CX, PIVOT[1], (JAW_Z + PIVOT[2]) / 2), (0.016, 0.012, PIVOT[2] - JAW_Z), CHROME)]  # bracket
+    bl, bw, bt = BASE
+    rx, ry = ROD_XY
+    zt = TOP + bt
+    head_y = YOKE_Y + HEAD[1] / 2
+    shapes = [BoxShape(at(BASE_C[0], BASE_C[1], TOP + bt / 2), (bl, bw, bt), IRON),  # the base
+              CylShape(at(rx, ry, zt + ROD_H / 2), ROD_R, ROD_H, CHROME),  # the rod
+              BoxShape(at(rx, ry, CROSS_Z), (BOSS, BOSS, BOSS), STEEL),  # boss head 1, on the rod
+              CylShape(at(rx, ry - 0.022, CROSS_Z), 0.007, 0.014, BLACK, axis="Y"),  # its wing screw
+              CylShape(at(CROSS_X0 + CROSS_LEN / 2, ry, CROSS_Z), INCH / 4, CROSS_LEN, CHROME, axis="X"),  # crossbar
+              BoxShape(at(CX, ry, (CROSS_Z + JAW_Z) / 2), (BOSS, BOSS, BOSS + 0.015), STEEL),  # boss head 2
+              CylShape(at(CX + 0.022, ry, (CROSS_Z + JAW_Z) / 2), 0.007, 0.014, BLACK, axis="X"),  # its wing screw
+              CylShape(at(CX, (YOKE_Y + HEAD[1] + ARM_END_Y) / 2, JAW_Z), TUBE_R, ARM_END_Y - YOKE_Y - HEAD[1], ALU,
+                       axis="Y"),  # the clamp's arm (tube)
+              BoxShape(at(CX, head_y, JAW_Z), HEAD, ALU),  # the clamp head
+              BoxShape(at(CX, PIVOT[1], (JAW_Z + PIVOT[2]) / 2 + 0.002), (0.016, 0.014, PIVOT[2] - JAW_Z + 0.006),
+                       ALU)]  # the lever's bracket (a split collar on the tube, carrying the pivot pin)
     return Body.build("stand", pos=tuple(o.tolist()), mass=3.0, kinematic=True, shapes=shapes, color=IRON)
 
 
 def _jaw(name, side) -> Body:
-    """A jaw: a cork pad on a steel back; origin on the pad's face. Starts shut (2 mm gap)."""
-    face_x = CX + side * 0.001
+    """A jaw: a cork pad on a steel back; origin on the pad's face. Starts shut on its stop."""
+    face_x = CX + side * GAP0 / 2
     yc = (PAD_Y[0] + PAD_Y[1]) / 2
     shapes = [BoxShape((side * PAD[0] / 2, 0.0, 0.0), (PAD[0], PAD[1], PAD[2]), CORK),
               BoxShape((side * (PAD[0] + 0.004), 0.002, 0.0), (0.008, PAD[1] + 0.004, PAD[2]), STEEL)]
@@ -104,12 +145,16 @@ def _jaw(name, side) -> Body:
 
 
 def _lever() -> Body:
-    """The red lever: a bar from its pivot toward the rod, with a black rubber pad on its end; origin at the pivot."""
-    shapes = [BoxShape((0.0, LEVER_LEN / 2, 0.0), (0.010, LEVER_LEN, 0.006), RED),
-              BoxShape((0.0, LEVER_LEN - PAD_LEVER[1] / 2, 0.003 + PAD_LEVER[2] / 2), PAD_LEVER, BLACK),
-              CylShape((0.0, 0.0, 0.0), 0.005, 0.020, CHROME, axis="X")]
-    return Body.build("lever", pos=tuple(PIVOT.tolist()), mass=0.02, shapes=shapes, color=RED,
-                      com=(0.0, 0.02, 0.0), friction=(1.0, 0.9))
+    """The red lever, a cranked bell crank: a hub on the pivot pin above the tube, a stub down to the push rod, and an
+    arm toward the stand, LEVER_DX to the side of the tube, with a black rubber pad on its end; origin at the pivot."""
+    d = LEVER_DX
+    shapes = [BoxShape((d, LEVER_LEN / 2, 0.0), (0.010, LEVER_LEN, 0.006), RED),
+              BoxShape((d, LEVER_LEN - PAD_LEVER[1] / 2, 0.003 + PAD_LEVER[2] / 2), PAD_LEVER, BLACK),
+              BoxShape((d / 2, 0.0, 0.0), (d + 0.010, 0.010, 0.006), RED),  # the crank, hub to arm
+              BoxShape((0.0, 0.0, -STUB / 2), (0.006, 0.008, STUB), RED),  # the stub, into the tube's slot
+              CylShape((d / 2, 0.0, 0.0), 0.005, d + 0.020, CHROME, axis="X")]  # the hub on its pin
+    return Body.build("lever", pos=tuple(PIVOT.tolist()), mass=0.025, shapes=shapes, color=RED,
+                      com=(d, 0.025, 0.0), friction=(1.0, 0.9))
 
 
 def _ring() -> Body:
@@ -135,17 +180,17 @@ def _flask() -> Body:
 
 OBJECTS = [_stand(), _jaw("jaw_far", 1.0), _jaw("jaw_near", -1.0), _lever(), _ring(), _flask()]
 for _n, _s in (("jaw_far", 1.0), ("jaw_near", -1.0)):
-    slider(f"{_n}_slide", "stand", _n, anchor=(CX + _s * 0.001, JAW_Y, JAW_Z), axis="X",
-           limits=(0.0, JAW_OPEN + 0.001) if _s > 0 else (-JAW_OPEN - 0.001, 0.0), stiffness=JAW_K, damping=20.0,
-           target=0.0, max_force=JAW_F)
-hinge("lever_pivot", "stand", "lever", anchor=tuple(PIVOT.tolist()), axis="X", limits_deg=(LEVER_MIN_DEG, 0.0),
-      spring=LEVER_SPRING, damping=0.0002, target_deg=0.0)
+    slider(f"{_n}_slide", "stand", _n, anchor=(CX + _s * GAP0 / 2, JAW_Y, JAW_Z), axis="X",
+           limits=(0.0, JAW_OPEN + 0.0005) if _s > 0 else (-JAW_OPEN - 0.0005, 0.0), stiffness=JAW_K, damping=20.0,
+           target=-_s * JAW_F0 / JAW_K, max_force=15.0)
+hinge("lever_pivot", "stand", "lever", anchor=tuple(PIVOT.tolist()), axis="X", limits_deg=(-LEVER_STOP_DEG, 0.0),
+      spring=LEVER_SPRING, damping=0.0003, target_deg=LEVER_PRELOAD_DEG)
 
 
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"dropped": False, "in_fork": False, "tcps": None, "poses": {}, "open": 0.0, "set": None}
+    return {"dropped": False, "in_fork": False, "tcps": None, "poses": {}, "open": 0.0, "set": {}}
 
 
 _EP = _fresh()
@@ -188,13 +233,16 @@ def _follow(env) -> None:
         poses[name] = (p[:3] - origin, rotation(p[3:7]))
     _EP["poses"] = poses
     deg = _lever_deg(poses["lever"][1])
-    opening = min(1.0, max(0.0, deg / LEVER_FULL_DEG))
-    _EP["open"] = opening
-    target = JAW_OPEN * opening
-    if _EP["set"] is None or abs(target - _EP["set"]) > 0.0005:  # the lever drives both jaws apart
-        set_slider_drive("jaw_far_slide", target=target)
-        set_slider_drive("jaw_near_slide", target=-target)
-        _EP["set"] = target
+    wedge = LINK * math.sin(math.radians(min(max(-deg, 0.0), LEVER_STOP_DEG)))  # where the wedge holds each jaw
+    _EP["open"] = wedge / JAW_OPEN
+    for name, side in (("jaw_far", 1.0), ("jaw_near", -1.0)):
+        x = side * (float(poses[name][0][0]) - (CX + side * GAP0 / 2))  # this jaw's opening (m)
+        # The wedge only pushes the jaws apart. A jaw it holds follows it; a jaw clear of it (held wider by the neck,
+        # or with the lever up) is pushed shut by its preloaded spring alone.
+        target = wedge if wedge > 0.0005 and x <= wedge + 0.0015 else -JAW_F0 / JAW_K
+        if _EP["set"].get(name) is None or abs(target - _EP["set"][name]) > 0.0002:
+            set_slider_drive(f"{name}_slide", target=side * target)
+            _EP["set"][name] = target
     fp, fr = poses["flask"]
     vel = as_numpy(base.scene["flask"].data.root_lin_vel_w)[0]
     tilt = math.degrees(math.acos(max(-1.0, min(1.0, float(fr[2, 2])))))
@@ -202,7 +250,7 @@ def _follow(env) -> None:
         _EP["dropped"] = True
     n = _neck_point(fp, fr)
     gap = float(poses["jaw_far"][0][0] - poses["jaw_near"][0][0])
-    if abs(n[0] - CX) < IN_X + 0.01 and PAD_Y[0] < n[1] < PAD_Y[1] and abs(n[2] - JAW_Z) < 0.02 and gap > 0.030:
+    if abs(n[0] - CX) < IN_X + 0.01 and PAD_Y[0] < n[1] < PAD_Y[1] and abs(n[2] - JAW_Z) < 0.02 and gap > OPEN_GAP:
         _EP["in_fork"] = True  # the neck between the open jaws
     _EP["tcps"] = _tcps(base, origin)
     if _DEBUG["on"]:
@@ -210,9 +258,9 @@ def _follow(env) -> None:
         if _DEBUG["steps"] % 10 == 0:
             st = _status()
             tl, tr = _EP["tcps"]
-            print(f"[flask] t={_DEBUG['steps'] / 20:5.1f}s lever={deg:6.1f}deg open={opening:4.2f} gap={gap * 1000:5.1f}mm "
+            print(f"[flask] t={_DEBUG['steps'] / 20:5.1f}s lever={deg:6.1f}deg open={_EP["open"]:4.2f} gap={gap * 1000:5.1f}mm "
                   f"neck={np.round((n - [CX, JAW_Y, JAW_Z]) * 1000).astype(int).tolist()} tilt={tilt:4.1f} "
-                  f"bottom={(fp[2] - BULB_R - TOP - PLATE[2]) * 1000:5.1f}mm in_fork={_EP['in_fork']} "
+                  f"bottom={(fp[2] - BULB_R - TOP) * 1000:5.1f}mm in_fork={_EP['in_fork']} "
                   f"clamped={st['clamped']} dropped={_EP['dropped']} "
                   f"L={np.round(tl * 1000).astype(int).tolist()} R={np.round(tr * 1000).astype(int).tolist()} "
                   f"R-lip={np.round((tr - fp - fr @ [0, 0, NECK_TOP]) * 1000).astype(int).tolist()} "
@@ -229,7 +277,7 @@ def _status() -> dict:
         n = _neck_point(fp, fr)
         gap = float(poses["jaw_far"][0][0] - poses["jaw_near"][0][0])
         upright = float(fr[2, 2]) > math.cos(math.radians(UPRIGHT_DEG))
-        hanging = float(fp[2]) - BULB_R >= TOP + PLATE[2] + CLEAR
+        hanging = float(fp[2]) - BULB_R >= TOP + CLEAR
         clamped = (abs(n[0] - CX) < IN_X and PAD_Y[0] + 0.006 < n[1] < PAD_Y[1] and abs(n[2] - JAW_Z) < 0.012
                    and GAP[0] < gap < GAP[1] and upright and hanging)
     return {"clamped": clamped, "in_fork": _EP["in_fork"], "dropped": _EP["dropped"], "home": _arms_home()}
@@ -247,11 +295,11 @@ def _points(s) -> float:
 
 def score(objects) -> float:
     """Judged at the end. 0.0 if the flask was ever dropped (falling faster than 1 m/s) or tipped past 45 degrees.
-    Clamped: the flask upright within 10 degrees and hanging (its bottom at least 5 mm above the stand's base plate),
-    its neck between the closed jaws (their gap 20 to 30 mm, the neck's axis within 7 mm of their middle line and
-    within their length, at their height within 12 mm). Otherwise 1.0: clamped, and both arms back where they started
-    (each gripper's fingertip centre (TCP) within 5 cm of its start); 0.5: clamped; 0.25: the neck between the open
-    jaws at some point; else 0.0."""
+    Clamped: the flask upright within 10 degrees and hanging (its bottom at least 5 mm above the table), its neck
+    between the closed jaws (their gap 20 to 30 mm, the neck's axis within 7 mm of their middle line, along their
+    length at least 6 mm in from their front ends, and at their height within 12 mm). Otherwise 1.0: clamped, and both
+    arms back where they started (each gripper's fingertip centre (TCP) within 5 cm of its start); 0.5: clamped; 0.25:
+    the neck between the open jaws at some point; else 0.0."""
     return _points(_status())
 
 
@@ -288,7 +336,7 @@ RIGHT_G = grip_rotation(0.0)  # fingers closing along y, across the neck (the wa
 UNDER_LIP = 0.014  # the right's TCP this far below the flask's top
 PRE_OPEN = -(LIP[0] + 0.008)
 FINGER_REACH = 0.013
-PRESS = 0.030
+PRESS = 0.035  # aim this far below the pad's top at the stop
 LIFT = 0.010  # carried this much higher than it will hang, lowered once the neck is between the jaws
 PUSH = 0.0045  # aim the neck this far past the clamp's back
 HANG_Z = JAW_Z - JAW_ON_NECK  # the bulb's middle, hanging
@@ -339,20 +387,24 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
     return Waypoint(t, tuple(float(v) for v in pos), finger, label, rot)
 
 
-def _pad_top() -> np.ndarray:
-    return PIVOT + np.array([0.0, LEVER_LEN - PAD_LEVER[1] / 2, 0.003 + PAD_LEVER[2]])
+def _pad_top(deg: float = 0.0) -> np.ndarray:
+    """The middle of the top of the lever's pad, the lever pressed ``deg`` degrees."""
+    a = math.radians(-deg)
+    rot = np.array([[1.0, 0.0, 0.0], [0.0, math.cos(a), -math.sin(a)], [0.0, math.sin(a), math.cos(a)]])
+    return PIVOT + rot @ np.array([LEVER_DX, PAD_ARM, 0.003 + PAD_LEVER[2]])
 
 
 def _left(release_at: float, total: float) -> tuple[list[Waypoint], float]:
     touch = _pad_top() + [0.0, 0.0, FINGER_REACH]
-    out = _lead_in("left", touch + [0.0, 0.0, 0.03], LEFT_G, "over the lever's pad", FINGER_CLOSED)
+    full = _pad_top(LEVER_STOP_DEG) + [0.0, 0.0, FINGER_REACH - PRESS]  # aimed past the stop: the arm gives
+    up = touch + [0.0, 0.0, 0.03]
+    out = _lead_in("left", up, LEFT_G, "over the lever's pad", FINGER_CLOSED)
     out += [_w(1.0, touch + [0.0, 0.0, 0.004], FINGER_CLOSED, "down onto it", LEFT_G),
-            _w(1.0, touch - [0.0, 0.0, PRESS], FINGER_CLOSED, "press the lever down: the jaws open", LEFT_G)]
+            _w(1.2, full, FINGER_CLOSED, "press the lever down to its stop: the jaws open", LEFT_G)]
     held_at = sum(w.duration for w in out)
-    out += [_w(max(release_at - held_at, 0.3), touch - [0.0, 0.0, PRESS], FINGER_CLOSED,
-               "keep it down while the neck goes in", LEFT_G),
-            _w(1.0, touch + [0.0, 0.0, 0.03], FINGER_CLOSED, "let the lever up: the jaws close on the neck", LEFT_G)]
-    out += _go_home("left", touch + [0.0, 0.0, 0.03], LEFT_G, FINGER_CLOSED)
+    out += [_w(max(release_at - held_at, 0.3), full, FINGER_CLOSED, "keep it down while the neck goes in", LEFT_G),
+            _w(1.0, up, FINGER_CLOSED, "let the lever up: the jaws close on the neck", LEFT_G)]
+    out += _go_home("left", up, LEFT_G, FINGER_CLOSED)
     t = sum(w.duration for w in out)
     out.append(_w(max(total - t, 0.5), out[-1].pos, FINGER_CLOSED,
                   "hold still: the trial ends once the full score has held 1 s", out[-1].yaw))
