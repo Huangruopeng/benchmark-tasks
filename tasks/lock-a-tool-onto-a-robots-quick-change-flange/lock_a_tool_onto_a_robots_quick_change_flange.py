@@ -1,13 +1,13 @@
-"""On the station table stands a robot arm (fixed: switched off for a tool change), its wrist reaching in low over the
-table with its tool flange facing the right arm. It has just parked its gripper tool in the tool rack beside it; in the
-rack's other slot waits a suction-cup tool. A locking ring sits round the flange, with a lever reaching out toward the
-arms; a light on the wrist shows red, unlocked.
+"""On the station table stands an inert wrist stand: a dummy robot wrist on a pedestal, bolted to a board clamped to the
+table, presenting a manual quick-change tool changer's robot side low over the table, its face toward the right arm,
+as a parked robot's wrist would. The gripper tool has just been parked in the tool rack beside it; in the rack's other
+slot waits a suction-cup tool. A locking ring sits round the flange, with a lever reaching out toward the arms.
 
-Task: change the robot's tool to the suction-cup tool. One hand takes it from the rack by its handle and holds its plate
-on the flange's two dowels, their tips in its bushings' lead-in chamfers: the tool falls if let go before the ring has
-it. The other presses the ring's lever down: past 8 degrees the claws' lips come over the plate's three lugs and draw
-it home onto the flange, and from 25 degrees it is locked on and the light turns green. Then both hands let go, the tool
-hanging on the robot, and both arms go back to where they started. The ring only takes a tool already seated on the
+Task: change the tool to the suction-cup tool. One hand takes it from the rack by its handle and holds its plate on the
+flange's two dowels, their tips in its bushings' lead-in chamfers: the tool falls if let go before the ring has it. The
+other presses the ring's lever down: past 8 degrees the claws' lips come over the plate's three lugs and draw it home
+onto the flange, and from 25 degrees it is locked on. Then both hands let go, the tool hanging on the flange, and both
+arms go back to where they started. The ring only takes a tool already seated on the
 dowels, in a pose the full-size dowels and bushings allow (see _seat_check), while it is within 8 degrees of open (the
 lugs pass between the lips only then); turned back below 25 degrees the tool is no longer locked, and back within 8
 degrees of open it comes free.
@@ -28,7 +28,7 @@ import numpy as np
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 from bodykit import (Body, BoxShape, CylShape, SphereShape, allow_matrix_grips, as_numpy, glue, hinge,  # noqa: E402
-                     on_reset, on_step, rotation, segment, set_glue_on, set_hinge_drive)
+                     on_reset, on_step, rotation, set_glue_on, set_hinge_drive)
 from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
@@ -38,16 +38,22 @@ allow_matrix_grips()
 SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 
-# -- the robot's wrist: the flange's axis runs along y; its face looks toward -y (the right arm). The sizes below are
-# the changer's build (the README's "Changer design (buildable)" table lists them); distances along the axis (y) are
-# measured from the face, into the robot. Angles round the axis are seen facing the flange (from the tool side),
-# counterclockwise from 12 o'clock, which is the way the ring turns to lock --------------------------------------------
+# -- the changer's robot side, on the stand's dummy wrist: the flange's axis runs along y; its face looks toward -y (the
+# right arm). The sizes below are the changer's build (the README's "The changer as built" lists them, and the drawings
+# and STL files are made from these constants); distances along the axis (y) are measured from the face, into the
+# stand. Angles round the axis are seen facing the flange (from the tool side), counterclockwise from 12 o'clock, which
+# is the way the ring turns to lock ----------------------------------------------------------------------------------
 FX, FZ = 0.30, TOP + 0.085  # the flange's axis
 FACE_Y = 0.02  # the flange's mating face
-FACE_R, FACE_T = 0.035, 0.003  # the flange's front lip, whose front is the mating face
+FACE_R, FACE_T = 0.037, 0.003  # the flange's front lip, whose front is the mating face (its back seats the ring's springs)
 FLANGE_R = 0.032  # the journal behind the lip, on which the ring turns
-RING_R, RING_Y = 0.044, (0.004, 0.022)  # the locking ring, just behind the face (a wave washer fills y 0.003-0.004)
+RING_R, RING_Y = 0.044, (0.004, 0.022)  # the locking ring, just behind the face (its springs bridge y 0.003-0.004)
 RETAINER_R, RETAINER_Y = 0.038, (0.022, 0.026)  # the retaining disc behind the ring; the wrist's end face is behind it
+# -- the inert wrist stand: a printed dummy wrist 68 mm across (a small cobot's last link) on a printed pedestal, bolted
+# to a plywood board that two C-clamps hold to the table. The changer bolts to the wrist's front face ----------------
+WRIST_R, WRIST_Y = 0.034, (RETAINER_Y[1], 0.090)  # the dummy wrist (y from the flange's face)
+BOARD = ((0.25, 0.45), (0.04, 0.22), 0.018)  # the board: x and y extents (world, m) and thickness
+FOOT = (0.100, 0.100, 0.008)  # the pedestal's foot: across (x), back from the wrist's front face (y), thick
 DOWEL_R, DOWEL_D, DOWEL_OUT = 0.022, 0.006, 0.006  # two locating dowels standing out of the face ...
 DOWEL_AT = (0.0, 180.0)  # ... at 12 o'clock (round) and 6 o'clock (diamond)
 SCREW_R, SCREW_CB, SCREW_AT = 0.025, 0.011, (45.0, 135.0, 225.0, 315.0)  # 4 x M6 into the wrist (ISO 9409-1-50-4-M6)
@@ -62,13 +68,13 @@ LEVER_L = 0.11  # the lever: from the axis toward the arms (-x) ...
 PAD_Y = 0.063  # ... then bent along +y to its pad, this far beyond the face
 PAD = (0.045, 0.030, 0.008)
 PAD_TOP = 0.006 + PAD[2]  # the pad's top above the lever's line
-LAMP = np.array([FX, FACE_Y + 0.07, FZ + 0.034 + 0.004])  # the status light, on top of the wrist
-# the steel ring with its claws (583 g) and the aluminium lever with its pad (79 g): mass and centre of mass (ring frame)
-RING_MASS, RING_COM = 0.661, (-0.0108, 0.0106, 0.0003)
+# the printed ring, claw ring, lever and pad with their springs, inserts and screws: mass and centre of mass (ring frame;
+# computed from the STL files and the bought parts, README "Masses")
+RING_MASS, RING_COM = 0.1404, (-0.0301, 0.0177, 0.0012)
 
-# -- the ring turns on a hinge about the axis; pressing the lever down turns it. It stays where it is left (a wave
-# washer's friction holds it): a spring holds it where it last stopped, and pushed SLIP past that it gives (the task
-# file moves the hold to it) -------------------------------------------------------------------------------------------
+# -- the ring turns on a hinge about the axis; pressing the lever down turns it. It stays where it is left (friction
+# from its six springs' preload holds it): a spring holds it where it last stopped, and pushed SLIP past that it gives
+# (the task file moves the hold to it) --------------------------------------------------------------------------------
 RING_HOLD = 0.06  # N m per degree
 SLIP = 2.0  # degrees
 RING_DRAG = 0.002  # N m per degree/s
@@ -80,34 +86,40 @@ LOCK = 25.0  # ... and by this far their clamp ramps have pulled it tight: locke
 
 # -- the tools: each lies along y, its plate's face (the body's origin) toward +y, a square handle on its top -----------
 PLATE_R, PLATE_T = 0.030, 0.008
+BOSS_R, BOSS_T = 0.007, 0.004  # a boss on the plate's back round each bushing (the bushings are 10 mm long)
 HANDLE = (0.016, 0.016, 0.035)
 HANDLE_Y, HANDLE_Z = -0.05, 0.020  # the handle's middle along the tool, and its bottom above the axis
 TOOL_R = 0.022  # the tools' bodies reach this far from the axis
-TOOL_MASS = 0.12
-COM_DOWN = -0.005  # each tool's mass sits a little below its axis, under the handle: it lies handle up
+TOOL_MASS = 0.12  # the suction tool; the gripper tool is 20 g heavier
+# each tool's centre of mass (body frame), computed from its printed parts, bushings and steel ballast bar (README
+# "Masses"): toward the plate from the handle, and below the axis, so it lies handle up
+SUCTION_COM, GRIPPER_COM = (0.0, -0.0451, -0.0044), (0.0, -0.0429, -0.0064)
 SUCTION_AT = np.array([0.30, -0.12, FZ])  # the suction tool's plate face, in the rack
 GRIPPER_AT = np.array([0.18, -0.12, FZ])  # the parked gripper tool's
 LOCKS = {"suction_tool": "suction_lock", "gripper_tool": "gripper_lock"}
 SEAT = np.array([FX, FACE_Y, FZ])  # where a held tool's plate face is held: on the flange's face, centred and square
 ANCHOR_AT = np.array([0.45, -0.30, TOP - 0.05])  # a hidden fixed body the lock holds a tool to
 
-ORANGE, GREY, STEEL, DARK, BLACK, BLUE, RED, GREEN, WHITE = (0.93, 0.50, 0.10), (0.45, 0.46, 0.48), \
-    (0.72, 0.73, 0.75), (0.20, 0.21, 0.23), (0.06, 0.06, 0.07), (0.15, 0.35, 0.78), (0.85, 0.12, 0.10), \
-    (0.10, 0.85, 0.20), (0.95, 0.95, 0.93)
+ORANGE, GREY, STEEL, DARK, BLACK, BLUE, WOOD, WHITE = (0.93, 0.50, 0.10), (0.45, 0.46, 0.48), \
+    (0.72, 0.73, 0.75), (0.20, 0.21, 0.23), (0.06, 0.06, 0.07), (0.15, 0.35, 0.78), (0.62, 0.45, 0.28), \
+    (0.95, 0.95, 0.93)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 # Seated = on the dowels, in a pose the full-size dowels and bushings physically allow (the README's "What the dowels
-# capture"). Each tool plate takes the dowels in two bushings, 22 mm out at 12 and 6 o'clock: 6 mm E8 bores, 0.008 to
-# 0.034 mm larger than the m6 dowels, with 1.5 x 45 degree lead-in chamfers. For each dowel, d is how far its tip
-# (its deepest edge) has gone past the plate's face, e how far its axis is off the bushing's where it crosses the face,
-# and t its tilt against the bushing's axis. The dowel's widest point, at depth d, reaches e + d tan t + 3 mm / cos t
-# from the bushing's axis; the hole there is 3 mm + BORE_PLAY + (1.5 mm - d) wide in the chamfer, 3 mm + BORE_PLAY in
-# the bore. So a dowel is clear of its bushing while e + d tan t + 3 mm (1/cos t - 1) <= BORE_PLAY + max(0, 1.5 mm - d):
-# its axis may be up to 1.5 - d (+ 0.004) mm off in the chamfer, and only 0.004 mm off, with t <= about atan(0.004 / d),
-# in the bore. Both dowels are checked in every direction as full 6 mm pins (the diamond pin's relief only adds room),
-# at the tightest fit, and the dowels' own ISO 8734 end chamfers are left out: every accepted pose fits every build.
-FIT = (0.008e-3, 0.034e-3)  # the dowels' running clearance in the bushings (on the diameter)
-BORE_PLAY = FIT[0] / 2  # 0.004 mm: how far off its bore's axis a dowel can sit, at the tightest fit
+# capture"). Each tool plate takes the dowels in two hardened bushings (DIN 179, 6 mm F7 bores: 6.010 to 6.022 mm),
+# 22 mm out at 12 and 6 o'clock, behind a 1.5 x 45 degree lead-in chamfer. The round dowel (ISO 2338, 6 mm h8: 5.978 to
+# 6.000 mm) runs in its bushing with 0.010 to 0.044 mm clearance, the diamond pin (DIN 6321 form C, 6 mm g6: 5.988 to
+# 5.996 mm) with 0.014 to 0.034 mm on its lands. For each dowel, d is how far its tip (its deepest edge) has gone past
+# the plate's face, e how far its axis is off the bushing's where it crosses the face, and t its tilt against the
+# bushing's axis. The dowel's widest point, at depth d, reaches e + d tan t + 3 mm / cos t from the bushing's axis; the
+# hole there is 3 mm + BORE_PLAY + (1.5 mm - d) wide in the chamfer, 3 mm + BORE_PLAY in the bore. So a dowel is clear
+# of its bushing while e + d tan t + 3 mm (1/cos t - 1) <= BORE_PLAY + max(0, 1.5 mm - d): its axis may be up to
+# 1.5 - d (+ 0.005) mm off in the chamfer, and only 0.005 mm off, with t <= about atan(0.005 / d), in the bore. Both
+# dowels are checked in every direction as full 6.000 mm pins (the diamond pin's relief only adds room), at the
+# tightest fit, the dowels' own end chamfers are left out, and the printed chamfer is made 0.2 mm larger than this one:
+# every accepted pose fits every build.
+FIT = (0.010e-3, 0.044e-3)  # the round dowel's running clearance in its bushing (on the diameter)
+BORE_PLAY = FIT[0] / 2  # 0.005 mm: how far off its bore's axis a dowel can sit, at the tightest fit
 BUSH_LEAD = 0.0015  # the bushings' lead-in chamfer: 1.5 mm wide (radially) and 1.5 mm deep
 LUG_CATCH = -LIP_RAMP[0] + 0.001  # 10.0 mm: the lips' lead-in ramps (with their 1 mm chamfer) reach a lug front this
 # far in front of the face. Seated also needs every lug front within it, the plate's face nowhere past the flange's,
@@ -121,7 +133,6 @@ STOPS_AWAY = np.array([0.45, -0.20, TOP - 0.05])
 LET_GO = 0.04  # each TCP at least this far from the tool's handle and the lever's pad
 HOME_WITHIN = 0.05
 SUCCESS_HOLD_S = 1.0
-HIDDEN = np.array([0.45, -0.25, TOP - 0.05])
 
 
 def _round(phi: float, r: float) -> tuple[float, float]:
@@ -145,25 +156,23 @@ def _arc_box(phi: float, r: tuple[float, float], y: tuple[float, float], span: f
                     color, collide=False, quat_xyzw=(0.0, -math.sin(a / 2), 0.0, math.cos(a / 2)))
 
 
-def _robot() -> Body:
-    """The robot arm, fixed; origin on the flange's axis at its face."""
+def _stand() -> Body:
+    """The inert wrist stand with the changer's robot side, fixed; origin on the flange's axis at its face."""
     o = np.array([FX, FACE_Y, FZ])
 
     def at(x, y, z):
         return tuple((np.array([x, y, z]) - o).tolist())
 
-    yb, zs = 0.11, TOP + 0.25  # the arm's plane (y) and its shoulder's height
-    wrist = RETAINER_Y[1]  # the wrist's end face, behind the retaining disc
-    shapes = [CylShape(at(0.56, yb, TOP + 0.015), 0.07, 0.03, DARK),  # the base
-              segment(at(0.56, yb, TOP + 0.03), at(0.56, yb, zs), 0.07, ORANGE),  # the column
-              CylShape(at(0.56, yb, zs), 0.045, 0.08, GREY, axis="Y"),
-              segment(at(0.56, yb, zs), at(0.40, yb, zs), 0.06, ORANGE),  # the upper arm
-              CylShape(at(0.40, yb, zs), 0.04, 0.075, GREY, axis="Y"),
-              segment(at(0.40, yb, zs), at(0.40, yb, FZ), 0.055, ORANGE),  # the forearm, down
-              CylShape(at(0.40, yb, FZ), 0.036, 0.07, GREY),
-              segment(at(0.40, yb, FZ), at(0.30, yb, FZ), 0.05, ORANGE),  # the wrist, toward the arms
-              CylShape(at(FX, yb, FZ), 0.034, 0.068, GREY),
-              CylShape(at(FX, (yb + FACE_Y + wrist) / 2, FZ), 0.034, yb - FACE_Y - wrist, GREY, axis="Y"),
+    (bx0, bx1), (by0, by1), bt = BOARD
+    floor = TOP + bt + FOOT[2]  # the pedestal stands on its foot, on the board
+    wy0, wy1 = FACE_Y + WRIST_Y[0], FACE_Y + WRIST_Y[1]
+    shapes = [BoxShape(at((bx0 + bx1) / 2, (by0 + by1) / 2, TOP + bt / 2), (bx1 - bx0, by1 - by0, bt), WOOD),
+              BoxShape(at(FX, wy0 + FOOT[1] / 2, TOP + bt + FOOT[2] / 2), FOOT, GREY),  # the pedestal's foot
+              BoxShape(at(FX, (wy0 + wy1) / 2, (floor + FZ) / 2), (2 * WRIST_R, wy1 - wy0, FZ - floor), GREY),
+              CylShape(at(FX, (wy0 + wy1) / 2, FZ), WRIST_R, wy1 - wy0, GREY, axis="Y"),  # the dummy wrist
+              *[shape for yc in (by0 + 0.03, by1 - 0.03) for shape in (  # two C-clamps on the board's far edge
+                  BoxShape(at(bx1 - 0.015, yc, TOP + bt + 0.005), (0.03, 0.016, 0.01), DARK, collide=False),
+                  BoxShape(at(bx1 + 0.006, yc, TOP + bt / 2), (0.012, 0.016, bt + 0.02), DARK, collide=False))],
               # the flange (its face at y = 0 here): the front lip, the journal the ring turns on, the retaining disc
               CylShape((0.0, FACE_T / 2, 0.0), FACE_R, FACE_T, STEEL, axis="Y"),
               CylShape((0.0, (FACE_T + RETAINER_Y[0]) / 2, 0.0), FLANGE_R, RETAINER_Y[0] - FACE_T, STEEL, axis="Y"),
@@ -174,10 +183,8 @@ def _robot() -> Body:
               *[CylShape(_on_axis(phi, DOWEL_R, -DOWEL_OUT / 2), DOWEL_D / 2, DOWEL_OUT, STEEL, collide=False,
                          axis="Y") for phi in DOWEL_AT],  # the dowels
               *[CylShape(_on_axis(phi, SCREW_R, -0.0003), SCREW_CB / 2, 0.0006, DARK, collide=False, axis="Y")
-                for phi in SCREW_AT],  # the mounting screws' counterbores
-              CylShape(at(*(LAMP + [0.0, 0.0, -0.003])), 0.009, 0.004, DARK, collide=False),
-              SphereShape(at(*LAMP), 0.006, RED, collide=False)]  # the status light: red
-    return Body.build("robot", pos=tuple(o.tolist()), mass=5.0, shapes=shapes, kinematic=True, color=ORANGE,
+                for phi in SCREW_AT]]  # the mounting screws' counterbores
+    return Body.build("stand", pos=tuple(o.tolist()), mass=5.0, shapes=shapes, kinematic=True, color=GREY,
                       friction=(0.6, 0.5))
 
 
@@ -227,35 +234,33 @@ def _rack() -> Body:
                       friction=(0.6, 0.5))
 
 
-def _plate_and_handle() -> list:
-    """The tool plate with its three lugs and its two dowel bushings (marked on its face), and the handle."""
-    return [CylShape((0.0, -PLATE_T / 2, 0.0), PLATE_R, PLATE_T, STEEL, axis="Y"),
-            *[_arc_box(phi, LUG_R, (-LUG_T, 0.0), LUG_SPAN, STEEL, sum(LUG_R) / 2) for phi in LUG_AT],
+def _plate_and_handle(color) -> list:
+    """The tool plate with its three lugs, its two dowel bushings (marked on its face) and their bosses, and the
+    handle. The plate is printed in one piece with the tool's body, in its colour."""
+    return [CylShape((0.0, -PLATE_T / 2, 0.0), PLATE_R, PLATE_T, color, axis="Y"),
+            *[_arc_box(phi, LUG_R, (-LUG_T, 0.0), LUG_SPAN, color, sum(LUG_R) / 2) for phi in LUG_AT],
             *[CylShape(_on_axis(phi, DOWEL_R, 0.0003), DOWEL_D / 2, 0.0006, DARK, collide=False, axis="Y")
+              for phi in DOWEL_AT],
+            *[CylShape(_on_axis(phi, DOWEL_R, -PLATE_T - BOSS_T / 2), BOSS_R, BOSS_T, color, collide=False, axis="Y")
               for phi in DOWEL_AT],
             BoxShape((0.0, HANDLE_Y, HANDLE_Z + HANDLE[2] / 2), HANDLE, DARK)]
 
 
 def _suction_tool() -> Body:
-    shapes = [*_plate_and_handle(),
+    shapes = [*_plate_and_handle(BLUE),
               CylShape((0.0, -0.0465, 0.0), TOOL_R, 0.077, BLUE, axis="Y"),  # the body
               CylShape((0.0, -0.090, 0.0), 0.008, 0.010, DARK, axis="Y"),  # the stem
               CylShape((0.0, -0.100, 0.0), 0.020, 0.010, BLACK, axis="Y")]  # the suction cup
     return Body.build("suction_tool", pos=tuple(SUCTION_AT.tolist()), mass=TOOL_MASS, shapes=shapes,
-                      friction=(1.0, 0.9), color=BLUE, com=(0.0, HANDLE_Y, COM_DOWN), ignore=("ring",))
+                      friction=(1.0, 0.9), color=BLUE, com=SUCTION_COM, ignore=("ring",))
 
 
 def _gripper_tool() -> Body:
-    shapes = [*_plate_and_handle(),
+    shapes = [*_plate_and_handle(GREY),
               BoxShape((0.0, -0.040, 0.0), (0.044, 0.064, 0.044), GREY),  # the body
               *[BoxShape((s * 0.014, -0.088, 0.0), (0.008, 0.034, 0.020), DARK) for s in (-1.0, 1.0)]]  # its fingers
     return Body.build("gripper_tool", pos=tuple(GRIPPER_AT.tolist()), mass=TOOL_MASS + 0.02, shapes=shapes,
-                      friction=(1.0, 0.9), color=GREY, com=(0.0, HANDLE_Y, COM_DOWN), ignore=("ring",))
-
-
-def _light() -> Body:
-    return Body.build("lock_light", pos=tuple(HIDDEN.tolist()), mass=0.001, kinematic=True, color=GREEN,
-                      shapes=[SphereShape((0.0, 0.0, 0.0), 0.0068, GREEN, collide=False)])
+                      friction=(1.0, 0.9), color=GREY, com=GRIPPER_COM, ignore=("ring",))
 
 
 def _stops() -> Body:
@@ -266,9 +271,9 @@ def _stops() -> Body:
                               for phi in DOWEL_AT], ignore=("ring",))
 
 
-OBJECTS = [_robot(), _anchor(), _ring(), _stops(), _rack(), _suction_tool(), _gripper_tool(), _light()]
+OBJECTS = [_stand(), _anchor(), _ring(), _stops(), _rack(), _suction_tool(), _gripper_tool()]
 # the ring turns about the flange's axis; pressing the lever down turns it the negative way about +y
-hinge("lock_ring", "robot", "ring", anchor=(FX, FACE_Y + (RING_Y[0] + RING_Y[1]) / 2, FZ), axis="Y",
+hinge("lock_ring", "stand", "ring", anchor=(FX, FACE_Y + (RING_Y[0] + RING_Y[1]) / 2, FZ), axis="Y",
       limits_deg=(-RING_MAX, OPEN_STOP), spring=RING_HOLD, damping=RING_DRAG, target_deg=0.0)
 # the locks: off until the ring takes a seated tool (then the tool is held home on the flange, centred and square)
 for _tool, _lock in LOCKS.items():
@@ -278,7 +283,7 @@ for _tool, _lock in LOCKS.items():
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"held": 0.0, "tcps": None, "s": {}, "light": False, "stops_away": False,
+    return {"held": 0.0, "tcps": None, "s": {}, "stops_away": False,
             "tools": {name: {"inserted": False, "caught": False, "ever": False, "ever_locked": False}
                       for name in LOCKS}}
 
@@ -442,12 +447,6 @@ def _follow(env) -> None:
             for (p, _), c in zip(poses.values(), checks.values())):
         _place(base, origin, "dowel_stops", STOPS_AT)
         _EP["stops_away"] = False
-    # locked: held by the lips and the ring on their flat dwell (turned back below LOCK, the lugs ride down the clamp
-    # ramps: still held by the lips until the ring is back within OPEN of open, but no longer pulled tight)
-    locked = turned >= LOCK and held
-    if locked != _EP["light"]:
-        _place(base, origin, "lock_light", LAMP if locked else HIDDEN)
-        _EP["light"] = locked
     _EP["tcps"] = _tcps(base, origin)
     pos, rot = poses["suction_tool"]
     handle = pos + rot @ np.array([0.0, HANDLE_Y, HANDLE_Z + HANDLE[2] / 2])
@@ -525,7 +524,7 @@ def _arms_home() -> bool:
 
 
 def success(objects) -> bool:
-    """Full score with the suction tool still (hanging on the robot): the trial ends there."""
+    """Full score with the suction tool still (hanging on the flange): the trial ends there."""
     return score(objects) >= 1.0 and objects["suction_tool"].resting()
 
 
@@ -533,29 +532,34 @@ def success(objects) -> bool:
 # The right hand comes straight down on the suction tool's handle, fingers closing across it, lifts it out of the rack,
 # carries it to the flange and holds its plate on the dowels' tips. The left hand comes straight down on the lever's
 # pad, fingers closed, and presses it down along its swing, 32 degrees: past 8 degrees the ring takes the tool and draws
-# it home, and from 25 it is locked on (the light turns green). The right lets go and draws back, the left rises, the tool hanging on the robot, and both
-# arms go back to where they started.
+# it home, and from 25 it is locked on. The right lets go and draws back, the left rises, the tool hanging on the
+# flange, and both arms go back to where they started.
 
 TOOL_GRIP = grip_rotation(math.pi / 2)  # straight down, fingers closing along x, across the handle
 HOLD_TWIST = -3.4  # the pads twist the held tool 3.4 deg about the vertical (measured): carried and held with the
 # wrist turned back this much about the vertical, so its plate meets the flange square
 _c, _s = math.cos(math.radians(HOLD_TWIST)), math.sin(math.radians(HOLD_TWIST))
-HOLD_PITCH = 0.6  # pushed onto the dowels' tips, the held plate's face pitches 0.6 deg face-down (its weight and the
-# push at the handle, above the axis; measured): held with the wrist pitched back this much about x, so both tips
-# reach their chamfers
+HOLD_PITCH = 0.85  # pushed onto the dowels' tips, the held plate's face pitches face-down (its weight, 4.9 mm toward
+# the plate from the handle, and the push at the handle, above the axis; measured): held with the wrist pitched back
+# this much about x, so both tips reach their chamfers
 _p = math.radians(HOLD_PITCH)
-HOLD_GRIP = (np.array([[1.0, 0.0, 0.0], [0.0, math.cos(_p), -math.sin(_p)], [0.0, math.sin(_p), math.cos(_p)]])
+HOLD_ROLL = -0.65  # the pads also roll the held tool 0.65 deg about its axis (measured): held rolled back this much
+# about y, which evens the two dowels' offsets and moves the plate 0.5 mm toward +x, against its drift
+_r = math.radians(HOLD_ROLL)
+HOLD_GRIP = (np.array([[math.cos(_r), 0.0, math.sin(_r)], [0.0, 1.0, 0.0], [-math.sin(_r), 0.0, math.cos(_r)]])
+             @ np.array([[1.0, 0.0, 0.0], [0.0, math.cos(_p), -math.sin(_p)], [0.0, math.sin(_p), math.cos(_p)]])
              @ np.array([[_c, -_s, 0.0], [_s, _c, 0.0], [0.0, 0.0, 1.0]]) @ np.asarray(TOOL_GRIP, float))
 PAD_GRIP = grip_rotation(0.0)  # straight down, fingers closed (closing along y)
 IN_HANDLE = 0.013  # the right TCP this far below the handle's top
 LIFT = 0.018  # out of the rack (its lips are 1 cm high)
 SHORT = 0.02  # the plate brought level with the flange this far short of it, then on
 PUSH_IN = 0.0025  # aimed this far past the dowels' tips (the arm stops 1-2 mm short of a pushed target)
-AIM = np.array([0.0, 0.0, 0.0045])  # held so, the plate sits 4.5 mm low (measured): aim against it
+AIM = np.array([0.0, 0.0, 0.0046])  # held so, the plate sits 4.6 mm low (measured): aim against it
 TIPS = np.array([FX, FACE_Y - STOP_OUT, FZ])  # the plate's face on the dowels' tips (on the stops)
 TIP = 0.013  # closed fingertips below the TCP
 PRESS = 0.005  # aimed this far into the pad
 TURN_TO = 32.0
+FIRST_PRESS = 12.0  # the first press, made as the plate reaches the dowels' tips, takes the ring past 8 degrees
 LEAD_S, LEAD_STEPS = 3.0, 15
 
 
@@ -625,7 +629,7 @@ def _right(press_done: float) -> tuple[list[Waypoint], float]:
     back = on + [0.0, -0.03, 0.04]
     out += [_w(max(press_done + 0.8 - seated_at, 0.3), on, FINGER_CLOSED, "hold it on while the lever is pressed",
                HOLD_GRIP),
-            _w(0.5, on, FINGER_OPEN, "let go: it hangs on the robot, locked", HOLD_GRIP),
+            _w(0.5, on, FINGER_OPEN, "let go: it hangs on the flange, locked", HOLD_GRIP),
             _w(1.0, back, FINGER_OPEN, "draw back", HOLD_GRIP)]
     out += _go_home("right", back, HOLD_GRIP, FINGER_OPEN)
     return out, seated_at
@@ -639,12 +643,14 @@ def _left(seated_at: float, total: float) -> tuple[list[Waypoint], float]:
     over = _on_pad(0.0, -0.04)
     out = _lead_in("left", over, PAD_GRIP, "over the lever's pad", FINGER_CLOSED)
     t = sum(w.duration for w in out)
-    out += [_w(max(seated_at + 0.4 - t, 0.3), over, FINGER_CLOSED, "wait for the tool to be held on the flange",
+    out += [_w(max(seated_at - 0.5 - t, 0.3), over, FINGER_CLOSED, "wait over the pad", PAD_GRIP),
+            _w(0.8, _on_pad(0.0, 0.0), FINGER_CLOSED, "down onto the pad as the tool reaches the dowels' tips",
                PAD_GRIP),
-            _w(0.8, _on_pad(0.0, 0.0), FINGER_CLOSED, "down onto the pad", PAD_GRIP)]
-    for k in range(1, 9):
-        out.append(_w(0.5, _on_pad(TURN_TO * k / 8, PRESS), FINGER_CLOSED,
-                      "press the lever down: the ring turns and locks the tool on", PAD_GRIP))
+            _w(0.6, _on_pad(FIRST_PRESS, PRESS), FINGER_CLOSED,
+               "press the lever down at once: past 8 degrees the ring takes the tool", PAD_GRIP)]
+    for k in range(1, 6):
+        out.append(_w(0.5, _on_pad(FIRST_PRESS + (TURN_TO - FIRST_PRESS) * k / 5, PRESS), FINGER_CLOSED,
+                      "press on: the ring draws the tool home and locks it on", PAD_GRIP))
     press_done = sum(w.duration for w in out)
     up = _on_pad(TURN_TO, -0.05)
     out += [_w(0.8, _on_pad(TURN_TO, PRESS), FINGER_CLOSED, "hold it there", PAD_GRIP),
