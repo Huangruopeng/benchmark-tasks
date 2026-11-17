@@ -1,13 +1,17 @@
 """A stainless single-bowl kitchen sink (25 x 22 in top-mount, bowl 21 x 15-3/4 in and 8 in deep) is set into the
 counter (the station table, cut out under it) on the right, with a gooseneck tap on its back deck. In its 3-1/2 in
 drain sits a fixed-post strainer basket holding nine food scraps (carrot and potato peel, rice, peas, broccoli, a piece
-of apple core). A 1.8 litre food-waste caddy, its lid off, stands on the counter just left of the sink.
+of apple core). A 1.8 litre food-waste caddy, its lid off, stands on the counter just left of the sink. A real trial
+uses clean, dry stand-ins printed in ABS at the scraps' sizes and masses, which the simulated scraps copy.
 
 Task: empty the scraps from the strainer into the caddy and put the strainer back in the drain, without letting any
 scraps go down the drain or onto the counter.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=empty_the_sink_strainer_into_the_bin.py \\
            --instruction "..." --scorer task_score ...
+Checks:  SINK_TEST=reseat (the demo first puts the full basket back in the drain and lifts it out again: still 1.0);
+         SINK_ONEHAND=1 (the right hand alone); python empty_the_sink_strainer_into_the_bin.py (the drain rule's
+         geometry, no simulator).
 """
 
 from __future__ import annotations
@@ -493,7 +497,7 @@ CLEAR = 0.05  # at the end each gripper is at least this far from the basket
 def _fresh() -> dict:
     return {"tcps": None, "down_drain": [], "on_floor": [], "on_counter": [], "dropped": False, "lifted": False,
             "seated": True, "in_caddy": [], "hands_off": True, "max_pad": np.zeros(4), "max_fix": np.zeros(3),
-            "steps": 0, "err": ""}
+            "carried": 0, "steps": 0, "err": ""}
 
 
 _EP = _fresh()
@@ -516,7 +520,8 @@ def _tilt(r) -> float:
 
 
 def _in_bore(p) -> bool:
-    """A point inside the drain's bore, below the sink floor: down the drain once the basket is out."""
+    """A point inside the drain's bore (or the tailpiece below it), more than 6 mm below the sink floor. A scrap whose
+    middle gets there while the basket is not seated has gone down the drain, unless it is inside the basket's cup."""
     return math.hypot(p[0] - DRAIN[0], p[1] - DRAIN[1]) < BORE_R and p[2] < FLOOR - 0.006
 
 
@@ -527,9 +532,21 @@ def _seated_pose(bp, br) -> bool:
             and _tilt(br) <= 8.0)
 
 
+CUP_IN_R0, CUP_IN_R1 = B_FLOOR_R - B_WALL_T, B_RIM_R - 0.003  # the cup wall's inside: 28.5 mm at its foot (2 mm up)
+# ... widening to 36.7 mm just under the rim (26 mm up)
+
+
 def _in_basket(bp, br, p) -> bool:
+    """A scrap's middle inside the basket's cup, in the basket's own frame (wherever the basket is and however it is
+    turned): above the cup's underside, no more than 10 mm above its rim, and inside its tapered wall (plus 1 mm).
+    Such a scrap is carried in the basket, and the drain rule never counts it, not while the basket is lifted out of
+    the strainer body and not while it is put back in. A scrap beside the basket, between its wall and the bore, is
+    not in it."""
     q = br.T @ (np.asarray(p, float) - bp)
-    return 0.0 < q[2] < B_RIM_Z + 0.01 and math.hypot(q[0], q[1]) < B_RIM_R
+    if not 0.0 < q[2] < B_RIM_Z + 0.010:
+        return False
+    f = (min(max(q[2], 0.002), B_RIM_Z - 0.002) - 0.002) / (B_RIM_Z - 0.004)
+    return math.hypot(q[0], q[1]) < CUP_IN_R0 + (CUP_IN_R1 - CUP_IN_R0) * f + 0.001
 
 
 def _in_caddy(cp, cr, p) -> bool:
@@ -594,13 +611,16 @@ def _follow_inner(env) -> None:
         e["dropped"] = True
     if bp[2] < FLOOR_Z:
         e["on_floor"] = sorted(set(e["on_floor"]) | {"basket"})
-    scr, inside = {}, []
+    scr, inside, carried = {}, [], 0
     for name in SCRAP_NAMES:
         p = _pose(base, origin, name)[0]
         scr[name] = p
         in_b = _in_basket(bp, br, p)
-        if not seated and _in_bore(p) and not in_b and name not in e["down_drain"]:
-            e["down_drain"].append(name)
+        if not seated and _in_bore(p):
+            if in_b:  # carried down in the bore inside the basket (lifting it out or putting it back): not lost
+                carried += 1
+            elif name not in e["down_drain"]:
+                e["down_drain"].append(name)
         if p[2] < FLOOR_Z and name not in e["on_floor"]:
             e["on_floor"].append(name)
         if (p[2] < COUNTER_Z and not _over_bowl(p) and not _in_caddy(cp, cr, p) and not in_b
@@ -609,6 +629,7 @@ def _follow_inner(env) -> None:
         if _in_caddy(cp, cr, p):
             inside.append(name)
     e["in_caddy"] = inside
+    e["carried"] = max(e["carried"], carried)  # the most scraps seen in the bore inside the unseated basket at once
     e["hands_off"] = (not held) and all(float(np.linalg.norm(t - bp)) >= CLEAR for t in tcps)
     if _DEBUG["on"] and e["steps"] % 5 == 0:
         knob = bp + br @ np.array([0.0, 0.0, KNOB_GRIP_Z])
@@ -621,7 +642,8 @@ def _follow_inner(env) -> None:
               f"knob-TCPR={np.round((knob - tcps[1]) * 1000, 1).tolist()} "
               f"cup-TCPL={np.round((cup - tcps[0]) * 1000, 1).tolist()} "
               f"caddy={np.round((cp - [CAD_XY[0], CAD_XY[1], TOP + 0.0005]) * 1000, 1).tolist()}mm "
-              f"caddy_tilt={_tilt(cr):4.1f} in_caddy={len(inside)} drain={e['down_drain']} floor={e['on_floor']} "
+              f"caddy_tilt={_tilt(cr):4.1f} in_caddy={len(inside)} carried_in_bore={carried}/{e['carried']} "
+              f"drain={e['down_drain']} floor={e['on_floor']} "
               f"counter={e['on_counter']} dropped={e['dropped']} off={e['hands_off']} "
               f"fix={'?' if fx is None else np.round(fx, 2).tolist()} score={score(None)}", file=sys.stderr, flush=True)
         if e["steps"] % 20 == 0:
@@ -638,8 +660,10 @@ def _latched() -> bool:
 
 
 def score(objects) -> float:
-    """0.0 for good once a scrap has gone down the open drain, a scrap has landed on the counter, a scrap or the
-    basket has fallen to the floor, or the basket has been dropped. Otherwise, at the end: 1.0 with all nine scraps
+    """0.0 for good once a scrap has gone down the open drain (its middle in the bore while the basket is not seated,
+    and not inside the basket's cup: scraps carried in the basket as it is lifted out or put back never count), a
+    scrap has landed on the counter, a scrap or the basket has fallen to the floor, or the basket has been dropped.
+    Otherwise, at the end: 1.0 with all nine scraps
     in the caddy, the basket seated back in the strainer body and both hands off it; 0.5 with all nine scraps in the
     caddy; 0.25 with at least five scraps in the caddy; else 0.0."""
     e = _EP
@@ -787,13 +811,26 @@ def _basket_path():
     return path
 
 
-def _right_before() -> list[Waypoint]:
+def _lift_out() -> list[Waypoint]:
+    """The right reaches into the bowl, grips the knob and lifts the basket, scraps and all, up out of the bowl."""
     above = DRAIN_KNOB + [0.0, 0.0, 0.06]
     r = _lead_in("right", above, GRIP_R, "over the drain", KNOB_FINGER)
     r += [_w(2.0, DRAIN_KNOB, KNOB_FINGER, "down round the strainer's knob", GRIP_R),
           _w(0.8, DRAIN_KNOB, FINGER_CLOSED, "grip the knob", GRIP_R),
           _w(1.2, DRAIN_KNOB + [0.0, 0.0, 0.03], FINGER_CLOSED, "lift the basket out of the strainer body", GRIP_R),
           _w(2.0, [DRAIN_KNOB[0], DRAIN_KNOB[1], LIFT_H], FINGER_CLOSED, "up out of the bowl", GRIP_R)]
+    return r
+
+
+def _right_before(reseat: bool = False) -> list[Waypoint]:
+    r = _lift_out()
+    if reseat:  # the drain rule's check (SINK_TEST=reseat): put it back, scraps and all, and lift it out again
+        r += [_w(2.5, DRAIN_KNOB + [0.0, 0.0, 0.010], FINGER_CLOSED, "check: lower it back in with the scraps", GRIP_R),
+              _w(1.0, DRAIN_KNOB - [0.0, 0.0, PRESS], FINGER_CLOSED, "check: press it home, scraps and all", GRIP_R),
+              _w(1.0, DRAIN_KNOB - [0.0, 0.0, PRESS], FINGER_CLOSED, "check: hold it seated", GRIP_R),
+              _w(1.5, DRAIN_KNOB + [0.0, 0.0, 0.03], FINGER_CLOSED, "check: lift it out again", GRIP_R),
+              _w(2.0, [DRAIN_KNOB[0], DRAIN_KNOB[1], LIFT_H], FINGER_CLOSED, "check: up out of the bowl again",
+                 GRIP_R)]
     p, rot = _hand("right", HANDOVER, UP)
     r.append(_w(2.5, p, FINGER_CLOSED, "carry it toward the caddy", rot))
     return r
@@ -815,12 +852,13 @@ RIGHT_WAIT = np.array([0.300, -0.170, TOP + 0.150])  # where the right waits, cl
 # empties the basket
 
 
-def _two_hand_plans() -> dict:
+def _two_hand_plans(reseat: bool = False) -> dict:
     """The demo. The right lifts the basket out by its knob and brings it toward the caddy; the left takes the cup from
     the front; the right lets go and moves clear. The left alone carries the basket over the caddy, turns it over,
     shakes it twice, turns it back up and brings it back. The right takes the knob again, the left lets go, and the
-    right lowers the basket into the strainer body and presses it home. Both arms go home."""
-    right = _right_before()
+    right lowers the basket into the strainer body and presses it home. Both arms go home. With reseat (the check
+    SINK_TEST=reseat) the right first puts the full basket back in the drain and lifts it out again."""
+    right = _right_before(reseat)
     t = sum(w.duration for w in right)
     knob_p, knob_r = _hand("right", HANDOVER, UP)
     lp, lr = _hand("left", HANDOVER, UP)
@@ -885,4 +923,44 @@ def _one_hand_plans() -> dict:
 
 
 def demo():
-    return _one_hand_plans() if os.environ.get("SINK_ONEHAND") else _two_hand_plans()
+    if os.environ.get("SINK_ONEHAND"):
+        return _one_hand_plans()
+    return _two_hand_plans(reseat=os.environ.get("SINK_TEST") == "reseat")
+
+
+# -- a check of the drain rule's geometry, no simulator needed: python empty_the_sink_strainer_into_the_bin.py ------
+
+def _drain_rule_selftest() -> list[str]:
+    """Which scrap positions the drain rule counts as lost, for poses set by hand (it runs while the basket is not
+    seated). Prints one line per case."""
+    def lost(bp, br, p, seated=False):
+        return (not seated) and _in_bore(p) and not _in_basket(bp, br, p)
+
+    local = [np.asarray(loc) for _n, _k, loc, *_ in SCRAPS]
+    out, worst = [], 0
+    for dz in np.arange(0.0, 0.0601, 0.002):  # the full basket lifted out or put back, upright or tilted
+        for tilt in (0.0, 8.0, 15.0):
+            r = _rot((1.0, 0.0, 0.0), math.radians(tilt))
+            bp = B_START + [0.0, 0.0, dz]
+            worst = max(worst, sum(lost(bp, r, bp + r @ q) for q in local))
+            if dz in (0.0, 0.02) and tilt in (0.0, 15.0):
+                out.append(f"basket {dz * 1000:2.0f} mm up, tilted {tilt:4.1f} deg: "
+                           f"{sum(_in_bore(bp + r @ q) for q in local)} scraps in the bore, "
+                           f"{sum(lost(bp, r, bp + r @ q) for q in local)} counted lost")
+    out.append(f"basket 0-60 mm up, tilted 0-15 deg, all nine scraps in it: at most {worst} counted lost")
+    bp = B_START + [0.0, 0.0, 0.010]
+    for r_mm, z_mm in ((36.0, 5.0), (37.0, 2.0)):
+        p = bp + [r_mm / 1000, 0.0, z_mm / 1000]
+        out.append(f"pea beside the basket ({r_mm:.0f} mm from its axis, {z_mm:.0f} mm above its underside), basket 10 mm "
+                   f"up: in the cup {_in_basket(bp, np.eye(3), p)}, counted lost {lost(bp, np.eye(3), p)}")
+    p = np.array([DRAIN[0] + 0.02, DRAIN[1], FLOOR + CROSSBAR + 0.004])
+    out.append(f"pea on the crossbar under the basket lifted 40 mm: counted lost "
+               f"{lost(B_START + [0.0, 0.0, 0.040], np.eye(3), p)}")
+    p = np.array([DRAIN[0], DRAIN[1], FLOOR - 0.03])
+    out.append(f"pea 30 mm down the bore, basket away over the caddy: counted lost "
+               f"{lost(np.array([0.30, 0.165, TOP + 0.18]), np.eye(3), p)}")
+    return out
+
+
+if __name__ == "__main__":
+    print("\n".join(_drain_rule_selftest()))
