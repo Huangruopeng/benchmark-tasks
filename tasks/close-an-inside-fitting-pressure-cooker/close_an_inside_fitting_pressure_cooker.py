@@ -85,7 +85,7 @@ BH_Z0, BH_Z1 = 0.0745, 0.1025
 BH_LOW = 0.0795  # the handle's lower layer (BH_Z0..BH_LOW) is cut away where the loop's crossbar hooks in
 BR_X0 = -R_OUT  # the bracket from the wall to the handle
 BR_Z0 = 0.080
-PIV_X = -0.093  # the pivot: a 6 x 8 mm steel post on the bracket
+PIV_X = -0.093  # the pivot: a 6 x 10.5 mm steel post on the bracket
 PIV_TOP = 0.1165
 # -- the lid (in its own frame: origin at the middle of the lid plate's top face; seated, its axes are the cooker's) --
 LID_X, LID_Y = 0.064, 0.073  # the lid's half-axes: 128 x 146 mm, 4 mm larger than the mouth all round
@@ -347,34 +347,55 @@ def _contacts():
 
 
 # -- followed after every control step --------------------------------------------------------------------------
-SEAT_TOL = 0.0015  # every gasket check point within 1.5 mm of the rim's underside
-SEAT_OVERLAP = 0.001  # ... and its outer edge at least 1 mm in under the rim (outside the mouth) all round
-LEVEL_DEG = 3.0
+# Seated: each check is one a real trial makes on the closed cooker (the README gives the real instrument for each).
+ALIGN_OFF = 0.013  # in line: the middle of the lid handle's end within 13 mm sideways of the body handle's centre line
 GAP_MAX = 0.004  # handles together: the lid handle's underside within 4 mm of the body handle's top at its end
+DEPTH_SEAT = Z_LIP1 - LID_SEAT_Z  # 4.5 mm: the lid's top face below the rim's top with the lid seated
+DEPTH_TOL = 0.002  # ... within 2 mm of that at each of the four depth points
+DEPTH_IN = 0.005  # the depth points: 5 mm in from the mouth's edge, on its diagonals (clear of the bar and the valve)
+N_CHECK = 24  # the witness ring: points round the gasket's outer edge, 18 mm apart, ...
+SEAT_OVERLAP = 0.001  # ... each at least 1 mm in under the rim (outside the mouth's edge) ...
+SEAT_TOL = 0.002  # ... and within 2 mm of the rim's underside (the rigid gasket; a real one is squeezed onto it)
+# Latch hold: once both hands have been off the closed, latched lid for LIFT_AFTER_S, the scorer lifts the lid handle's
+# end straight up with LIFT_N for LIFT_S (a real trial does it with a spring scale); it must stay seated throughout.
+LIFT_N = 1.0  # N: 100 g on a spring scale (the sim latch, held by friction at the pivot, lets go at about 1.8 N)
+LIFT_S = 1.0
+LIFT_AFTER_S = 0.5
+LIFT_RAMP = float(os.environ.get("PC_LIFT_RAMP", "0"))  # debug only: ramp the lift at this many N/s to find what
+# the latch holds
+LIFT_LOCAL = np.array([LH_X0 + 0.010, 0.0, LH_Z0])  # where: under the lid handle, 10 mm in from its end (lid frame)
 TIP_DEG = 25.0
 FLOOR_Z = 0.30
 CLEAR = 0.05  # at the end each gripper is at least this far from the lid handle's end and from the loop
 GRIP_N = 0.5
-N_CHECK = 8
 
 
 def _gasket_points() -> np.ndarray:
-    """N_CHECK points on the gasket's top at the lid's outer edge (0.5 mm in; lid frame)."""
+    """N_CHECK points on the gasket's top at the lid's outer edge (lid frame)."""
     pts = []
     for k in range(N_CHECK):
-        t = 2 * math.pi * k / N_CHECK
-        p, nrm = _ellipse(LID_X, LID_Y, t)
-        q = p - nrm * 0.0005
-        pts.append((q[0], q[1], GASKET_TOP))
+        p, _ = _ellipse(LID_X, LID_Y, 2 * math.pi * k / N_CHECK)
+        pts.append((p[0], p[1], GASKET_TOP))
     return np.array(pts)
 
 
+def _depth_points() -> np.ndarray:
+    """The four depth points (x, y) in the cooker's frame: 5 mm in from the mouth's edge on its diagonals."""
+    out = []
+    for deg in (45.0, 135.0, 225.0, 315.0):
+        p, nrm = _ellipse(MOUTH_X, MOUTH_Y, math.radians(deg))
+        out.append(p - nrm * DEPTH_IN)
+    return np.array(out)
+
+
 GASKET_PTS = _gasket_points()
+DEPTH_PTS = _depth_points()
 
 
 def _fresh() -> dict:
     return {"inside": False, "seated": False, "latched": False, "gap": 1.0, "loop_deg": 0.0, "hands_off": False,
-            "tipped": False, "fallen": False, "steps": 0, "err": "", "max_tilt": 0.0, "seat_info": ""}
+            "tipped": False, "fallen": False, "steps": 0, "err": "", "max_tilt": 0.0, "seat_info": "",
+            "off_n": 0, "test": None, "held": False, "tests": 0, "test_fails": 0, "lift_on": False}
 
 
 _EP = _fresh()
@@ -401,25 +422,87 @@ def _in_mouth(x, y, shrink=0.0) -> bool:
 
 
 def _seal_state(cp, cr, lp, lr):
-    """(seated, wholly inside, info): the lid's gasket points in the cooker's frame."""
+    """(seated as the four checks find it, wholly inside, info, the handles' gap): all in the cooker's frame.
+    In line: the middle of the lid handle's end within ALIGN_OFF sideways of the body handle's centre line. Handles
+    together: the gap at the body handle's end within GAP_MAX. Depth: at each depth point the lid's top face DEPTH_SEAT
+    +/- DEPTH_TOL below the rim's top. Witness ring: every gasket point in under the rim and close to its underside."""
     pts = (lp + GASKET_PTS @ lr.T - cp) @ cr      # world -> cooker frame
     under = []
     for x, y, z in pts:
-        r = math.hypot(x / MOUTH_X, y / MOUTH_Y)
         under.append((not _in_mouth(x, y, -SEAT_OVERLAP)) and abs(z - Z_LIP0) <= SEAT_TOL and math.hypot(x, y) < R_IN)
-    rel = cr.T @ lr
-    level = math.degrees(math.acos(max(-1.0, min(1.0, float(rel[2, 2]))))) <= LEVEL_DEG
-    seated = all(under) and level
+    o = (lp - cp) @ cr  # the lid's top face: through its origin, square to its z axis
+    nz = cr.T @ lr[:, 2]
+    depths = [Z_LIP1 - (o[2] - (nz[0] * (x - o[0]) + nz[1] * (y - o[1])) / nz[2]) for x, y in DEPTH_PTS]
+    depth_ok = all(abs(d - DEPTH_SEAT) <= DEPTH_TOL for d in depths)
+    end_c = (lp + lr @ np.array([LH_X0, 0.0, (LH_Z0 + BAR_Z1) / 2]) - cp) @ cr
+    align = abs(float(end_c[1]))
+    end_l = (lp + lr @ np.array([BH_X0 + 0.006, 0.0, LH_Z0]) - cp) @ cr
+    gap = float(end_l[2] - BH_Z1)
+    seated = all(under) and depth_ok and align <= ALIGN_OFF and gap <= GAP_MAX
     # wholly inside: every point of the lid's outline below the rim's underside and inside the wall
     outline = []
     for k in range(16):
         p, _ = _ellipse(LID_X, LID_Y, 2 * math.pi * k / 16)
         for z in (GASKET_TOP, GASKET_BOT):
             outline.append((p[0], p[1], z))
-    o = (lp + np.array(outline) @ lr.T - cp) @ cr
-    inside = bool(np.all(o[:, 2] < Z_LIP0 + 0.0005) and np.all(np.hypot(o[:, 0], o[:, 1]) < R_IN + 0.001))
-    info = f"z-lip={np.round((pts[:, 2] - Z_LIP0) * 1000, 1).tolist()} under={sum(under)}/{N_CHECK} level={level}"
-    return seated, inside, info
+    ol = (lp + np.array(outline) @ lr.T - cp) @ cr
+    inside = bool(np.all(ol[:, 2] < Z_LIP0 + 0.0005) and np.all(np.hypot(ol[:, 0], ol[:, 1]) < R_IN + 0.001))
+    info = (f"ring={sum(under)}/{N_CHECK} z-lip=[{(pts[:, 2] - Z_LIP0).min() * 1000:.1f},"
+            f"{(pts[:, 2] - Z_LIP0).max() * 1000:.1f}]mm depth={np.round(np.array(depths) * 1000, 1).tolist()}mm "
+            f"align={align * 1000:.1f}mm gap={gap * 1000:.1f}mm")
+    return seated, inside, info, gap
+
+
+def _lift(base, origin, lp, lr, on: bool, newtons: float = LIFT_N) -> None:
+    """The scorer's latch-hold test: LIFT_N straight up under the lid handle's end while ``on``, else nothing."""
+    import torch
+
+    asset = base.scene["lid"]
+    at = lp + lr @ LIFT_LOCAL + origin  # world, with this environment's origin
+    f = torch.tensor([0.0, 0.0, newtons if on else 0.0], dtype=torch.float32, device=asset.device).view(1, 1, 3)
+    pos = torch.tensor(at, dtype=torch.float32, device=asset.device).view(1, 1, 3)
+    asset.permanent_wrench_composer.set_forces_and_torques_index(forces=f, positions=pos, is_global=True)
+    _EP["lift_on"] = on
+
+
+def _latch_test(base, origin, lp, lr, e) -> None:
+    """Once both hands have been off the seated, latched lid for LIFT_AFTER_S, lift the lid handle's end with LIFT_N for
+    LIFT_S. It passes if the lid stays seated and latched with the hands off all the while (the handles within GAP_MAX
+    is part of seated). The pass holds only while the lid stays that way; any change and the next closing is tested
+    afresh."""
+    closed = e["seated"] and e["latched"] and e["hands_off"]
+    t = e["test"]
+    if t is not None:  # the lift is on
+        t["n"] += 1
+        t["max_gap"] = max(t["max_gap"], e["gap"])
+        f_n = LIFT_RAMP * t["n"] / 20 if LIFT_RAMP else LIFT_N
+        if not closed:
+            _lift(base, origin, lp, lr, False)
+            e["test"], e["held"], e["off_n"] = None, False, 0
+            e["test_fails"] += 1
+            if _DEBUG["on"]:
+                print(f"[cooker] lift test FAILED after {t['n'] / 20:.2f}s at {f_n:.2f} N (max gap "
+                      f"{t['max_gap'] * 1000:.1f} mm)", file=sys.stderr, flush=True)
+        elif t["n"] >= int(round((8.0 if LIFT_RAMP else LIFT_S) * 20)):
+            _lift(base, origin, lp, lr, False)
+            e["test"], e["held"] = None, True
+            if _DEBUG["on"]:
+                print(f"[cooker] lift test passed at {f_n:.2f} N (max gap {t['max_gap'] * 1000:.1f} mm)",
+                      file=sys.stderr, flush=True)
+        else:
+            _lift(base, origin, lp, lr, True, f_n)  # (kept under the handle's end as the lid moves)
+            if _DEBUG["on"] and LIFT_RAMP and t["n"] % 4 == 0:
+                print(f"[cooker] lift {f_n:.2f} N gap={e['gap'] * 1000:.2f}mm loop={e['loop_deg']:.1f} "
+                      f"{e['seat_info']}", file=sys.stderr, flush=True)
+        return
+    if not closed:
+        e["off_n"], e["held"] = 0, False
+        return
+    e["off_n"] += 1
+    if not e["held"] and e["off_n"] >= int(round(LIFT_AFTER_S * 20)):
+        e["test"] = {"n": 0, "max_gap": e["gap"]}
+        e["tests"] += 1
+        _lift(base, origin, lp, lr, True, 0.0 if LIFT_RAMP else LIFT_N)
 
 
 @on_step
@@ -455,32 +538,32 @@ def _follow_inner(env) -> None:
         e["tipped"] = True
     if cp[2] < FLOOR_Z or lp[2] < FLOOR_Z:
         e["fallen"] = True
-    seated, inside, info = _seal_state(cp, cr, lp, lr)
+    seated, inside, info, gap = _seal_state(cp, cr, lp, lr)
     e["seated"] = bool(seated and lid_n > 0.01)
     e["seat_info"] = info
+    e["gap"] = gap
     if inside:
         e["inside"] = True
     # the loop's swing about its hinge, against the lid (deg; + = swung in under the body handle)
     rel = lr.T @ orr
     loop_deg = -math.degrees(math.atan2(rel[0, 2], rel[2, 2]))
     e["loop_deg"] = loop_deg
-    # the handles' gap at the end: the lid handle's underside above the body handle's top (cooker frame)
-    end_l = (lp + lr @ np.array([BH_X0 + 0.006, 0.0, LH_Z0]) - cp) @ cr
-    gap = float(end_l[2] - BH_Z1)
-    e["gap"] = gap
-    e["latched"] = bool(LATCH_DEG[0] - 2.0 <= loop_deg <= LATCH_DEG[1] + 2.0 and loop_n > 0.01 and gap <= GAP_MAX)
+    e["latched"] = bool(LATCH_DEG[0] - 2.0 <= loop_deg <= LATCH_DEG[1] + 2.0 and loop_n > 0.01)
     hand_end = lp + lr @ np.array([LH_X0, 0.0, 0.010])
-    held = bool(pads.max() > GRIP_N)
-    e["hands_off"] = (not held) and all(float(np.linalg.norm(t - hand_end)) >= CLEAR and
-                                        float(np.linalg.norm(t - op)) >= CLEAR for t in tcps)
+    gripped = bool(pads.max() > GRIP_N)
+    e["hands_off"] = (not gripped) and all(float(np.linalg.norm(t - hand_end)) >= CLEAR and
+                                           float(np.linalg.norm(t - op)) >= CLEAR for t in tcps)
+    _latch_test(base, origin, lp, lr, e)
     if _DEBUG["on"] and e["steps"] % 5 == 0:
         lid_c = (lp - cp) @ cr
         grip_w = lp + lr @ GRIP_LOCAL
         print(f"[cooker] t={e['steps'] / 20:5.2f}s lid_in_cooker={np.round(lid_c * 1000, 1).tolist()}mm "
               f"lid_tilt={_tilt(lr):5.1f} rel_yaw={math.degrees(math.atan2((cr.T @ lr)[1, 0], (cr.T @ lr)[0, 0])):6.1f} "
               f"inside={e['inside']} seated={e['seated']} {info} lidN={lid_n:5.2f} loopN={loop_n:5.2f} "
-              f"loop={loop_deg:5.1f} gap={gap * 1000:5.1f}mm latched={e['latched']} "
-              f"pads={np.round(pads.max(axis=1), 1).tolist()} off={e['hands_off']} "
+              f"loop={loop_deg:5.1f} latched={e['latched']} "
+              f"pads={np.round(pads.max(axis=1), 1).tolist()} off={e['hands_off']} off_n={e['off_n']} "
+              f"lift={e['lift_on']} tests={e['tests']} fails={e['test_fails']} held={e['held']} "
+              f"lift_maxgap={(e['test'] or {}).get('max_gap', float('nan')) * 1000:.1f}mm "
               f"grip-TCPR={np.round((grip_w - tcps[1]) * 1000, 1).tolist()} lid-vs-hand={_lid_vs_hand(base, lr):5.1f}deg "
               f"TCPL_c={np.round((tcps[0] - cp) @ cr * 1000, 1).tolist()} "
               f"leg_c={np.round((op + orr @ np.array([0.0, -(LOOP_HALF_W - WIRE_R), -PUSH_R]) - cp) @ cr * 1000, 1).tolist()} "
@@ -501,14 +584,14 @@ def _lid_vs_hand(base, lr) -> float:
 
 def score(objects) -> float:
     """0.0 for good once the cooker has tipped more than 25 degrees or the cooker or the lid has fallen off the counter.
-    Otherwise, at the end: 1.0 with the lid seated against the rim, the locking loop hooked in under the body handle with
-    the handles together, and both hands off the lid; 0.5 with the lid seated; 0.25 if the lid was ever wholly inside
-    the cooker below the rim; else 0.0."""
+    Otherwise, at the end: 1.0 with the lid seated (in line, handles together, the four depths, the witness ring), the
+    locking loop hooked in under the body handle's end, both hands off, and the latch-hold lift passed on this closing;
+    0.5 with the lid seated; 0.25 if the lid was ever wholly inside the cooker below the rim; else 0.0."""
     e = _EP
     if e["tipped"] or e["fallen"]:
         return 0.0
     if e["seated"]:
-        return 1.0 if (e["latched"] and e["hands_off"]) else 0.5
+        return 1.0 if (e["latched"] and e["hands_off"] and e["held"]) else 0.5
     return 0.25 if e["inside"] else 0.0
 
 
@@ -755,6 +838,8 @@ def _left_push_poses():
     s_c = RC.T @ (out[0] - COOKER)
     end = COOKER + RC @ np.array([PUSH_END_X, s_c[1], PUSH_END_Z])  # measured: the loop is fully in with the TCP here
     return [out[0], end], rot
+
+
 
 
 def _release_bar(p, r, label) -> list[Waypoint]:
