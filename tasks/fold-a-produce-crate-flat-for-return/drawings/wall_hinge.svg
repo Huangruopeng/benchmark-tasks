@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1340" height="700" viewBox="0 0 1340 700" font-family="Helvetica, Arial, sans-serif">
+<title>Folding crate: wall hinge</title>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#1f4e9c"/></marker>
+<marker id="dot" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5"><circle cx="5" cy="5" r="3" fill="#1b1b1b"/></marker>
+<pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#cfe8d4"/><line x1="0" y1="0" x2="0" y2="6" stroke="#5f8f6a" stroke-width="1"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="30.0" y="34.0" font-size="17" text-anchor="start" fill="#1b1b1b" font-weight="bold">Wall hinge (two per wall). Section across the axis through the wall&#x27;s knuckle; mm.</text>
+<polygon points="450.0,290.0 490.0,290.0 490.0,330.0 550.0,330.0 550.0,90.0 450.0,90.0" fill="url(#hatch)" fill-opacity="1.0" stroke="#1b1b1b" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="450.0,370.0 490.0,370.0 490.0,330.0 550.0,330.0 550.0,570.0 450.0,570.0" fill="url(#hatch)" fill-opacity="1.0" stroke="#1b1b1b" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="430.0,530.0 450.0,530.0 450.0,330.0 430.0,330.0" fill="none" fill-opacity="1.0" stroke="#555" stroke-width="1.2" stroke-dasharray="5,3" stroke-linejoin="round"/>
+<polygon points="409.1,366.8 409.9,367.6 410.7,368.4 411.4,369.2 412.3,370.0 413.1,370.8 413.9,371.5 414.8,372.2 415.6,372.9 416.5,373.6 417.4,374.3 418.3,375.0 419.2,375.6 420.2,376.2 421.1,376.8 422.1,377.4 423.1,377.9 424.0,378.5 425.0,379.0 426.0,379.5 427.0,380.0 428.1,380.4 429.1,380.9 430.1,381.3 431.2,381.7 435.6,369.5 434.8,369.2 434.0,368.8 433.3,368.5 432.5,368.2 431.7,367.8 430.9,367.4 430.2,367.0 429.4,366.6 428.7,366.2 428.0,365.7 427.2,365.3 426.5,364.8 425.8,364.3 425.1,363.8 424.4,363.3 423.8,362.8 423.1,362.3 422.4,361.7 421.8,361.1 421.2,360.5 420.6,360.0 420.0,359.4 419.4,358.7 418.8,358.1" fill="#f3d7a5" fill-opacity="1.0" stroke="#7a5200" stroke-width="1.2" stroke-dasharray="5,3" stroke-linejoin="round"/>
+<polygon points="430.0,330.0 450.0,330.0 450.0,130.0 430.0,130.0" fill="#9fd1ab" fill-opacity="1.0" stroke="#1b1b1b" stroke-width="1.2" stroke-linejoin="round"/>
+<circle cx="450.0" cy="330.0" r="40.0" fill="#9fd1ab" stroke="#1b1b1b" stroke-width="1.2"/>
+<polygon points="433.0,277.7 432.1,278.0 431.2,278.3 430.3,278.7 429.4,279.0 428.5,279.4 427.6,279.8 426.8,280.2 425.9,280.6 425.0,281.0 424.2,281.4 423.3,281.9 422.5,282.4 421.7,282.9 420.9,283.4 420.0,283.9 419.2,284.4 418.5,284.9 417.7,285.5 416.9,286.1 416.1,286.7 415.4,287.3 414.6,287.9 413.9,288.5 413.2,289.1 426.6,304.0 427.0,303.6 427.5,303.2 428.0,302.8 428.5,302.4 428.9,302.0 429.4,301.7 429.9,301.3 430.4,301.0 430.9,300.6 431.5,300.3 432.0,300.0 432.5,299.7 433.0,299.4 433.6,299.1 434.1,298.8 434.7,298.5 435.2,298.3 435.8,298.0 436.3,297.8 436.9,297.5 437.5,297.3 438.0,297.1 438.6,296.9 439.2,296.7" fill="#9fd1ab" fill-opacity="1.0" stroke="#1b1b1b" stroke-width="1.2" stroke-linejoin="round"/>
+<circle cx="450.0" cy="330.0" r="20.0" fill="#c9ccd2" stroke="#1b1b1b" stroke-width="1.2"/>
+<polygon points="410.0,290.0 150.0,290.0 150.0,230.0 450.0,230.0 450.0,290.0" fill="none" fill-opacity="1.0" stroke="#888" stroke-width="1.2" stroke-dasharray="6,3" stroke-linejoin="round"/>
+<polygon points="397.7,347.0 398.0,347.9 398.3,348.8 398.7,349.7 399.0,350.6 399.4,351.5 399.8,352.4 400.2,353.2 400.6,354.1 401.0,355.0 401.4,355.8 401.9,356.7 402.4,357.5 402.9,358.3 403.4,359.1 403.9,360.0 404.4,360.8 404.9,361.5 405.5,362.3 406.1,363.1 406.7,363.9 407.3,364.6 407.9,365.4 408.5,366.1 409.1,366.8 424.0,353.4 423.6,353.0 423.2,352.5 422.8,352.0 422.4,351.5 422.0,351.1 421.7,350.6 421.3,350.1 421.0,349.6 420.6,349.1 420.3,348.5 420.0,348.0 419.7,347.5 419.4,347.0 419.1,346.4 418.8,345.9 418.5,345.3 418.3,344.8 418.0,344.2 417.8,343.7 417.5,343.1 417.3,342.5 417.1,342.0 416.9,341.4 416.7,340.8" fill="none" fill-opacity="1.0" stroke="#888" stroke-width="1.2" stroke-dasharray="2,2" stroke-linejoin="round"/>
+<line x1="110.0" y1="330.0" x2="610.0" y2="330.0" stroke="#666" stroke-width="0.8" stroke-dasharray="10,3,2,3"/>
+<line x1="450.0" y1="600.0" x2="450.0" y2="60.0" stroke="#666" stroke-width="0.8" stroke-dasharray="10,3,2,3"/>
+<line x1="450.0" y1="78.0" x2="450.0" y2="62.0" stroke="#1f4e9c" stroke-width="0.6"/>
+<line x1="550.0" y1="78.0" x2="550.0" y2="62.0" stroke="#1f4e9c" stroke-width="0.6"/>
+<line x1="450.0" y1="66.0" x2="550.0" y2="66.0" stroke="#1f4e9c" stroke-width="0.9" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<text x="500.0" y="62.0" font-size="12" text-anchor="middle" fill="#1f4e9c" transform="rotate(0.0 500.0 62.0)" dominant-baseline="auto">10</text>
+<line x1="418.0" y1="330.0" x2="404.0" y2="330.0" stroke="#1f4e9c" stroke-width="0.6"/>
+<line x1="418.0" y1="130.0" x2="404.0" y2="130.0" stroke="#1f4e9c" stroke-width="0.6"/>
+<line x1="408.0" y1="330.0" x2="408.0" y2="130.0" stroke="#1f4e9c" stroke-width="0.9" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<text x="404.0" y="230.0" font-size="11" text-anchor="middle" fill="#1f4e9c" transform="rotate(90.0 404.0 230.0)" dominant-baseline="auto">leaf 20 x 2</text>
+<line x1="490.0" y1="380.0" x2="550.0" y2="380.0" stroke="#1f4e9c" stroke-width="0.9" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<text x="520.0" y="376.0" font-size="11" text-anchor="middle" fill="#1f4e9c" transform="rotate(0.0 520.0 376.0)" dominant-baseline="auto">notch 4 x 4</text>
+<line x1="628.0" y1="262.0" x2="458.0" y2="322.0" stroke="#1b1b1b" stroke-width="0.8" marker-end="url(#dot)"/>
+<text x="631.0" y="259.0" font-size="12" text-anchor="start" fill="#1b1b1b" font-weight="normal">pin 4 x 20, steel</text>
+<line x1="364.0" y1="466.0" x2="424.0" y2="356.0" stroke="#1b1b1b" stroke-width="0.8" marker-end="url(#dot)"/>
+<text x="361.0" y="478.0" font-size="12" text-anchor="end" fill="#1b1b1b" font-weight="normal">knuckle 8</text>
+<line x1="300.0" y1="246.0" x2="410.0" y2="306.0" stroke="#1b1b1b" stroke-width="0.8" marker-end="url(#dot)"/>
+<text x="297.0" y="243.0" font-size="12" text-anchor="end" fill="#1b1b1b" font-weight="normal">stop lug, 18 to 42°</text>
+<line x1="330.0" y1="512.0" x2="410.0" y2="362.0" stroke="#1b1b1b" stroke-width="0.8" marker-end="url(#dot)"/>
+<text x="327.0" y="524.0" font-size="12" text-anchor="end" fill="#1b1b1b" font-weight="normal">stop tooth on the rim leaf, 132 to 160°</text>
+<line x1="200.0" y1="150.0" x2="230.0" y2="230.0" stroke="#1b1b1b" stroke-width="0.8" marker-end="url(#dot)"/>
+<text x="203.0" y="147.0" font-size="12" text-anchor="start" fill="#1b1b1b" font-weight="normal">wall folded flat: its lug rests on the tooth</text>
+<line x1="590.0" y1="130.0" x2="550.0" y2="130.0" stroke="#1b1b1b" stroke-width="0.8" marker-end="url(#dot)"/>
+<text x="593.0" y="127.0" font-size="12" text-anchor="start" fill="#1b1b1b" font-weight="normal">wall</text>
+<line x1="590.0" y1="530.0" x2="550.0" y2="530.0" stroke="#1b1b1b" stroke-width="0.8" marker-end="url(#dot)"/>
+<text x="593.0" y="527.0" font-size="12" text-anchor="start" fill="#1b1b1b" font-weight="normal">rim</text>
+<text x="40.0" y="660.0" font-size="12" text-anchor="start" fill="#1b1b1b" font-weight="normal">Angles: from up the wall toward the crate&#x27;s inside. Upright stop: the wall&#x27;s bottom edge on the rim&#x27;s top edge. Rim leaf dashed (beside the section).</text>
+<text x="760.0" y="76.0" font-size="14" text-anchor="start" fill="#1b1b1b" font-weight="bold">AXIAL VIEW (along the axis, from inside the crate)</text>
+<polygon points="860.0,260.0 916.0,260.0 916.0,120.0 860.0,120.0" fill="#9fd1ab" fill-opacity="1.0" stroke="#1b1b1b" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="916.0,400.0 972.0,400.0 972.0,260.0 916.0,260.0" fill="#9fd1ab" fill-opacity="1.0" stroke="#1b1b1b" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="860.0,288.0 972.0,288.0 972.0,232.0 860.0,232.0" fill="#9fd1ab" fill-opacity="1.0" stroke="#1b1b1b" stroke-width="1.2" stroke-linejoin="round"/>
+<polygon points="846.0,274.0 986.0,274.0 986.0,246.0 846.0,246.0" fill="#c9ccd2" fill-opacity="1.0" stroke="#1b1b1b" stroke-width="1.2" stroke-linejoin="round"/>
+<line x1="860.0" y1="118.0" x2="860.0" y2="104.0" stroke="#1f4e9c" stroke-width="0.6"/>
+<line x1="916.0" y1="118.0" x2="916.0" y2="104.0" stroke="#1f4e9c" stroke-width="0.6"/>
+<line x1="860.0" y1="108.0" x2="916.0" y2="108.0" stroke="#1f4e9c" stroke-width="0.9" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<text x="888.0" y="104.0" font-size="12" text-anchor="middle" fill="#1f4e9c" transform="rotate(0.0 888.0 104.0)" dominant-baseline="auto">8</text>
+<line x1="916.0" y1="402.0" x2="916.0" y2="416.0" stroke="#1f4e9c" stroke-width="0.6"/>
+<line x1="972.0" y1="402.0" x2="972.0" y2="416.0" stroke="#1f4e9c" stroke-width="0.6"/>
+<line x1="916.0" y1="412.0" x2="972.0" y2="412.0" stroke="#1f4e9c" stroke-width="0.9" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<text x="944.0" y="416.0" font-size="12" text-anchor="middle" fill="#1f4e9c" transform="rotate(0.0 944.0 416.0)" dominant-baseline="hanging">8</text>
+<line x1="846.0" y1="290.0" x2="846.0" y2="442.0" stroke="#1f4e9c" stroke-width="0.6"/>
+<line x1="986.0" y1="290.0" x2="986.0" y2="442.0" stroke="#1f4e9c" stroke-width="0.6"/>
+<line x1="846.0" y1="438.0" x2="986.0" y2="438.0" stroke="#1f4e9c" stroke-width="0.9" marker-start="url(#arr)" marker-end="url(#arr)"/>
+<text x="916.0" y="442.0" font-size="12" text-anchor="middle" fill="#1f4e9c" transform="rotate(0.0 916.0 442.0)" dominant-baseline="hanging">pin 20</text>
+<line x1="998.0" y1="156.0" x2="888.0" y2="176.0" stroke="#1b1b1b" stroke-width="0.8" marker-end="url(#dot)"/>
+<text x="1001.0" y="153.0" font-size="12" text-anchor="start" fill="#1b1b1b" font-weight="normal">wall leaf (4.2 hole: turns on the pin)</text>
+<line x1="1024.0" y1="364.0" x2="944.0" y2="344.0" stroke="#1b1b1b" stroke-width="0.8" marker-end="url(#dot)"/>
+<text x="1027.0" y="376.0" font-size="12" text-anchor="start" fill="#1b1b1b" font-weight="normal">rim leaf (3.9 hole: pin pressed in)</text>
+<text x="760.0" y="500.0" font-size="12.5" text-anchor="start" fill="#1b1b1b" font-weight="bold">HINGE POSITIONS (centre of each 16 mm knuckle pair)</text>
+<text x="760.0" y="519.0" font-size="12.5" text-anchor="start" fill="#1b1b1b" font-weight="normal">End walls: axis along y at x = ±190, z = 48; at y = -100 and 100</text>
+<text x="760.0" y="538.0" font-size="12.5" text-anchor="start" fill="#1b1b1b" font-weight="normal">Long walls: axis along x at y = ±140, z = 68; at x = -150 and 150</text>
+<text x="760.0" y="557.0" font-size="12.5" text-anchor="start" fill="#1b1b1b" font-weight="normal">(z above the bench, x along the crate from its middle, y across it)</text>
+<text x="760.0" y="576.0" font-size="12.5" text-anchor="start" fill="#1b1b1b" font-weight="normal">Both panels are notched 4 x 4 over the 16 mm of each knuckle pair.</text>
+<text x="760.0" y="595.0" font-size="12.5" text-anchor="start" fill="#1b1b1b" font-weight="normal">The leaves stand at most 4.09 in from the inner faces, so the end walls pass</text>
+<text x="760.0" y="614.0" font-size="12.5" text-anchor="start" fill="#1b1b1b" font-weight="normal">the long-wall hinges with 0.91 mm to spare.</text>
+</svg>

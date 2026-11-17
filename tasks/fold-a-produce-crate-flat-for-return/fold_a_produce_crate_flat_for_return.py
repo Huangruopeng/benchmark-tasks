@@ -1,18 +1,21 @@
-"""An empty green folding produce crate (a returnable plastic container, 400 x 300 x 174 mm, 0.88 kg) stands up on the
-returns bench, its 400 mm length pointing away from the robot, so one short end wall faces the robot and the other
-faces away.
+"""An empty green folding crate (a collapsible plastic crate of the everyday kind used for home storage and for carrying
+shopping, 400 x 300 x 174 mm, 1.03 kg) stands up on the table, its 400 mm length pointing away from the robot, so one
+short end wall faces the robot and the other faces away.
 
-The crate folds the way such crates do: each short end wall is latched to the two long side walls by a sprung catch at
-each of its top corners. Pressing a catch's thumb button in frees that corner; with both buttons of an end wall
-pressed together the wall can be tipped in, and it folds down onto the base. Only once both end walls are down are the
-long walls free: each is then pushed in over its stop and folds down on top of the end walls. Folded, the crate is
-8 cm tall.
+The crate folds the way such crates do: each short end wall is latched to the two long walls by a sprung catch at each
+of its top corners. Pressing a catch's thumb button in pulls its tongue out of a keeper on the long wall and frees that
+corner; with both buttons of an end wall pressed together the wall can be tipped in, and it folds down onto the base. A
+long wall can fold only once both end walls are down: each is then pushed in over its stop and folds down on top of
+them. Folded, the crate is 8 cm tall. The catch is a buildable design (README: drawings, STL files and parts list). The
+simulation models the buttons and their springs as built; a stiff hinge spring stands in for the tongues and keepers and
+lets an end wall go while both its buttons are in 3.5 mm or more.
 
-Task: fold the empty crate flat for the return trip, and finish with both arms back where they started.
+Task: fold the empty crate flat for storage, and finish with both arms back where they started.
 
 What the physics asks for: an end wall's two buttons are 20 cm apart, too far for one hand, and while either catch is
-latched the wall stays up. A button pressed from outside alone shoves the 0.88 kg crate along the bench (it slides at
-about 3 N); squeezing the button and the wall's top rail together in one hand holds it in without moving the crate.
+latched the wall stays up. A button pressed from outside alone shoves the 1.03 kg crate along the table (it slides at
+about 3.5 N, while the button needs 7.2 N to free its corner); squeezing the button and the wall's top rail together in
+one hand holds it in without moving the crate.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=fold_a_produce_crate_flat_for_return.py \\
            --instruction "..." --scorer task_score ...
@@ -50,15 +53,39 @@ SIDE_RIM_H, END_RIM_H = 0.068, 0.048  # the long walls hinge on the side rims' t
 EW_H = H - END_RIM_H  # end wall 126 mm tall
 EW_HW = 0.135  # end wall 270 mm wide (5 mm clear of the long walls each side)
 LW_H = H - SIDE_RIM_H  # long wall 106 mm tall
-LW_HL = 0.198  # long wall 396 mm long
-EW_RAIL_R, LW_RAIL_R = 0.008, 0.007  # round top rails: 16 mm on the end walls, 14 mm on the long walls
+LW_HL = 0.200  # long wall 400 mm long: the crate's full length (its ends carry the catches' keepers)
+EW_RAIL_R, LW_RAIL_R = 0.008, 0.007  # top rails: 16 mm round on the end walls, 14 mm round-topped on the long walls
 SLOT_HW, SLOT_Z0, SLOT_Z1 = 0.060, 0.072, 0.108  # the end walls' 120 x 36 mm handhold (pivot frame)
+GAP = HW - T - EW_HW  # 5 mm between an end wall's side edge and the long walls' inner faces
+# The corner catches, in an end wall's frame: u along the wall from its middle toward the corner, h up from its hinge
+# line, n out from its inner face (the 10 mm wall is n 0..10 mm). A housing at each top corner holds the thumb button
+# (the outer end of a 13 mm slide), the button's spring, and a flat tongue that a 45 degree cam on the slide pulls in
+# along u exactly as far as the button goes in. At rest the tongue stands out of the wall's side edge across the gap
+# into a slot in a keeper on the long wall's inner face. The rail's round profile runs on through the housing (its
+# inner and outer faces stay round where a hand grips), so the housing is a block inside the rail's outline from
+# h 110 to 128 plus a foot below the rail (h 96..110) whose 8 mm slot takes the wall's notched top edge.
+HOUSING_U = (0.086, EW_HW)  # 49 mm long, to the wall's side edge
+HOUSING_H = (0.096, 0.128)  # foot from 96 mm, block to 128 mm (2 mm above the rail)
+HOUSING_N = (0.0, 0.011)  # the block, n 0..11 mm (inside the rail's 16 mm outline)
+HOUSING_FOOT = (-0.002, 0.013, 0.110)  # the foot: n -2..13 mm, up to h 110 mm (the rail's underside)
+TONGUE_N, TONGUE_H = (-0.001, 0.007), (0.1066, 0.1096)  # the tongue's 8 x 3 mm section
+TONGUE_OUT = 0.004  # at rest the tongue stands 4 mm out of the side edge
+KEEPER_T, KEEPER_L = 0.004, 0.017  # keeper at each end of a long wall: 4 mm proud of its inner face, 17 mm long,
+KEEPER_Z = (0.142, 0.160)  # from 142 to 160 mm above the bench (up to the long wall's rail)
+ENGAGE = TONGUE_OUT - (GAP - KEEPER_T)  # 3 mm of tongue in the keeper's slot (1 mm gap to the keeper's face)
 BTN_Y = 0.100  # the catches' thumb buttons: 100 mm either side of the middle, on the top rail's outer face
 BTN_T, BTN_W, BTN_H = 0.006, 0.016, 0.016
-BTN_TRAVEL = 0.006  # a button stands 6 mm proud; pushed flush it is fully in
-BTN_FREE = 0.0035  # pressed this far in, a catch's bolt is out of its socket in the long wall
-BTN_K, BTN_PRELOAD = 1000.0, 0.003  # 3 N at rest, 9 N pressed flush
-MASS_BASE, MASS_END, MASS_LONG, MASS_BTN = 0.40, 0.09, 0.13, 0.01  # 0.88 kg in all
+BTN_TRAVEL = 0.006  # a button stands 6 mm proud; pushed flush it is fully in (the cam pulls the tongue 6 mm)
+BTN_FREE = ENGAGE + 0.0005  # pressed 3.5 mm in, the tongue is 0.5 mm clear of its keeper: that corner is free
+# each button's spring: a stock Lee Spring LC 024C 08M music-wire compression spring (6.10 mm OD, 0.61 mm wire, 20.65 mm
+# free, 7.30 lb/in = 1.278 N/mm), fitted 18.5 mm long with the button out (the slide's 11 mm spring bore sets it)
+SPRING_RATE, SPRING_FREE, SPRING_REST = 7.30 * 4.448222 / 0.0254, 0.02065, 0.0185
+BTN_K, BTN_PRELOAD = SPRING_RATE, SPRING_FREE - SPRING_REST  # 2.7 N at rest, 7.2 N at 3.5 mm, 10.4 N flush
+# masses and centres of mass of the buildable crate (README "Parts list and masses"): 1.026 kg in all
+MASS_BASE, MASS_END, MASS_LONG, MASS_BTN = 0.413, 0.146, 0.153, 0.0038
+COM_BASE_Z = 0.0226  # above the bench
+COM_END = (0.0051, 0.0872)  # (n, h): 5.1 mm out from the hinge line, 87.2 mm up
+COM_LONG = (0.0048, 0.0687)
 
 # end walls: "far" (+x, away from the robot) and "near" (-x); long walls "left" (+y) and "right" (-y)
 ENDS = {"far": +1.0, "near": -1.0}
@@ -119,7 +146,7 @@ def _base() -> Body:
         shapes += _slots(s * (HW + 0.0005), -HL + 0.03, HL - 0.03, 0.022, 0.050, 8, "y")
         shapes += _slots(s * (HW - T - 0.0005), -HL + 0.03, HL - 0.03, 0.022, 0.050, 8, "y")
     return Body.build("crate_base", (CX, CY, TOP), MASS_BASE, shapes, color=GREEN, friction=(0.35, 0.35),
-                      slick=True, solver_iterations=32)
+                      slick=True, solver_iterations=32, com=(0.0, 0.0, COM_BASE_Z))
 
 
 def _end_pivot(e: str) -> np.ndarray:
@@ -138,10 +165,17 @@ def _end_wall(e: str) -> Body:
         BoxShape((xc, 0.0, (SLOT_Z1 + EW_H - EW_RAIL_R) / 2), (T, 2 * EW_HW, EW_H - EW_RAIL_R - SLOT_Z1), GREEN),
         CylShape((xc, 0.0, EW_H - EW_RAIL_R), EW_RAIL_R, 2 * EW_HW, GREEN, axis="Y"),
     ]
+    hu, du = sum(HOUSING_U) / 2, HOUSING_U[1] - HOUSING_U[0]
+    for side in (+1, -1):  # the two catch housings at the top corners: block and foot (the rail runs through them)
+        shapes.append(BoxShape((s * sum(HOUSING_N) / 2, side * hu, (HOUSING_FOOT[2] + HOUSING_H[1]) / 2),
+                               (HOUSING_N[1] - HOUSING_N[0], du, HOUSING_H[1] - HOUSING_FOOT[2]), GREEN))
+        shapes.append(BoxShape((s * sum(HOUSING_FOOT[:2]) / 2, side * hu, (HOUSING_H[0] + HOUSING_FOOT[2]) / 2),
+                               (HOUSING_FOOT[1] - HOUSING_FOOT[0], du, HOUSING_FOOT[2] - HOUSING_H[0]), GREEN))
     for f in (+1, -1):  # vents on both faces of the lower panel
         shapes += _slots(xc + f * (T / 2 + 0.0005), -EW_HW + 0.02, EW_HW - 0.02, 0.015, 0.055, 6, "x")
     p = _end_pivot(e)
-    return Body.build(f"end_{e}", p, MASS_END, shapes, color=GREEN, friction=(0.45, 0.4), solver_iterations=32)
+    return Body.build(f"end_{e}", p, MASS_END, shapes, color=GREEN, friction=(0.45, 0.4), solver_iterations=32,
+                      com=(s * COM_END[0], 0.0, COM_END[1]))
 
 
 def _btn_local(e: str, side: float) -> np.ndarray:
@@ -169,12 +203,21 @@ def _long_wall(k: str) -> Body:
     shapes = [
         BoxShape((0.0, yc, (LW_H - LW_RAIL_R) / 2), (2 * LW_HL, T, LW_H - LW_RAIL_R), GREEN),
         CylShape((0.0, yc, LW_H - LW_RAIL_R), LW_RAIL_R, 2 * LW_HL, GREEN, axis="X"),
+        BoxShape((0.0, yc, LW_H - 1.5 * LW_RAIL_R), (2 * LW_HL, 2 * LW_RAIL_R, LW_RAIL_R), GREEN),  # rail's square foot
     ]
+    kz = sum(KEEPER_Z) / 2 - SIDE_RIM_H  # the keepers, level with the end walls' tongues
+    tz = END_RIM_H + sum(TONGUE_H) / 2 - SIDE_RIM_H
+    for e in (+1, -1):  # a keeper at each end of the inner face, with the slot the tongue enters (dark, visual)
+        shapes.append(BoxShape((e * (LW_HL - KEEPER_L / 2), -s * KEEPER_T / 2, kz),
+                               (KEEPER_L, KEEPER_T, KEEPER_Z[1] - KEEPER_Z[0]), GREEN))
+        shapes.append(BoxShape((e * (HL - T + sum(TONGUE_N) / 2), -s * (KEEPER_T + 0.0005), tz),
+                               (TONGUE_N[1] - TONGUE_N[0] + 0.0004, 0.001, TONGUE_H[1] - TONGUE_H[0] + 0.0004), DARK,
+                               collide=False))
     for f in (+1, -1):
         for z0, z1 in ((0.012, 0.040), (0.050, 0.078)):
             shapes += _slots(yc + f * (T / 2 + 0.0005), -LW_HL + 0.025, LW_HL - 0.025, z0, z1, 9, "y")
     return Body.build(f"side_{k}", _side_pivot(k), MASS_LONG, shapes, color=GREEN, friction=(0.45, 0.4),
-                      solver_iterations=32)
+                      solver_iterations=32, com=(0.0, s * COM_LONG[0], COM_LONG[1]))
 
 
 _HINGE_LIMITS = {"far": (-FOLD, 0.0), "near": (0.0, FOLD), "left": (0.0, FOLD), "right": (-FOLD, 0.0)}
@@ -407,7 +450,7 @@ def _ry(deg: float) -> np.ndarray:
 LEAN = -15.0  # the pinching grips lean forward (fingers toward +x) 15 degrees
 PINCH_FINGER = -0.020  # pre-open a little wider than rail + button (22 mm)
 PINCH_DZ = 0.006  # TCP this far above the rail's axis
-TIP_DX, TIP_DZ = 0.030, -0.004  # holding the buttons in, tip the wall in this far at its rail
+TIP_DX, TIP_DZ = 0.030, -0.004  # holding the buttons in, tip the wall in this far at its rail (it rolls in the grips)
 OVER = 0.030  # clearance above a rail before descending (the reach ceiling is about TOP+0.21)
 PUSH_Z = 0.150  # the long walls are pushed in at this height above the bench
 PUSH_FROM, PUSH_TO = 0.175, 0.095  # |y| of the pushing TCP: start outside the wall, end well over its stop
@@ -427,14 +470,15 @@ def _end_wall_steps(arm: str, end: str) -> list:
     x = CX + s * (HL - T / 2)
     z = TOP + H - EW_RAIL_R + PINCH_DZ
     r = _pinch_rot(arm)
+    xt, zt, rt = x - s * TIP_DX, z + TIP_DZ, r
     return [
         Waypoint(2.0, (x, y, z + OVER), PINCH_FINGER, f"over {end} corner", r),
         Waypoint(1.5, (x, y, z), PINCH_FINGER, "down round the rail", r),
         Waypoint(1.0, (x, y, z), FINGER_CLOSED, "squeeze the button in", r),
         Waypoint(0.6, (x, y, z), FINGER_CLOSED, "hold", r),
-        Waypoint(1.5, (x - s * TIP_DX, y, z + TIP_DZ), FINGER_CLOSED, "tip the wall in", r),
-        Waypoint(0.8, (x - s * TIP_DX, y, z + TIP_DZ), PINCH_FINGER, "let go", r),
-        Waypoint(1.2, (x - s * TIP_DX, y, z + OVER), PINCH_FINGER, "up", r),
+        Waypoint(1.5, (xt, y, zt), FINGER_CLOSED, "tip the wall in", rt),
+        Waypoint(0.8, (xt, y, zt), PINCH_FINGER, "let go", rt),
+        Waypoint(1.2, (xt, y, zt + OVER), PINCH_FINGER, "up", rt),
     ]
 
 
