@@ -40,7 +40,8 @@ Color = tuple[float, float, float]
 @dataclass(frozen=True)
 class BoxShape:
     """A box in the body frame: ``centre`` and ``size`` (m), turned ``yaw`` (rad) about the body's z axis, or, when
-    ``quat_xyzw`` is given, rotated by that quaternion instead."""
+    ``quat_xyzw`` is given, rotated by that quaternion instead. ``visible=False`` hides it from the cameras while it
+    still collides (a clear panel, say, drawn by its edges)."""
 
     centre: tuple[float, float, float]
     size: tuple[float, float, float]
@@ -48,6 +49,7 @@ class BoxShape:
     yaw: float = 0.0
     collide: bool = True
     quat_xyzw: tuple[float, float, float, float] | None = None
+    visible: bool = True
 
     def quat(self) -> tuple[float, float, float, float]:
         if self.quat_xyzw is not None:
@@ -734,6 +736,8 @@ def _spawn_body(prim_path: str, cfg, translation=None, orientation=None, **kwarg
             geom.AddTranslateOp().Set(Gf.Vec3d(*shape.centre))
         path = str(geom.GetPrim().GetPath())
         bind_visual_material(path, look(tuple(shape.color)), stage=stage)
+        if not getattr(shape, "visible", True):
+            geom.MakeInvisible()
         if shape.collide:
             UsdPhysics.CollisionAPI.Apply(geom.GetPrim())
             collision = PhysxSchema.PhysxCollisionAPI.Apply(geom.GetPrim())
