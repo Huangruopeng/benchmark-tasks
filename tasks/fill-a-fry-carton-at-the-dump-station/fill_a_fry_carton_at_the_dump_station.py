@@ -1,17 +1,19 @@
 """A fast-food fry station. On a stainless work counter stands a countertop fry dump station: a stainless base
-holding a full-size food pan 2 in deep, a back panel and a heat hood over the pan (two calrod heaters and a lamp).
-Freshly fried straight-cut fries are heaped in the pan from its back wall to the station's fry scoop, which lies in the
-pan's front with fries over its open end (they fell on it when the basket was dumped): a stainless flat-bottomed scoop
-that narrows to a funnel end, its black cool-touch handle on the right. An empty small paper fry carton (red) stands on
-the counter in front of the station.
+holding a full-size food pan 2 in deep, a back panel and a heat hood over the pan (two calrod heaters and a lamp). A
+heap of fries lies against the pan's back wall; the station's fry scoop lies empty in the pan's front:
+a stainless flat-bottomed scoop that narrows to a funnel end, its black cool-touch handle on the right. An empty small
+paper fry carton (red) stands on the counter in front of the station. The fries are the real trial's clean replica
+fries: hard-maple sticks of a 3/8 in straight-cut fry's size, every edge bevelled 2 mm.
 
 Task (the instruction gives the goal and its constraints only): with the scoop, fill the carton with a portion of fries,
 put the scoop back in the pan and leave the carton standing on the counter, arms back home. The way it is done: hold
-the carton by one hand, take the scoop by its handle with the other, push it on into the heap, lift a scoopful and tip
-it into the carton through the funnel end, then lay the scoop back in the pan.
+the carton by one hand, take the scoop by its handle with the other, drive it along the pan's floor into the heap so the
+fries ride up onto it, draw the load back out, lift it, tip it into the carton through the funnel end, then lay the
+scoop back in the pan.
 
-Rules: the carton may not go into the pan (it is not the scoop); a fry the robot touches may not be served. Scored by
-the weight of fries in the carton (70-145 g), the fries spilled, the carton standing, the scoop back and the arms home.
+Rules: the carton may not go into the pan (it is not the scoop); a fry the robot touches may not be served; only fries
+the scoop carried up out of the pan count. Scored by the number of fries in the carton (18-28, a small order), the
+fries spilled, the carton standing, the scoop back and the arms home.
 """
 
 from __future__ import annotations
@@ -74,7 +76,9 @@ HOOD_X0, HOOD_Z0, HOOD_Z1 = X0 + 0.210, CT + 0.430, CT + ST_H  # the heat hood: 
 BACK_T = 0.012
 
 # -- the fry scoop (flat bottom, funnel end; 9 in long, 8 in wide at the open end, 3 3/4 in at the funnel end) ----------
-SC_L, SC_W0, SC_W1, SC_H, SC_T = 0.229, 0.095, 0.203, 0.057, 0.002
+SC_L, SC_W0, SC_W1, SC_H = 0.229, 0.095, 0.203, 0.057
+SC_T = float(os.environ.get("FRIES_SC_T", "0.001"))  # the sheet: its lip thin enough to slide under a fry's bevel
+SC_WALL_T = float(os.environ.get("FRIES_SC_WALL_T", "0.001"))  # the side walls' sheet (rolled top edges drawn)
 SC_MASS = 0.20
 H_ROOT_X, H_LEN, H_RISE_DEG, H_SEC = 0.035, 0.120, 20.0, (0.015, 0.022)  # handle: where on the right wall, length,
 # rise, section (along the scoop's x, and across)
@@ -86,18 +90,23 @@ CA_TOP_W, CA_TOP_D, CA_BOT_W, CA_BOT_D = 0.114, 0.057, 0.080, 0.034
 CA_H_BACK, CA_H_FRONT, CA_T, CA_MASS = 0.114, 0.082, 0.003, 0.0077
 CA_XY = (X0 - float(os.environ.get("FRIES_CA_GAP", "0.090")), YS)  # where it stands at the start
 
-# -- the fries: straight cut, 9 mm square once fried, 5 g for a 75 mm fry ---------------------------------------------
-FRY_S = 0.009
+# -- the fries: the real trial's replica fries, hard-maple sticks cut from 3/8 in square dowel (a 3/8 in straight-cut
+# fry's size), every edge bevelled 2 mm at 45 degrees; hard maple about 705 kg/m3 at 12% moisture, so about 4.3 g for a
+# 75 mm stick (a fast-food fry weighs 5 g) ----------------------------------------------------------------------------
+FRY_S = float(os.environ.get("FRIES_S", "0.009525"))
+FRY_CH = float(os.environ.get("FRIES_CH", "0.002"))  # the long edges and the ends' edges eased: 45-degree chamfers
 FRY_LENS = (0.055, 0.082, 0.064, 0.095, 0.071, 0.088, 0.060, 0.078, 0.091, 0.068, 0.075, 0.085)
-FRY_G_PER_M = 0.005 / 0.075
-FRY_MU = float(os.environ.get("FRIES_FRY_MU", "0.50"))  # fried potato on steel and on each other (oily, a bit tacky)
-STATION_MU = float(os.environ.get("FRIES_PAN_MU", "0.60"))  # the pan's brushed steel under fries
-SCOOP_MU = float(os.environ.get("FRIES_SCOOP_MU", "0.50"))  # the scoop's bowl under oily fries
-HEAP_X0, HEAP_X1 = SC_X + SC_L + 0.010, PAN_X0 + PAN_IN_L - 0.006  # the heap fills the pan behind the scoop
+FRY_RHO = float(os.environ.get("FRIES_RHO", "700"))  # the stand-in's density (kg/m3): mass from the hull's volume
+# friction (PhysX averages the two bodies' values): 0.5 stick on stick (oak on oak 0.54-0.62 static, clean wood on wood
+# 0.25-0.5), 0.55 on the pan and 0.5 on the scoop (wood on clean metal 0.2-0.6; Engineering ToolBox)
+FRY_MU = float(os.environ.get("FRIES_FRY_MU", "0.50"))
+STATION_MU = float(os.environ.get("FRIES_PAN_MU", "0.60"))  # the pan's brushed steel
+SCOOP_MU = float(os.environ.get("FRIES_SCOOP_MU", "0.50"))  # the scoop's polished steel
+HEAP_GAP = float(os.environ.get("FRIES_HEAP_GAP", "0.050"))  # between the scoop's open end and the heap (spawned)
+HEAP_X0, HEAP_X1 = SC_X + SC_L + HEAP_GAP, PAN_X0 + PAN_IN_L - 0.006  # the heap fills the pan behind the scoop
 HEAP_Y0, HEAP_Y1 = YS - PAN_IN_W / 2 + 0.012, YS + PAN_IN_W / 2 - 0.012
-HEAP_PER_LAYER = tuple(int(v) for v in os.environ.get("FRIES_LAYERS", "40,36,32,26,18,10").split(","))
-HEAP_SHRINK = (0.004, 0.010)
-IN_SCOOP_PER_LAYER = tuple(int(v) for v in os.environ.get("FRIES_IN_SCOOP", "14,11,7").split(",") if v)  # each layer starts this much further back (x) and in from the sides (y)  # each layer's footprint shrinks by this much on each side (x, y): a mound
+HEAP_PER_LAYER = tuple(int(v) for v in os.environ.get("FRIES_LAYERS", "44,40,36,32,28,22,16,10,6").split(","))
+HEAP_SHRINK = (0.004, 0.010)  # each layer starts this much further back (x) and in from the sides (y): a mound
 
 STEEL, STEEL_D, STEEL_L, BLACK, BLACK_L = (0.70, 0.71, 0.73), (0.52, 0.53, 0.55), (0.82, 0.83, 0.85), \
     (0.05, 0.05, 0.06), (0.16, 0.16, 0.17)
@@ -192,7 +201,7 @@ def _scoop_shapes() -> tuple[list, int]:
     for s in (-1.0, 1.0):  # the side walls, along the funnel's taper
         p1 = (0.0, s * (SC_W0 / 2), SC_H / 2)
         p2 = (SC_L, s * (SC_W1 / 2), SC_H / 2)
-        shapes.append(plate(p1, p2, SC_H, SC_T, (0.0, s, 0.0), SC_STEEL))
+        shapes.append(plate(p1, p2, SC_H, SC_WALL_T, (0.0, s, 0.0), SC_STEEL))
         q1 = (0.0, s * (SC_W0 / 2 + 0.001), SC_H - 0.0015)
         q2 = (SC_L, s * (SC_W1 / 2 + 0.001), SC_H - 0.0015)
         shapes.append(plate(q1, q2, 0.004, 0.004, (0.0, s, 0.0), SC_EDGE, collide=False))  # rolled top edge
@@ -287,20 +296,77 @@ def _rects_overlap(a: np.ndarray, b: np.ndarray) -> bool:
     return True
 
 
-def _sc_inside(corners: np.ndarray, margin: float) -> bool:
-    """Whether points (scoop frame, xy) lie inside the scoop's bowl, ``margin`` from its walls and ends."""
-    for x, y in corners:
-        if not (margin <= x <= SC_L - margin):
-            return False
-        if abs(y) > _sc_width(x) / 2 - SC_T / 2 - margin:
-            return False
-    return True
+_FRY_LOOK: dict = {}  # each fry's length and colour, for its hull and look
+
+
+def _fry_ring(x: float, k: float) -> list:
+    """The fry's cross-section at ``x`` along it: a 9 mm square with its corners chamfered (an octagon), scaled by k."""
+    h, c = FRY_S / 2, FRY_CH
+    octa = ((h, h - c), (h - c, h), (c - h, h), (-h, h - c), (-h, c - h), (c - h, -h), (h - c, -h), (h, c - h))
+    return [(x, y * k, z * k) for y, z in octa]
+
+
+def _fry_points(length: float) -> list:
+    """A fry's hull: the chamfered square section along its length, and its two ends chamfered as well."""
+    h, c = FRY_S / 2, FRY_CH
+    k = (h - c) / h
+    return (_fry_ring(-length / 2, k) + _fry_ring(-length / 2 + c, 1.0) + _fry_ring(length / 2 - c, 1.0)
+            + _fry_ring(length / 2, k))
+
+
+def _fry_volume(length: float) -> float:
+    """The hull's volume (m3): the chamfered section along the middle, a frustum at each end."""
+    a = FRY_S ** 2 - 2.0 * FRY_CH ** 2
+    k = (FRY_S / 2 - FRY_CH) / (FRY_S / 2)
+    return a * (length - 2 * FRY_CH) + 2 * FRY_CH / 3.0 * a * (1.0 + k + k * k)
+
+
+def _fry_mass(length: float) -> float:
+    return FRY_RHO * _fry_volume(length)
+
+
+def _author_fry(stage, prim_path: str, spec) -> None:
+    """The fry's collider and look: one convex hull (a chamfered stick), friction as the body's own material."""
+    import isaaclab.sim as sim_utils
+    from isaaclab.sim.utils import bind_physics_material, bind_visual_material
+    from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics, Vt
+
+    from yam_arena.station import linear_rgb
+
+    length, col = _FRY_LOOK[spec.name]
+    pts = _fry_points(length)
+    faces, counts = [], []
+    for r in range(3):  # the sides between the four rings
+        for j in range(8):
+            a, b = r * 8 + j, r * 8 + (j + 1) % 8
+            faces += [a, b, b + 8, a + 8]
+            counts.append(4)
+    faces += list(range(7, -1, -1)) + list(range(24, 32))
+    counts += [8, 8]
+    path = f"{prim_path}/body/hull"
+    mesh = UsdGeom.Mesh.Define(stage, path)
+    mesh.CreatePointsAttr(Vt.Vec3fArray([Gf.Vec3f(*p) for p in pts]))
+    mesh.CreateFaceVertexCountsAttr(Vt.IntArray(counts))
+    mesh.CreateFaceVertexIndicesAttr(Vt.IntArray(faces))
+    mesh.CreateSubdivisionSchemeAttr("none")
+    mesh.CreateDoubleSidedAttr(True)
+    look = f"{prim_path}/Looks/fry"
+    surface = sim_utils.PreviewSurfaceCfg(diffuse_color=linear_rgb(col), roughness=0.55)
+    surface.func(look, surface)
+    bind_visual_material(path, look, stage=stage)
+    prim = mesh.GetPrim()
+    UsdPhysics.CollisionAPI.Apply(prim)
+    UsdPhysics.MeshCollisionAPI.Apply(prim).CreateApproximationAttr("convexHull")
+    coll = PhysxSchema.PhysxCollisionAPI.Apply(prim)
+    coll.CreateContactOffsetAttr(float(spec.contact_offset))
+    coll.CreateRestOffsetAttr(0.0)
+    bind_physics_material(path, f"{prim_path}/Looks/physics", stage=stage)
 
 
 def _heap() -> list[Body]:
-    """The fries as dumped from a fryer basket: a jumbled mound behind the scoop. They are spawned lying flat at random
-    angles in layers (no two touching), each layer a little smaller, and settle onto each other while the trial is set
-    up. The pattern is fixed (seeded): the same heap every trial."""
+    """The fries as dumped from a fryer basket: a jumbled mound from the pan's back wall to just behind the empty scoop.
+    They are spawned lying flat at random angles in layers (no two touching), each layer a little smaller, and settle
+    onto each other while the trial is set up. The pattern is fixed (seeded): the same heap every trial."""
     out = []
     rng = np.random.default_rng(20261116)
     k_len = 0
@@ -309,30 +375,11 @@ def _heap() -> list[Body]:
     def add(cx, cy, z, yaw, length):
         i = len(out)
         col = FRY_COLS[i % 3]
-        out.append(Body.build(f"fry_{i:03d}", pos=(cx, cy, z), mass=FRY_G_PER_M * length, yaw=yaw, color=col,
-                              shapes=[BoxShape((0.0, 0.0, 0.0), (length, FRY_S, FRY_S), col)],
+        out.append(Body.build(f"fry_{i:03d}", pos=(cx, cy, z), mass=_fry_mass(length), yaw=yaw, color=col,
+                              shapes=[BoxShape((0.0, 0.0, 0.0), (length, FRY_S, FRY_S), None, collide=False)],
                               friction=(FRY_MU, FRY_MU - 0.05), contact_offset=0.0015))
+        _FRY_LOOK[f"fry_{i:03d}"] = (length, col)
 
-    # fries that landed in the scoop's bowl when the basket was dumped over it (the scoop lies in the fries)
-    for layer, target in enumerate(IN_SCOOP_PER_LAYER):
-        z = PAN_FLOOR + SC_T + 0.0015 + FRY_S / 2 + layer * (FRY_S + 0.0040)
-        placed: list[np.ndarray] = []
-        tries = 0
-        while len(placed) < target and tries < 20000:
-            tries += 1
-            length = FRY_LENS[k_len % len(FRY_LENS)]
-            lx = float(rng.uniform(SC_L * 0.30, SC_L))
-            ly = float(rng.uniform(-SC_W1 / 2, SC_W1 / 2))
-            yaw = float(rng.uniform(0.0, math.pi))
-            corners = _rect_corners(lx, ly, length, FRY_S, yaw)
-            if not _sc_inside(corners, 0.004):
-                continue
-            fat = _rect_corners(lx, ly, length + 0.004, margin, yaw)
-            if any(_rects_overlap(fat, q) for q in placed):
-                continue
-            placed.append(fat)
-            k_len += 1
-            add(SC_X + lx, SC_Y + ly, z, yaw, length)
     for layer, target in enumerate(HEAP_PER_LAYER):
         x0, x1 = HEAP_X0 + layer * HEAP_SHRINK[0], HEAP_X1
         y0, y1 = HEAP_Y0 + layer * HEAP_SHRINK[1], HEAP_Y1 - layer * HEAP_SHRINK[1]
@@ -375,6 +422,7 @@ def _author_sliders(stage, prim_path: str, spec) -> None:
     if spec.name.startswith("fry_"):  # a rigid-contact view on a loose body needs its contacts reported
         from pxr import PhysxSchema
 
+        _author_fry(stage, prim_path, spec)
         api = PhysxSchema.PhysxContactReportAPI.Apply(stage.GetPrimAtPath(f"{prim_path}/body"))
         api.CreateThresholdAttr(0.0)
     if spec.name != "scoop":
@@ -428,8 +476,10 @@ def _handle_point(s: float) -> np.ndarray:
 RIM = CT + ST_BASE  # the pan's rim (and the base's top deck)
 
 # -- scoring --------------------------------------------------------------------------------------------------------
-PORTION_MIN, PORTION_MAX = 0.070, 0.145  # kg of fries in the carton: a kids' order (70 g) to a medium (145 g)
-PARTIAL_MIN = 0.030
+# the portion, counted in fries: a small order is 110 g, 22 fries at 5 g a fry (USDA FNDDS 71401030); 18-28 fries are
+# 90-140 g of real fries
+PORTION_MIN, PORTION_MAX = 18, 28
+PARTIAL_MIN = 6
 SPILL_MAX = 4
 STAND_TILT, STAND_GAP = 15.0, 0.005
 HOME_WITHIN = 0.05
@@ -466,8 +516,8 @@ def _views():
 
 
 def _fresh() -> dict:
-    return {"steps": 0, "t0": None, "violation": "", "touched": np.zeros(len(FRIES), bool), "s": {}, "tcps": None,
-            "grip0": None}
+    return {"steps": 0, "t0": None, "violation": "", "touched": np.zeros(len(FRIES), bool),
+            "carried": np.zeros(len(FRIES), bool), "excluded": None, "s": {}, "tcps": None, "grip0": None}
 
 
 _EP = _fresh()
@@ -531,6 +581,15 @@ def _in_pan(p: np.ndarray) -> bool:
             and p[2] <= RIM + 0.10)
 
 
+def _on_scoop(fp: np.ndarray, ps: np.ndarray, rs: np.ndarray) -> np.ndarray:
+    """Which fries (centres, world) lie in the scoop's bowl: between its walls, from its funnel end to its open end, at
+    most 3 cm above its walls' top edges (a heaped scoopful)."""
+    q = (fp - ps) @ rs
+    x = np.clip(q[:, 0], 0.0, SC_L)
+    return ((q[:, 0] >= 0.0) & (q[:, 0] <= SC_L) & (np.abs(q[:, 1]) <= _sc_width(x) / 2) & (q[:, 2] >= -0.005)
+            & (q[:, 2] <= SC_H + 0.030))
+
+
 _SCOOP_PTS = np.array([[x, s * _sc_width(x) / 2, z] for x in np.linspace(0.0, SC_L, 8) for s in (-1.0, 1.0)
                        for z in (0.0, SC_H / 2, SC_H)] + [[0.0, y, 0.0] for y in np.linspace(-SC_W0 / 2, SC_W0 / 2, 5)]
                       + [list(_handle_point(t)) for t in np.linspace(0.0, H_LEN, 5)])
@@ -584,18 +643,39 @@ def _follow(env) -> None:
     # the end state
     in_carton = np.array([_in_carton(rc.T @ (p - pc)) for p in fp])
     in_pan = np.array([_in_pan(p) for p in fp])
+    on_scoop = _on_scoop(fp, ps, rs)
+    if _EP["excluded"] is None:  # nothing that starts in the scoop or the carton can ever count (there is none)
+        _EP["excluded"] = on_scoop | in_carton
+    # a fry is served only if the scoop carried it up out of the pan: in the scoop's bowl, above the pan's rim
+    _EP["carried"] |= on_scoop & (fp[:, 2] > RIM + 0.005) & ~_EP["excluded"]
     handled = _EP["touched"]
-    spilled = int(((~in_carton & ~in_pan) | (handled & ~in_carton)).sum())  # a handled fry is waste, wherever it lies
-    grams = float(FRY_MASS[in_carton].sum())
+    served = in_carton & _EP["carried"] & ~handled
+    # a fry is wasted (spilled) outside both the pan and the carton, if the robot touched it, or if it is in the carton
+    # without having been carried there by the scoop
+    spilled = int(((~in_carton & ~in_pan) | (handled & ~in_carton) | (in_carton & ~served & ~handled)).sum())
+    grams = float(FRY_MASS[served].sum())
     standing = (_tilt(rc) <= STAND_TILT and abs(float(pc[2]) - CT) <= STAND_GAP and not
                 (X0 - 0.002 <= pc[0] <= X0 + ST_D and abs(pc[1] - YS) <= ST_W / 2))
     lip = ps + rs @ np.array([SC_L, 0.0, 0.0])
     scoop_back = (_in_pan(ps) and _in_pan(lip) and _tilt(rs) <= 12.0 and float(ps[2]) <= PAN_FLOOR + 0.03)
     grips = _grippers(base, origin)
     _EP["tcps"] = [grips["left"][0], grips["right"][0]]
-    _EP["s"] = {"grams": grams, "n_in": int(in_carton.sum()), "spilled": spilled, "standing": standing,
+    _EP["s"] = {"grams": grams, "n_in": int(served.sum()), "spilled": spilled, "standing": standing,
                 "handled_in": int((handled & in_carton).sum()),
                 "scoop_back": scoop_back, "home": _arms_home()}
+    if _DEBUG["on"] and _EP["steps"] in (1, 40):  # the settled heap: its extent and height profile (for the setup text)
+        top = fp[:, 2] + FRY_S / 2 - PAN_FLOOR
+        bands = np.linspace(PAN_X0, PAN_X0 + PAN_IN_L, 11)
+        prof = [f"{int(round(1000 * top[(fp[:, 0] >= a) & (fp[:, 0] < b)].max())) if ((fp[:, 0] >= a) & (fp[:, 0] < b)).any() else 0}"
+                for a, b in zip(bands[:-1], bands[1:])]
+        print(f"[fries] heap n={len(fp)} mass={FRY_MASS.sum() * 1000:.0f}g x={fp[:, 0].min():.3f}..{fp[:, 0].max():.3f} "
+              f"y={fp[:, 1].min():.3f}..{fp[:, 1].max():.3f} top_mm(by 5 cm from the pan's front)={','.join(prof)} "
+              f"in_pan={int(np.sum([_in_pan(p) for p in fp]))}", file=sys.stderr, flush=True)
+    if _DEBUG["on"] and _EP["steps"] % 40 == 0:  # where the wasted fries lie (not on the scoop)
+        lost = np.where(((~in_carton & ~in_pan) | (in_carton & ~served)) & ~on_scoop)[0]
+        print(f"[fries] t={_EP['steps'] / 20:5.2f}s lost=" + " ".join(
+            f"{FRIES[k].name[4:]}({1000 * fp[k, 0]:.0f},{1000 * fp[k, 1]:.0f},{1000 * (fp[k, 2] - CT):.0f})" for k in lost),
+            file=sys.stderr, flush=True)
     if _DEBUG["on"] and _EP["steps"] % 5 == 0:
         mm = lambda v: np.round(np.asarray(v) * 1000).astype(int).tolist()  # noqa: E731
         tl, rl, tips_l = grips["left"]
@@ -615,17 +695,13 @@ def _follow(env) -> None:
         spts = np.array([ps + rs @ q for q in _SCOOP_PTS])
         d_scoop = float(np.min(np.linalg.norm(lpts[:, None, :] - spts[None, :, :], axis=2)))
         d_hands = float(np.min(np.linalg.norm(lpts[:, None, :] - _hand_points(tr, rr, tips_r)[None, :, :], axis=2)))
-        on_scoop = 0
-        for p in fp:
-            q = rs.T @ (p - ps)
-            if 0.0 <= q[0] <= SC_L and abs(q[1]) <= _sc_width(max(0.0, min(SC_L, q[0]))) / 2 and -0.01 <= q[2] <= SC_H:
-                on_scoop += 1
         ry = math.degrees(math.atan2(float(rs[0, 2]), float(rs[2, 2])))
-        print(f"[fries] t={_EP['steps'] / 20:5.2f}s wall={time.time() - _EP['t0']:5.1f} on_scoop={on_scoop} "
-              f"in_carton={int(in_carton.sum())}/{grams * 1000:.0f}g spilled={spilled} touched={int(_EP['touched'].sum())} "
+        print(f"[fries] t={_EP['steps'] / 20:5.2f}s wall={time.time() - _EP['t0']:5.1f} on_scoop={int(on_scoop.sum())}/{FRY_MASS[on_scoop].sum() * 1000:.0f}g "
+              f"carried={int(_EP['carried'].sum())} in_carton={int(in_carton.sum())} served={int(served.sum())}/{grams * 1000:.0f}g spilled={spilled} touched={int(_EP['touched'].sum())} "
               f"handled_in={int((handled & in_carton).sum())} "
               f"viol='{_EP['violation']}' carton={mm(pc - [CA_XY[0], CA_XY[1], CT])} c_tilt={_tilt(rc):4.1f} "
               f"stand={standing} scoop={mm(ps - [SC_X, SC_Y, PAN_FLOOR])} s_pitch={ry:5.1f} s_tilt={_tilt(rs):4.1f} "
+              f"s_yaw={math.degrees(math.atan2(float(rs[1, 0]), float(rs[0, 0]))):5.1f} "
               f"back={scoop_back} {slip}L-scoop={d_scoop * 1000:.0f}mm L-R={d_hands * 1000:.0f}mm "
               f"TL={mm(tl - [0, 0, TOP])} TR={mm(tr - [0, 0, TOP])} home={_EP['s']['home']} score={score(None)} "
               f"vf='{_V['failed'][:80]}'", file=sys.stderr, flush=True)
@@ -633,17 +709,18 @@ def _follow(env) -> None:
 
 def score(objects) -> float:
     """0.0 if the carton went into the pan (latched), or if a fry a robot link has touched is in the carton at the end.
-    Otherwise, at the end: 1.0 with 70-145 g of fries in the carton, the carton standing on the counter, at most 4 fries
-    spilled (outside both the pan and the carton, or touched by the robot), the scoop back in the pan and both arms
-    home; 0.5 with 70-145 g in the standing carton; 0.25 with at least 30 g in the standing carton; else 0."""
+    Only fries the scoop carried up out of the pan count as served. At the end: 1.0 with 18-28 served fries in the
+    carton, the carton standing on the counter, at most 4 fries spilled (outside both the pan and the carton, touched by
+    the robot, or in the carton without having been carried there on the scoop), the scoop back in the pan and both arms
+    home; 0.5 with 18-28 served fries in the standing carton; 0.25 with at least 6 in the standing carton; else 0."""
     s = _EP["s"]
     if not s or _EP["violation"] or s["handled_in"]:
         return 0.0
-    if s["standing"] and PORTION_MIN <= s["grams"] <= PORTION_MAX:
+    if s["standing"] and PORTION_MIN <= s["n_in"] <= PORTION_MAX:
         if s["spilled"] <= SPILL_MAX and s["scoop_back"] and s["home"]:
             return 1.0
         return 0.5
-    if s["standing"] and s["grams"] >= PARTIAL_MIN:
+    if s["standing"] and s["n_in"] >= PARTIAL_MIN:
         return 0.25
     return 0.0
 
@@ -670,12 +747,13 @@ def success(objects) -> bool:
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
-# The left hand takes the empty carton across its base from behind (its wrist toward the robot, clear of the carton's
-# mouth). The right takes the scoop's handle from its end, fingers above and below it. It tilts the scoop lip-down and
-# pushes it along the pan's floor into the heap, lifts a scoopful and brings it out over the pan's front rim. The left
-# lifts the carton a little and tips it toward the station; the right lowers the funnel end over the carton's low front
-# and tips the scoop up until the fries slide out through the funnel into the carton. The right lays the scoop back in
-# the pan, lets go and goes home; the left sets the carton down on the counter, lets go and goes home.
+# The left hand pinches the empty carton low at its left end, across its depth, its wrist leaned out to the left, and
+# holds it standing on the counter. The right takes the scoop's handle from its end, fingers above and below it. It tips
+# the scoop lip-down onto the pan's floor and pushes it along the floor into the heap: the heap packs against the pan's
+# back wall and the fries ride up over the scoop's thin lip. It levels the scoop, draws it back along the floor, tips the
+# lip up and lifts the scoopful out over the pan's front rim, brings the funnel end over the carton's low front and tips
+# the scoop up until the fries slide out through the funnel into the carton. The right lays the scoop back in the pan,
+# lets go and goes home; the left lets go of the standing carton and goes home.
 
 GRIP_S = float(os.environ.get("FRIES_GRIP_S", "0.05"))  # where along the handle the right hand holds it
 HANDLE_OPEN = -0.019  # fingers open round the 22 mm handle
@@ -684,16 +762,22 @@ CA_GRIP_Y, CA_GRIP_Z = 0.040, 0.045  # the carton grip: toward its left end, low
 CA_OPEN = -0.04695
 CA_CLOSE = float(os.environ.get("FRIES_CA_CLOSE", f"{-(0.017 + 0.0115 * (0.045 - 0.003) / 0.111 + 0.0015 - 0.003):.4f}"))
 CA_PRESS = 0.002
-DIG_DEG, PUSH, PRESS = float(os.environ.get("FRIES_DIG_DEG", "8")), float(os.environ.get("FRIES_PUSH", "0.07")), 0.003
-LIFT_DEG = float(os.environ.get("FRIES_LIFT_DEG", "-10"))  # the lip raised through the heap, the funnel end down
+DIG_DEG, PUSH, PRESS = float(os.environ.get("FRIES_DIG_DEG", "8")), float(os.environ.get("FRIES_PUSH", "0.22")), 0.003
+PUSH_S = float(os.environ.get("FRIES_PUSH_S", "6.0"))  # how long the push into the heap takes
+LIFT_DEG = float(os.environ.get("FRIES_LIFT_DEG", "-15"))  # the lip raised through the heap, the funnel end down
+SCOOP_ONLY = bool(os.environ.get("FRIES_SCOOP_ONLY"))  # test: stop after the first scoopful is lifted out
 PULL = float(os.environ.get("FRIES_PULL", "0.0"))  # drawn back this much while the lip comes up
+DRAG = float(os.environ.get("FRIES_DRAG", "0.08"))  # the full scoop drawn back along the floor, out of the heap
+DRAG_S = float(os.environ.get("FRIES_DRAG_S", "3.0"))
 SCOOP_YS = tuple(float(v) for v in os.environ.get("FRIES_SCOOP_YS", "0.0").split(","))  # one per scoopful
 CARRY_DEG = LIFT_DEG  # carried lip-up
-POUR_DX, POUR_DZ = float(os.environ.get("FRIES_POUR_DX", "0.004")), float(os.environ.get("FRIES_POUR_DZ", "0.015"))
-POUR_DY = float(os.environ.get("FRIES_POUR_DY", "-0.014"))
+POUR_DX, POUR_DZ = float(os.environ.get("FRIES_POUR_DX", "0.010")), float(os.environ.get("FRIES_POUR_DZ", "0.015"))
+BACK_DX = float(os.environ.get("FRIES_BACK_DX", "0.025"))
+CARRY_S = float(os.environ.get("FRIES_CARRY_S", "3.5"))  # carrying the scoopful from the pan to the carton  # where the scoop is laid back, behind its start
+POUR_DY = float(os.environ.get("FRIES_POUR_DY", "-0.006"))
 POUR_DEGS = tuple(float(v) for v in os.environ.get("FRIES_POUR_DEGS", "-25,-40,-55,-65").split(","))
 SHAKE_DEG = float(os.environ.get("FRIES_SHAKE", "8"))
-N_SHAKES = int(os.environ.get("FRIES_N_SHAKES", "2"))
+N_SHAKES = int(os.environ.get("FRIES_N_SHAKES", "3"))
 RETREAT = float(os.environ.get("FRIES_RETREAT", "0.0"))  # the tipped scoop drawn back toward the station
 LIFT_OFF = float(os.environ.get("FRIES_LIFT_OFF", "0.060"))  # then lifted straight up before it is levelled
 LEAD_S, LEAD_STEPS = 3.0, 15
@@ -795,11 +879,11 @@ def _carton_scoop_plan():
     add(1.5, pl, rl, CA_OPEN, "round its left end")
     add(0.8, pl, rl, CA_CLOSE, "hold it")
     add(2.0, pl + [0.0, 0.0, 0.12], rl, CA_CLOSE, "lift it")
-    r_dig = _ry(30.0) @ rl
-    dig = np.array([0.355, 0.170, RIM + 0.005])
-    add(2.5, dig + [-0.04, 0.0, 0.035], r_dig, CA_CLOSE, "over the pan's front, mouth tipped forward")
+    r_dig = _ry(15.0) @ rl
+    dig = np.array([0.440, 0.130, RIM + 0.005])  # the heap's front edge, as far as the carton grip reaches
+    add(2.5, dig + [-0.04, 0.0, 0.035], r_dig, CA_CLOSE, "over the pan, mouth tipped forward")
     add(2.0, dig, r_dig, CA_CLOSE, "into the fries")
-    add(2.0, dig + [0.02, 0.0, -0.003], r_dig, CA_CLOSE, "scoop them with the carton")
+    add(2.0, dig + [0.01, 0.0, -0.003], r_dig, CA_CLOSE, "scoop them with the carton")
     add(1.5, dig + [-0.03, 0.0, 0.04], _ry(15.0) @ rl, CA_CLOSE, "lift it out, mouth up")
     add(3.0, pl + [0.0, 0.0, 0.06], rl, CA_CLOSE, "back over the counter")
     add(1.5, pl + [0.0, 0.0, -CA_PRESS], rl, CA_CLOSE, "set it down")
@@ -898,17 +982,27 @@ def _demo_plan():
         o = o + [0.0, 0.0, -PRESS]
         scoop_at(0.4, o, _ry(DIG_DEG), FINGER_CLOSED, "press the lip to the floor")
         o = o + [PUSH, 0.0, 0.0]
-        scoop_at(3.0, o, _ry(DIG_DEG), FINGER_CLOSED, "push it along the floor into the heap", n=3)
+        scoop_at(PUSH_S, o, _ry(DIG_DEG), FINGER_CLOSED, "push it along the floor into the heap", n=max(3, int(PUSH_S)))
         o = scoop_turn(1.0, lip_local, o, _ry(DIG_DEG), np.eye(3), FINGER_CLOSED, "level it, lip still on the floor")
+        if DRAG > 0:
+            o = o + [-DRAG, 0.0, 0.0]
+            scoop_at(DRAG_S, o, np.eye(3), FINGER_CLOSED, "draw the full scoop back out of the heap, along the floor",
+                     n=max(2, int(DRAG_S)))
         o = scoop_turn(1.2, np.zeros(3), o + [-PULL, 0.0, 0.0], np.eye(3), _ry(LIFT_DEG), FINGER_CLOSED,
                        "draw it back a little, raising the lip under the fries")
         scoop_at(1.0, o + [0.0, 0.0, 0.015], _ry(LIFT_DEG), FINGER_CLOSED, "lift the scoopful gently")
         o = o + [0.0, 0.0, RIM + 0.025 - o[2]]
         scoop_at(1.5, o, _ry(CARRY_DEG), FINGER_CLOSED, "lift it clear of the pan's rim")
+        if SCOOP_ONLY:
+            scoop_at(3.0, o, _ry(CARRY_DEG), FINGER_CLOSED, "hold the scoopful up")
+            plan["left"] = []
+            wait(L, dur(R), "the left stays home (scoop test)")
+            return plan
         # -- 3. the funnel end over the carton's mouth; tip the scoop up until the fries slide out ----------------
         if k_scoop == 0:
             sync()
-        scoop_at(2.5, pour + [0.0, 0.0, 0.04], _ry(CARRY_DEG), FINGER_CLOSED, "bring the funnel end over the carton", n=2)
+        scoop_at(CARRY_S, pour + [0.0, 0.0, 0.04], _ry(CARRY_DEG), FINGER_CLOSED, "bring the funnel end over the carton",
+                 n=3)
         scoop_at(1.0, pour, _ry(CARRY_DEG), FINGER_CLOSED, "lower it over the mouth")
         o, r_prev = pour, _ry(CARRY_DEG)
         for k, deg in enumerate(POUR_DEGS):
@@ -928,9 +1022,9 @@ def _demo_plan():
         scoop_at(1.0, o, np.eye(3), FINGER_CLOSED, "lift it")
     sync()
     # -- 4. the scoop back in the pan; the carton let go, standing; both home -------------------------------------
-    s_back = s0 + [0.005, 0.0, 0.0]
-    scoop_at(2.5, s_back + [0.0, 0.0, RIM + 0.02 - PAN_FLOOR], np.eye(3), FINGER_CLOSED, "back over the pan's front", n=2)
-    scoop_at(1.2, s_back + [0.0, 0.0, 0.002], np.eye(3), FINGER_CLOSED, "lay it in the pan")
+    s_back = s0 + [BACK_DX, 0.0, 0.0]  # well inside the pan's front: the scoop turns a little in the grip while pushing
+    scoop_at(2.5, s_back + [0.0, 0.0, RIM + 0.04 - PAN_FLOOR], np.eye(3), FINGER_CLOSED, "back over the pan's front", n=2)
+    scoop_at(1.5, s_back + [0.0, 0.0, 0.002], np.eye(3), FINGER_CLOSED, "lay it in the pan")
     scoop_at(0.6, s_back + [0.0, 0.0, 0.002], np.eye(3), HANDLE_OPEN, "let go")
     scoop_at(1.2, s_back + [0.0, 0.0, 0.002], np.eye(3), HANDLE_OPEN, "out along the handle", s=H_LEN + 0.03)
     to_home(R)
