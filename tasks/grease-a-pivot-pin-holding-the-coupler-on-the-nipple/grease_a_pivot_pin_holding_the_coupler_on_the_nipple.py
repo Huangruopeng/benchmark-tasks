@@ -1,17 +1,17 @@
 """On the station table stands the pivot of a loader arm: a yellow steel lug on a base plate with a steel pin through
 it, and on the lug's top a straight grease nipple (DIN 71412 form A: M10x1 taper thread, 11 mm hex, 6.5 mm ball
-head). To the left stands a grease pail with a lever pump on its lid; its black hose runs over the table to a lock-on
-grease coupler standing in a steel holder cup.
+head). To the left a lever grease gun lies in a cradle with its handle on top; its whip hose runs over the table to a
+lock-on grease coupler standing in a steel holder cup.
 
-Task: grease the pivot pin through its nipple from the pail pump without leaking grease at the coupler or the nipple,
+Task: grease the pivot pin through its nipple with the grease gun without leaking grease at the coupler or the nipple,
 then leave the coupler back in its holder cup and both arms back where they started.
 
 The coupler's mouth (its four jaws, closed: a 7.2 mm bore with a 45-degree lead-in) goes right over the 6.5 mm ball
 head until a nitrile seal ring 5 mm up sits on the ball's top. Pushed fully on with its thumb lever out, its jaws lock
 behind the ball and hold it on against the grease pressure with no hand on it; it comes off only while the thumb lever
-is pressed in. Not locked, the grease pressure pushes it back off the ball. A lever stroke made through a sealed seat
-is a shot of grease into the pin's bushing; a stroke made while the coupler is not sealed on the nipple is a leak
-(latched for the whole trial).
+is pressed in. Not locked, the grease pressure pushes it back off the ball. The gun pumps while its handle is pushed
+down: a handle stroke (lifted, then pushed back down) made through a sealed seat is a shot of grease into the pin's
+bore; pushing the handle down while the coupler is not sealed on the nipple is a leak (latched for the whole trial).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=grease_a_pivot_pin_holding_the_coupler_on_the_nipple.py \\
            --instruction "..." --scorer task_score ...
@@ -41,38 +41,56 @@ SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 
 # -- the loader pivot: a lug with a pin through it and a grease nipple on top ------------------------------------------
+# Built from a 50 x 40 mm steel flat bar cut 56 mm long and stood on end (see the README's drawing): a 20.5 mm bore
+# for the 20 mm pin, 20 mm above its foot; an M10x1 hole in its top for the nipple, and a 5 mm passage down to the bore.
 MX, MY = 0.30, -0.08
-LUG = (0.05, 0.04, 0.05)
+LUG = (0.05, 0.04, 0.056)
 BASE_T = 0.010
 PIN_Z = 0.030  # the pin's axis above the table
-BOSS_TOP = TOP + BASE_T + LUG[2] + 0.006  # the boss's top face, where the nipple is screwed in
-# the grease nipple, DIN 71412 form A (straight): M10x1 taper thread (in the boss), 11 mm hex, 6.5 mm ball head on a
-# 4 mm neck, its top 10.5 mm above the boss (16 mm long, 5.5 mm of it thread)
+PIN_R, BORE_D = 0.010, 0.0205  # the 20 mm pin (ISO 2340 B 20 x 100) in the lug's 20.5 mm drilled bore
+BOSS_TOP = TOP + BASE_T + LUG[2]  # the lug's top face, where the nipple is screwed in
+# the grease nipple, DIN 71412 form A (straight): M10x1 taper thread (in the lug), 11 mm hex, 6.5 mm ball head on a
+# 4 mm neck, its top 10.5 mm above the lug (16 mm long, 5.5 mm of it thread)
 HEX_AF, HEX_H = 0.011, 0.0035
 NECK_R = 0.002
 BALL_R = 0.00325
 BALL_Z = BOSS_TOP + 0.00725  # the ball head's centre
 NIPPLE_TOP = BALL_Z + BALL_R
 
-# -- the grease pail with its lever pump ---------------------------------------------------------------------------
-PX, PY = 0.37, 0.20
-PAIL_R, PAIL_H = 0.065, 0.085
-PIVOT = np.array([PX - 0.015, PY, TOP + 0.120])  # the lever's pivot on the pump head
-LEVER_L = 0.125  # from the pivot to the middle of the lever's grip pad
-LEVER_UP = 15.0  # degrees the lever stands up from level at rest
-PAD = (0.030, 0.028, 0.016)
-STROKE_DOWN, STROKE_UP = 18.0, 10.0  # degrees pressed down: a stroke is down past 18, then back up past 10
-PRESSURE_DEG = 6.0  # pressed past this, the pump is pushing grease: the line is under pressure
-LEVER_MAX = 26.0  # degrees it presses down at most
-STROKES = 4  # sealed strokes that fill the pin's passage and bushing and purge fresh grease at its ends
-OUTLET = (PX, PY - PAIL_R - 0.006, TOP + 0.070)
-# The lever's spring stands in for its return spring and the grease's resistance together: pressing the grip pad takes
-# ~8 N at 18 degrees down and ~11 N at 26 (a real rig: at most 15 N, checked with a spring scale on the pad). Its target
-# just cancels the lever's own weight (0.078 N m), so it rests 15 degrees up.
-LEVER_SPRING = 0.055  # N m per degree
-LEVER_TARGET = 0.078 / LEVER_SPRING  # degrees up from rest
-LEVER_DAMP = 0.001  # N m per degree/s
-PUMP_CC = 1.0  # cm3 of grease per full stroke (6 to 26 degrees: 4.4 cm of pad travel)
+# -- the lever grease gun (Lincoln 1145 in its high-pressure setting) lying in a cradle, its handle on top ------------
+# It lies along y with its head toward the middle of the table and its outlet facing the robot's right. The handle is
+# pivoted on the head and lies along the top of the barrel; lifting it draws grease into the pump, pushing it back down
+# drives the plunger and pushes grease out. It has no return spring: it rests down on its stop.
+GX = 0.33  # the gun's axis, this far forward
+BARREL_R = 0.0286  # the 2-1/4 in. barrel (published)
+BARREL_Z = 0.006 + BARREL_R  # its axis above the table, in the cradle
+HEAD_Y0, HEAD_Y1 = 0.105, 0.180  # the cast head
+BARREL_Y1 = HEAD_Y1 + 0.330  # the barrel's rear end
+PIVOT = np.array([GX, 0.165, TOP + 0.090])  # the handle's pivot on the head
+LEVER_L = 0.300  # from the pivot to the handle's end
+GRIP0, GRIP1 = 0.190, 0.300  # its rubber grip, along the handle
+GRIP_W, GRIP_H = 0.026, 0.020  # the grip's width and height
+LEVER_KG, LEVER_COM = 0.30, 0.17  # the handle's mass and its centre of mass along it
+LEVER_OPEN = 60.0  # degrees the handle opens at most
+# Lincoln's figures for this gun in its high-pressure setting: full strokes up to 9 in. at the handle's grip, 1 oz of
+# grease per 33 full strokes. Grease ~0.9 g/cm3, so a full stroke is ~0.95 cm3: ~0.018 cm3 per degree of handle swing.
+FULL_CC = 28.35 / 33.0 / 0.9
+FULL_DEG = math.degrees(9.0 * 0.0254 / ((GRIP0 + GRIP1) / 2))  # the full swing, the 9 in. measured at the grip's middle
+CC_PER_DEG = FULL_CC / FULL_DEG
+STROKE_TOP, STROKE_BOTTOM = 20.0, 3.0  # a stroke: the handle lifted past 20 degrees, then pushed back down within 3
+PRESSURE_DEG = 3.0  # pushed down this far from where it was lifted to, the plunger is pushing grease out
+REST_DEG = 1.5  # ... until the handle is down on its stop
+STROKES = 4  # sealed strokes that push fresh grease through the pin's bore and out at both its ends
+OUTLET = (GX, HEAD_Y0 - 0.006, TOP + 0.050)
+# The handle's damper stands in for the grease's resistance (the gun's plunger pushing it through the hose, the
+# coupler, the nipple's check valve and the pin's bore): at the demo's ~17 degrees/s it takes ~5 N at the robot's grip
+# point (a real rig: at most 15 N, checked with a spring scale on the grip).
+LEVER_DAMP = 0.075  # N m per degree/s
+GRIP_R = 0.260  # where the robot's hand holds the grip, along the handle
+DESIGN_DEG_S = 17.0
+DESIGN_N = LEVER_DAMP * DESIGN_DEG_S / GRIP_R  # ~4.9 N at the robot's grip point
+LINE_PA = LEVER_DAMP * DESIGN_DEG_S / (FULL_CC * 1e-6 / math.radians(FULL_DEG))  # the torque over the plunger's
+# displacement per radian: ~12.5 bar in the line
 
 # -- the lock-on coupler (origin: the middle of its mouth face, z up its axis) and its holder cup -------------------
 HX, HY = 0.24, 0.0
@@ -91,10 +109,10 @@ SEAT_DEPTH = math.sqrt(BALL_R ** 2 - SEAL_HOLE_R ** 2)  # the ball's centre this
 BALL_IN_MOUTH = SEAL_Z - SEAT_DEPTH  # the ball's centre this far up from the mouth face when seated (2.7 mm)
 MOUTH_SEATED = BALL_Z - BALL_IN_MOUTH  # the mouth face's height when seated (1.05 mm over the hex)
 SEAT_OFF, SEAT_LIFT, SEAT_SINK, SEAT_TILT = 0.0015, 0.0005, 0.001, 8.0  # the sealed-seat tolerances
-# While the line is under pressure, the grease pushes a coupler on the ball back off with PUSH_N along its axis. An arm
-# presses the pump's lever with at most ~15 N; less the return spring's ~4 N, that is at most ~11 N over 4.4 cm of pad
-# travel per 1 cm3: at most ~4.8 bar in the line, ~8 N on the seal's 4.6 mm circle (16.6 mm2).
-PUSH_N = 8.0
+# While the line is under pressure, the grease pushes a coupler on the ball back off with PUSH_N along its axis: the
+# line's ~12.5 bar on the seal's 4.6 mm circle (16.6 mm2) is ~21 N.
+SEAL_AREA = math.pi * SEAL_HOLE_R ** 2
+PUSH_N = round(LINE_PA * SEAL_AREA)
 PUSH_OFF, PUSH_LIFT, PUSH_TILT = 0.002, 0.001, 20.0  # ... while its seal is this close on the ball
 # the thumb lever: a pad on the body's +y flat, sprung out 2.5 mm; pressed in (by a thumb, or by fingers closing across
 # the body) it pulls the locking sleeve back and opens the jaws
@@ -105,12 +123,14 @@ THUMB_K, THUMB_PRELOAD = 3000.0, 0.001  # its spring (N/m) and preload (m): 3 N 
 THUMB_OPEN, THUMB_SHUT = 0.0015, 0.0008  # pressed in past THUMB_OPEN the jaws open; back out past THUMB_SHUT they close
 LOCK_LIFT = 0.0001  # locked, the jaws hold the seal 0 to 0.2 mm off the ball's top (the rigid seal is not squeezed)
 
-# -- the hose: five segments on ball joints from the pump's outlet to the coupler's side outlet ----------------------
-HOSE = [OUTLET, (PX, 0.120, TOP + 0.007), (0.40, 0.060, TOP + 0.007), (0.38, 0.0, TOP + 0.007),
-        (0.31, 0.0, TOP + 0.007), (HX + STUB_L, HY, TOP + CUP_FLOOR + STUB_Z)]
+# -- the whip hose (18 in.): six segments on ball joints from the gun's outlet to the coupler's side outlet -----------
+HOSE = [OUTLET, (GX, 0.062, TOP + 0.007), (0.40, 0.035, TOP + 0.007), (0.471, -0.034, TOP + 0.007),
+        (0.37, 0.0, TOP + 0.007), (0.31, 0.0, TOP + 0.007), (HX + STUB_L, HY, TOP + CUP_FLOOR + STUB_Z)]
+N_HOSE = len(HOSE) - 1
 
 YELLOW, STEEL, DARK, RED, BRASS, BLACK, GREASE, ZINC = (0.93, 0.68, 0.10), (0.72, 0.74, 0.77), (0.20, 0.21, 0.23), \
     (0.72, 0.12, 0.10), (0.80, 0.66, 0.30), (0.06, 0.06, 0.06), (0.62, 0.45, 0.12), (0.62, 0.64, 0.66)
+WOOD = (0.78, 0.62, 0.42)
 GREASE_SPOTS = [(MX + 0.006, MY + 0.0235, TOP + PIN_Z + 0.017), (MX + 0.006, MY - 0.0235, TOP + PIN_Z + 0.017),
                 (MX - 0.010, MY + 0.0235, TOP + PIN_Z + 0.015), (MX - 0.010, MY - 0.0235, TOP + PIN_Z + 0.015)]
 PARKED = [(0.55, -0.40 + 0.03 * k, TOP - 0.12) for k in range(5)]  # under the table until squeezed out
@@ -128,19 +148,18 @@ def _hexagon(af: float, z0: float, z1: float, color, collide: bool = True) -> li
 
 
 def _pivot() -> Body:
-    """The loader arm's pivot: a base plate, a yellow lug, a steel pin through it (washers, cotter pins) with the
-    arm's two side plates on it, a boss on the lug's top and the grease nipple screwed into it. Origin on the table
-    under the lug. Greasy steel: slick (low friction)."""
+    """The loader arm's pivot: a base plate, a yellow lug, a steel pin through it (washers, split pins) with the
+    arm's two side plates on it, and the grease nipple screwed into the lug's top. Origin on the table under the lug.
+    Greasy steel: slick (low friction)."""
     shapes = [BoxShape((0.0, 0.0, BASE_T / 2), (0.12, 0.10, BASE_T), DARK),
               BoxShape((0.0, 0.0, BASE_T + LUG[2] / 2), LUG, YELLOW),
-              CylShape((0.0, 0.0, PIN_Z), 0.010, 0.100, STEEL, axis="Y")]
+              CylShape((0.0, 0.0, PIN_Z), PIN_R, 0.100, STEEL, axis="Y")]
     for s in (-1.0, 1.0):
         shapes += [CylShape((0.0, s * 0.024, PIN_Z), 0.016, 0.004, ZINC, axis="Y", collide=False),  # washers
                    BoxShape((0.0, s * 0.031, PIN_Z), (0.042, 0.008, 0.034), YELLOW, collide=False),  # side plates
                    BoxShape((-0.035, s * 0.031, PIN_Z + 0.004), (0.035, 0.008, 0.026), YELLOW, collide=False),
-                   BoxShape((0.0, s * 0.047, PIN_Z), (0.003, 0.003, 0.022), STEEL, collide=False)]  # cotter pins
+                   BoxShape((0.0, s * 0.047, PIN_Z), (0.003, 0.003, 0.022), STEEL, collide=False)]  # split pins
     b = BOSS_TOP - TOP
-    shapes += [CylShape((0.0, 0.0, b - 0.003), 0.012, 0.006, STEEL)]  # the boss
     shapes += _hexagon(HEX_AF, b, b + HEX_H, BRASS)  # the nipple's hex (yellow-zinc-plated steel)
     shapes += [CylShape((0.0, 0.0, b + HEX_H + 0.00125), NECK_R, 0.0025, BRASS),  # its neck
                SphereShape((0.0, 0.0, BALL_Z - TOP), BALL_R, BRASS)]  # its ball head
@@ -149,29 +168,38 @@ def _pivot() -> Body:
 
 
 def _pump() -> Body:
-    """The grease pail (red, with a yellow band) and its pump on the lid: a column, the head with the lever's
-    bracket and the hose outlet on the pail's right side. Origin on the table under the pail's middle."""
-    hx = PIVOT[0] - PX
-    shapes = [CylShape((0.0, 0.0, PAIL_H / 2), PAIL_R, PAIL_H, RED),
-              CylShape((0.0, 0.0, PAIL_H * 0.55), PAIL_R + 0.001, 0.022, YELLOW, collide=False),
-              CylShape((0.0, 0.0, PAIL_H + 0.003), PAIL_R + 0.002, 0.006, DARK),
-              CylShape((0.0, 0.0, (PAIL_H + 0.006 + 0.108) / 2), 0.011, 0.108 - PAIL_H - 0.006, STEEL),
-              BoxShape((hx + 0.008, 0.0, 0.112), (0.040, 0.030, 0.022), DARK),  # the pump head
-              BoxShape((hx, 0.0, 0.120), (0.014, 0.034, 0.012), DARK, collide=False),  # the lever's bracket
-              CylShape((hx, 0.0, 0.120), 0.004, 0.040, STEEL, axis="Y", collide=False),  # its pivot pin
-              CylShape((0.0, -PAIL_R - 0.003, OUTLET[2] - TOP), 0.008, 0.012, BRASS, axis="Y", collide=False)]
-    return Body.build("pump", pos=(PX, PY, TOP), mass=6.0, shapes=shapes, kinematic=True, color=RED)
+    """The lever grease gun in its cradle: a plywood board with two saddles and straps, the plated barrel lying along
+    y, its rear cap and follower rod, and the cast head with the handle's bracket and the outlet facing -y. Origin on
+    the table under the head's middle."""
+    y0 = (HEAD_Y0 + HEAD_Y1) / 2
+    yb = (HEAD_Y1 + BARREL_Y1) / 2 - y0
+
+    def y(v: float) -> float:
+        return v - y0
+
+    shapes = [BoxShape((0.0, y(0.32), 0.003), (0.080, 0.400, 0.006), WOOD),
+              CylShape((0.0, yb, BARREL_Z), BARREL_R, BARREL_Y1 - HEAD_Y1, ZINC, axis="Y"),
+              CylShape((0.0, y(BARREL_Y1 + 0.006), BARREL_Z), BARREL_R + 0.002, 0.012, STEEL, axis="Y"),
+              CylShape((0.0, y(BARREL_Y1 + 0.040), BARREL_Z), 0.003, 0.056, STEEL, axis="Y", collide=False),
+              CylShape((0.0, y(BARREL_Y1 + 0.068), BARREL_Z), 0.004, 0.050, STEEL, axis="X", collide=False),
+              BoxShape((0.0, 0.0, 0.045), (0.060, HEAD_Y1 - HEAD_Y0, 0.078), DARK),  # the cast head
+              BoxShape((0.0, y(PIVOT[1]), 0.087), (0.034, 0.026, 0.010), DARK, collide=False),  # the handle's bracket
+              CylShape((0.0, y(PIVOT[1]), PIVOT[2] - TOP), 0.004, 0.040, STEEL, axis="X", collide=False),
+              CylShape((0.0, y(HEAD_Y0 - 0.004), OUTLET[2] - TOP), 0.006, 0.010, BRASS, axis="Y", collide=False)]
+    for yy in (0.24, 0.46):  # two wooden saddles with steel straps over the barrel
+        shapes += [BoxShape((s * 0.033, y(yy), 0.020), (0.012, 0.030, 0.028), WOOD, collide=False) for s in (-1, 1)]
+        shapes.append(CylShape((0.0, y(yy), BARREL_Z), BARREL_R + 0.0015, 0.020, DARK, axis="Y", collide=False))
+    return Body.build("pump", pos=(GX, y0, TOP), mass=4.0, shapes=shapes, kinematic=True, color=ZINC)
 
 
 def _lever() -> Body:
-    """The pump's lever: a steel bar from the pivot toward the robot, up LEVER_UP, with a red rubber grip pad at its
-    end. Origin at the pivot."""
-    a = math.radians(LEVER_UP)
-    end = np.array([-LEVER_L * math.cos(a), 0.0, LEVER_L * math.sin(a)])
-    shapes = [segment((0.0, 0.0, 0.0), tuple((end * 1.06).tolist()), 0.010, STEEL),
-              BoxShape(tuple(end.tolist()), PAD, RED)]
-    return Body.build("lever", pos=tuple(PIVOT.tolist()), mass=0.12, shapes=shapes, color=STEEL,
-                      com=tuple((end * 0.55).tolist()), friction=(1.0, 0.9), ignore=("pump",))
+    """The gun's handle: a plated steel bar from the pivot along the top of the barrel, with a black rubber grip at its
+    end. Origin at the pivot; it starts down on its stop, level."""
+    shapes = [BoxShape((0.0, GRIP0 / 2, 0.0), (0.020, GRIP0, 0.010), STEEL),
+              BoxShape((0.0, (GRIP0 + GRIP1) / 2, 0.0), (GRIP_W, GRIP1 - GRIP0, GRIP_H), BLACK),
+              BoxShape((0.0, 0.030, -0.010), (0.014, 0.012, 0.016), STEEL, collide=False)]  # the toggle link
+    return Body.build("lever", pos=tuple(PIVOT.tolist()), mass=LEVER_KG, shapes=shapes, color=STEEL,
+                      com=(0.0, LEVER_COM, 0.0), friction=(1.2, 1.1), ignore=("pump",))
 
 
 def _holder() -> Body:
@@ -242,30 +270,31 @@ def _coupler() -> Body:
     shapes += [CylShape((0.0, 0.0, (BODY_Z1 + SWIVEL_Z1) / 2), SWIVEL_R, SWIVEL_Z1 - BODY_Z1, BRASS),
                CylShape((STUB_L / 2, 0.0, STUB_Z), STUB_R, STUB_L, BRASS, axis="X")]
     return Body.build("coupler", pos=(HX, HY, TOP + CUP_FLOOR), mass=COUPLER_KG, shapes=shapes, color=ZINC,
-                      com=(0.0, 0.0, 0.020), friction=(1.2, 1.1), ignore=("hose4",))
+                      com=(0.0, 0.0, 0.020), friction=(1.2, 1.1), ignore=(f"hose{N_HOSE - 1}",))
 
 
 def _thumb() -> Body:
     """The coupler's thumb lever: a steel pad on the hex body's +y flat, sprung 2.5 mm out from it."""
     shapes = [BoxShape((0.0, 0.0, 0.0), (THUMB_W, THUMB_T, THUMB_H), STEEL)]
     return Body.build("thumb", pos=(HX, HY + THUMB_Y, TOP + CUP_FLOOR + THUMB_Z), mass=0.012, shapes=shapes,
-                      color=STEEL, friction=(1.2, 1.1), ignore=("coupler", "hose4"))
+                      color=STEEL, friction=(1.2, 1.1), ignore=("coupler", f"hose{N_HOSE - 1}"))
 
 
 def _grease(k: int) -> Body:
     """A dab of grease (drawn only), parked under the table until it appears: the first four squeeze out of the pin's
-    bushing, the fifth shows a leak."""
+    bore, the fifth shows a leak."""
     shapes = [SphereShape((0.0, 0.0, 0.0), 0.0060, GREASE, collide=False),
               SphereShape((0.006, 0.0, -0.002), 0.0050, GREASE, collide=False),
               SphereShape((-0.005, 0.0, -0.003), 0.0045, GREASE, collide=False)]
     return Body.build(f"grease{k}", pos=PARKED[k], mass=0.01, shapes=shapes, kinematic=True, color=GREASE)
 
 
-OBJECTS = [_pivot(), _pump(), _lever(), _holder()] + [_hose(i) for i in range(5)] + [_coupler(), _thumb()] + \
+OBJECTS = [_pivot(), _pump(), _lever(), _holder()] + [_hose(i) for i in range(N_HOSE)] + [_coupler(), _thumb()] + \
     [_grease(k) for k in range(5)]
-MOVING = ["lever", "coupler", "thumb"] + [f"hose{i}" for i in range(5)]
-hinge("pump_lever", "pump", "lever", anchor=tuple(PIVOT.tolist()), axis="Y", limits_deg=(-LEVER_MAX, 8.0),
-      spring=LEVER_SPRING, damping=LEVER_DAMP, target_deg=LEVER_TARGET)
+MOVING = ["lever", "coupler", "thumb"] + [f"hose{i}" for i in range(N_HOSE)]
+# the handle: lifted, it turns up about the pivot (+x); it rests down on its stop at 0; a damper for the grease
+hinge("pump_lever", "pump", "lever", anchor=tuple(PIVOT.tolist()), axis="X", limits_deg=(0.0, LEVER_OPEN),
+      damping=LEVER_DAMP)
 slider("thumb_lever", "coupler", "thumb", anchor=(HX, HY + THUMB_Y, TOP + CUP_FLOOR + THUMB_Z), axis="Y",
        limits=(-THUMB_TRAVEL, 0.0), stiffness=THUMB_K, damping=5.0, target=THUMB_PRELOAD, max_force=60.0)
 # the jaws' lock: switched on when the coupler is pushed fully onto the ball with its thumb lever out; it then holds the
@@ -275,16 +304,16 @@ thread("jaws", "pivot", "coupler", anchor0=(0.0, 0.0, BALL_Z - TOP), axis0=(0.0,
        anchor1=(0.0, 0.0, BALL_IN_MOUTH - LOCK_LIFT), axis1=(0.0, 0.0, 1.0), slide_limits=(-0.0001, 0.0001),
        turn_damping=20.0, slide_stiffness=20000.0, slide_damping=50.0, slide_max_force=200.0)
 ball("hose_out", "pump", "hose0", anchor=HOSE[0], swing_damping=0.002, twist_damping=0.002)
-for _i in range(1, 5):
+for _i in range(1, N_HOSE):
     ball(f"hose_j{_i}", f"hose{_i - 1}", f"hose{_i}", anchor=HOSE[_i], swing_damping=0.002, twist_damping=0.002)
-ball("hose_in", "hose4", "coupler", anchor=HOSE[5], swing_damping=0.002, twist_damping=0.002)
+ball("hose_in", f"hose{N_HOSE - 1}", "coupler", anchor=HOSE[N_HOSE], swing_damping=0.002, twist_damping=0.002)
 
 
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"down": False, "strokes": 0, "shots": 0, "leak": False, "seated_ever": False, "tcps": None, "s": {},
-            "locked": False, "locked_ever": False}
+    return {"armed": False, "pushing": False, "peak": 0.0, "low": 0.0, "strokes": 0, "shots": 0, "leak": False,
+            "seated_ever": False, "tcps": None, "s": {}, "locked": False, "locked_ever": False}
 
 
 _EP = _fresh()
@@ -344,7 +373,7 @@ def _coupler_state(cp, cr) -> dict:
 
 
 def _show_leak(base, origin, cp) -> None:
-    """Show the leaked grease: on the nipple's boss when the coupler is at the nipple, else under its mouth."""
+    """Show the leaked grease: on the lug's top by the nipple when the coupler is at it, else under its mouth."""
     if math.hypot(cp[0] - MX, cp[1] - MY) <= LEAK_NEAR:
         spot = (MX + 0.010, MY, BOSS_TOP + 0.003)
     elif math.hypot(cp[0] - HX, cp[1] - HY) <= CUP_R:
@@ -371,31 +400,42 @@ def _follow(env) -> None:
     elif not _EP["locked"] and thumb_in <= THUMB_SHUT and c["seated"]:
         set_thread_on("jaws", True)
         _EP["locked"] = _EP["locked_ever"] = True
-    pressed = -math.degrees(math.atan2(-lr[2, 0], lr[0, 0]))  # degrees the lever is pressed down from rest
-    pressure = pressed >= PRESSURE_DEG
-    # while the pump pushes grease, its pressure on the seal pushes a coupler on the ball back off along its axis (the
+    up = math.degrees(math.atan2(lr[2, 1], lr[1, 1]))  # degrees the handle is lifted off its stop
+    # the plunger: lifting the handle draws grease in; pushing it back down by PRESSURE_DEG from the highest point it
+    # was lifted to drives the plunger and pushes grease out, until the handle is down on its stop (or lifted again)
+    if _EP["pushing"]:
+        _EP["low"] = min(_EP["low"], up)
+        if up >= _EP["low"] + PRESSURE_DEG:
+            _EP["pushing"], _EP["peak"] = False, up
+    else:
+        _EP["peak"] = max(_EP["peak"], up)
+        if up <= _EP["peak"] - PRESSURE_DEG:
+            _EP["pushing"], _EP["low"] = True, up
+    pressure = _EP["pushing"] and up > REST_DEG
+    # while the gun pushes grease, its pressure on the seal pushes a coupler on the ball back off along its axis (the
     # locked jaws hold it on)
     _set_force(base.scene["coupler"], (0.0, 0.0, PUSH_N) if pressure and c["on_ball"] else (0.0, 0.0, 0.0))
     if pressure and not c["seated"] and not _EP["leak"]:  # grease squirts out of an unsealed coupler: a leak
         _EP["leak"] = True
         _show_leak(base, origin, cp)
-    if not _EP["down"] and pressed >= STROKE_DOWN:
-        _EP["down"] = True
-        if c["seated"] and not _EP["leak"]:  # a full stroke through a sealed seat squeezes grease into the bushing
+    if not _EP["armed"] and up >= STROKE_TOP:
+        _EP["armed"] = True
+    elif _EP["armed"] and up <= STROKE_BOTTOM:  # a stroke: lifted past STROKE_TOP and pushed back down
+        _EP["armed"] = False
+        _EP["strokes"] += 1
+        if c["seated"] and not _EP["leak"]:  # pushed through a sealed seat, it drives grease through the pin's bore
             _EP["shots"] += 1
             if _EP["shots"] <= len(GREASE_SPOTS):
                 _place(base, origin, f"grease{_EP['shots'] - 1}", GREASE_SPOTS[_EP["shots"] - 1])
-    elif _EP["down"] and pressed <= STROKE_UP:
-        _EP["down"] = False
-        _EP["strokes"] += 1
     _EP["seated_ever"] = _EP["seated_ever"] or c["seated"]
     _EP["tcps"] = _tcps(base, origin)
-    _EP["s"] = dict(c, pressed=pressed)
+    _EP["s"] = dict(c, up=up)
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 5 == 0 or (pressure and c["off"] < 0.01) or (c["off"] < 0.003 and c["lift"] < 0.003):
             tl, trc = _EP["tcps"]
-            print(f"[grease] t={_DEBUG['steps'] / 20:5.2f}s lever={pressed:5.1f}deg strokes={_EP['strokes']} "
+            print(f"[grease] t={_DEBUG['steps'] / 20:5.2f}s handle={up:5.1f}deg pushing={pressure} "
+                  f"strokes={_EP['strokes']} "
                   f"shots={_EP['shots']} leak={_EP['leak']} coupler={np.round(cp * 1000, 1).tolist()} "
                   f"off={c['off'] * 1000:5.2f}mm lift={c['lift'] * 1000:6.2f}mm tilt={c['tilt']:5.1f} "
                   f"seated={c['seated']} on_ball={c['on_ball']} in_holder={c['in_holder']} "
@@ -408,11 +448,12 @@ def _follow(env) -> None:
 # -- scoring --------------------------------------------------------------------------------------------------------
 
 def score(objects) -> float:
-    """1.0 with the pin greased (at least four full strokes of the pump's lever made through a sealed seat, and no
-    leak all trial), the coupler back in its holder cup and both arms back where they started; 0.5 with the pin
-    greased at some point and no leak; 0.25 with the coupler sealed on the nipple at some point; else 0.0. A leak
-    (the lever pressed past PRESSURE_DEG at any moment while the coupler is not sealed on the nipple) is latched and
-    removes the greasing credit."""
+    """1.0 with the pin greased (at least four strokes of the gun's handle, each lifted past STROKE_TOP and pushed
+    back down within STROKE_BOTTOM through a sealed seat, and no leak all trial), the coupler back in its holder cup and
+    both arms back where they started; 0.5 with the pin greased at some point and no leak; 0.25 with the coupler sealed
+    on the nipple at some point; else 0.0. A leak (the handle pushed down PRESSURE_DEG or more from where it was lifted
+    to, off its stop, at any moment while the coupler is not sealed on the nipple) is latched and removes the greasing
+    credit."""
     if _EP["shots"] >= STROKES and not _EP["leak"]:
         if _EP["s"].get("in_holder") and _arms_home():
             return 1.0
@@ -438,7 +479,7 @@ def _arms_home() -> bool:
 
 
 def success(objects) -> bool:
-    """Full score with the coupler, the lever and the hose still: the trial ends there."""
+    """Full score with the coupler, the gun's handle and the hose still: the trial ends there."""
     return score(objects) >= 1.0 and all(objects[name].resting() for name in MOVING)
 
 
@@ -446,11 +487,12 @@ def success(objects) -> bool:
 # The right hand comes down round the coupler's hex body in its holder, fingers across the thumb lever (pressing it in,
 # so the jaws are open), takes it, lifts it out, carries it over the nipple, lowers it onto the ball head and presses
 # it on (aiming PRESS below the seat, so the soft arm leans about 12 N on it). It eases off to a light lean and lets go:
-# the thumb lever springs out and the jaws lock behind the ball. It rises clear and waits. The left hand comes down on
-# the lever's grip pad, fingers closed, and pumps the lever five full strokes, following its swing, then rises and goes
-# back to where it started. The right comes back down round the coupler, closes across the thumb lever (the jaws open),
-# pulls the coupler off, carries it back over the holder, steadies it just above it, lowers it in and presses it into
-# the seat, eases off, lets go and goes back to where it started.
+# the thumb lever springs out and the jaws lock behind the ball. It rises clear and waits. The left hand comes down
+# round the gun handle's grip and closes on it, then works the handle five strokes: lifts it 25 degrees and pushes it
+# back down onto its stop, turning the wrist with it; then it lets go, rises and goes back to where it started. The
+# right comes back down round the coupler, closes across the thumb lever (the jaws open), pulls the coupler off,
+# carries it back over the holder, steadies it just above it, lowers it in and presses it into the seat, eases off,
+# lets go and goes back to where it started.
 
 GRIP = grip_rotation(0.0)  # straight down, fingers closing along y (across the hex body's flats and the thumb lever)
 GRIP_TCP = 0.027  # the TCP this far above the coupler's mouth when holding it by its hex body
@@ -509,10 +551,22 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
     return Waypoint(t, tuple(float(v) for v in pos), finger, label, rot)
 
 
-def _pad_top(pressed: float) -> np.ndarray:
-    """The top of the lever's grip pad with the lever pressed ``pressed`` degrees down from rest."""
-    a = math.radians(LEVER_UP - pressed)
-    return PIVOT + np.array([-LEVER_L * math.cos(a), 0.0, LEVER_L * math.sin(a) + PAD[2] / 2])
+def _rx(a: float) -> np.ndarray:
+    c, s = math.cos(a), math.sin(a)
+    return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
+
+
+GRIP_L = grip_rotation(math.pi / 2)  # straight down, fingers closing along x, across the handle's grip
+HANDLE_OPEN = -0.020
+LIFT = 25.0  # degrees the left hand lifts the handle each stroke
+PRESS_DEG = -3.0  # ... and where it aims when pushing it back down (below the stop, so it is pushed onto it)
+
+
+def _handle(up: float, dz: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
+    """Where the left TCP holds the handle's grip (GRIP_R along it, ``dz`` above its middle) with the handle lifted
+    ``up`` degrees, and the grip rotation turned with it."""
+    r = _rx(math.radians(up))
+    return PIVOT + r @ np.array([0.0, GRIP_R, dz]), r @ GRIP_L
 
 
 def _right(regrip_at: float) -> tuple[list[Waypoint], float]:
@@ -556,22 +610,26 @@ def _right(regrip_at: float) -> tuple[list[Waypoint], float]:
 
 def _left(start: float, total: float) -> tuple[list[Waypoint], float]:
     """The left hand; returns its waypoints and when it is done pumping."""
-    over = _pad_top(0.0) + [0.0, 0.0, 0.03]
-    out = _lead_in("left", over, GRIP, "over the pump lever's grip pad", FINGER_CLOSED)
-    out.append(_w(max(start - LEAD_S, 0.3), over, FINGER_CLOSED, "wait for the coupler to be locked on", GRIP))
-    out.append(_w(0.8, _pad_top(0.0) - [0.0, 0.0, 0.002], FINGER_CLOSED, "down onto the pad", GRIP))
+    over, rot0 = _handle(0.0, 0.05)
+    out = _lead_in("left", over, rot0, "over the gun handle's grip", HANDLE_OPEN)
+    out.append(_w(max(start - LEAD_S, 0.3), over, HANDLE_OPEN, "wait for the coupler to be locked on", rot0))
+    grip, _ = _handle(0.0, 0.002)
+    out += [_w(0.8, grip, HANDLE_OPEN, "down round the grip", rot0),
+            _w(0.6, grip, FINGER_CLOSED, "close on it", rot0)]
     for _ in range(PUMPS):
         for k in range(1, 5):
-            out.append(_w(0.35, _pad_top(25.0 * k / 4) - [0.0, 0.0, 0.004], FINGER_CLOSED,
-                          "press the lever down a full stroke", GRIP))
+            p, r = _handle(LIFT * k / 4, 0.002)
+            out.append(_w(0.35, p, FINGER_CLOSED, "lift the handle (draws grease into the gun)", r))
         for k in range(3, -2, -1):
-            out.append(_w(0.4, _pad_top(25.0 * k / 4) + [0.0, 0.0, 0.003], FINGER_CLOSED,
-                          "let it come back up", GRIP))
-    out.append(_w(0.8, over, FINGER_CLOSED, "rise off the pad", GRIP))
+            p, r = _handle(max(LIFT * k / 4, PRESS_DEG), 0.002)
+            out.append(_w(0.35, p, FINGER_CLOSED, "push it back down (pushes grease into the pin)", r))
+    out += [_w(0.5, grip, FINGER_CLOSED, "hold it down on its stop", rot0),
+            _w(0.5, grip, HANDLE_OPEN, "let go", rot0),
+            _w(0.8, over, HANDLE_OPEN, "rise off the handle", rot0)]
     done = sum(w.duration for w in out)
-    out += _go_home("left", over, GRIP, FINGER_CLOSED)
+    out += _go_home("left", over, rot0, HANDLE_OPEN)
     t = sum(w.duration for w in out)
-    out.append(_w(max(total - t, 0.5), out[-1].pos, FINGER_CLOSED,
+    out.append(_w(max(total - t, 0.5), out[-1].pos, HANDLE_OPEN,
                   "hold still: the trial ends once the full score has held 1 s with both arms home", out[-1].yaw))
     return out, done
 
