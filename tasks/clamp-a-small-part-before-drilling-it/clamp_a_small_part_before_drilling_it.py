@@ -1,12 +1,13 @@
 """An 8-inch bench drill press stands on the station table. On its table lies a waxed MDF spoil board, and on that a
-loose aluminium plate with a punch mark under the drill's bit. A screw hold-down clamp stands over its front-left part.
+loose aluminium plate with its punch mark 20 mm in front of the drill's bit. A screw hold-down clamp (a star-knob screw
+with a rubber tip that turns with it, through an arm on a riser) stands over its front-left part.
 The drill's motor has its own push-button switch (green start, red stop) on the front of the head; the quill is fed by
 a three-spoke capstan handle on the right of the head, through a pinion on the quill's rack, against a return spring.
 
 Task: drill through the plate at its mark and leave the drill switched off with its quill up. It must not move while
-it is drilled and no part of either gripper may come within 5 cm of the bit or the chuck while they turn. The clamp's
-pad turns with its screw and drags a loose plate round, off its mark, unless the plate is held while the clamp is
-tightened; an unclamped plate is caught by the bit and flung.
+it is drilled and no part of either gripper may come within 5 cm of the bit or the chuck while they turn. The plate has
+to be slid until its mark is under the bit. The clamp's tip turns with its screw and drags a loose plate round, off its
+mark, unless the plate is held while the clamp is tightened to 85 N; an unclamped plate is caught by the bit and flung.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=clamp_a_small_part_before_drilling_it.py \\
            --instruction "..." --scorer task_score ...
@@ -47,11 +48,15 @@ COVER_X, COVER_Y, COVER_Z = (SPX - 0.065, SPX + 0.235), (-0.085, 0.085), (0.475,
 MOTOR_XY, MOTOR_R, MOTOR_Z = (SPX + 0.20, 0.0), 0.055, (0.36, 0.475)
 
 # -- the work: a spoil board on the table, the plate on it ---------------------------------------------------------------
-PX, PY = TABLE_X, TABLE_Y  # a waxed melamine-faced MDF spoil board covering the table, 160 x 160 x 10 mm
+PX, PY = (SPX - 0.150, SPX + 0.080), (-0.100, 0.100)  # a waxed melamine-faced MDF spoil board, 230 x 200 x 10 mm,
+# bolted to the table and overhanging its front by 7 cm
 PT = TOP + TABLE_Z[1] + 0.010  # its top
-PLATE_X, PLATE_Y, PLATE_T = (SPX - 0.105, SPX + 0.025), (-0.085, 0.065), 0.010  # 130 x 150 x 10 mm aluminium plate
+PLATE_X, PLATE_Y, PLATE_T = (SPX - 0.105, SPX + 0.025), (-0.085, 0.065), 0.010  # 130 x 150 x 10 mm aluminium plate,
+# where it is drilled: its punch mark under the bit
+PLATE_START = 0.020  # the plate starts this far in front of that (toward the arms): its mark 20 mm in front of the bit
 PLATE_MASS = 0.53
 PLATE_C = np.array([(PLATE_X[0] + PLATE_X[1]) / 2, (PLATE_Y[0] + PLATE_Y[1]) / 2])
+PLATE_C0 = PLATE_C - np.array([PLATE_START, 0.0])  # where it starts
 PLATE_TOP = PT + PLATE_T
 MARK_IN_PLATE = np.array([SPX, SPY]) - PLATE_C  # the punch mark, from the plate's middle
 
@@ -93,27 +98,41 @@ BTN_START_OUT, BTN_STOP_OUT = 0.007, 0.009  # how far each stands out of the box
 BTN_TRAVEL, BTN_SWITCH = 0.004, 0.002  # each presses in 4 mm and switches at 2 mm
 BTN_K, BTN_PRE = 600.0, 0.008  # its spring: 4.8 N to start moving, 7.2 N at the bottom
 
-# -- the clamp: a post left of the plate, an arm over its front-left part; a screw through the arm, a knob on top, a pad
-# underneath. Turning the knob clockwise (from above) drives the screw down PITCH per turn. Origin of the screw: the
-# middle of its pad's underside
+# -- the clamp: a screw hold-down built from stock parts. An aluminium riser (25 x 25 mm bar) stands left of the plate,
+# bolted through the spoil board; on it an aluminium arm (25 x 12 mm bar) reaches over the plate's front-left part,
+# tapped M8 for the clamp screw: a cast-iron star knob (40 mm across its lobes, on its own M8 x 40 steel stud)
+# whose stud end carries a flat push-on rubber tip (19 mm across, 12.7 mm long), bonded so that it turns with it.
+# Turning the knob clockwise (from above) drives the stud down PITCH per turn; once the tip is on the plate the rubber
+# under the stud's end compresses and presses, and its friction turns the plate with it unless the plate is held.
+# Origin of the screw (knob, stud and tip, one body): the middle of the tip's underside.
 CLAMP_XY = np.array([SPX - 0.068, 0.040])
-PAD_R, PAD_H = 0.010, 0.004
-GAP0 = 0.004  # the pad starts this far above the plate
+TIP_R, TIP_H = 0.009525, 0.0127  # the rubber tip, 3/4 in across and 1/2 in long
+STUD_R, STUD_Z = 0.004, (0.0037, 0.0437)  # the M8 x 40 stud, its end 9 mm up inside the tip
+PITCH = 0.00125  # m per turn: M8 x 1.25
+GAP0 = 0.00125  # the tip starts one turn (1.25 mm) above the plate
 SCREW0 = np.array([*CLAMP_XY, PLATE_TOP + GAP0])
-ARM_Z = (0.024, 0.034)  # the arm, in the screw's starting frame (from the pad's underside)
-KNOB_W, KNOB_Z = 0.016, (0.044, 0.066)  # a square knob, its flats facing along x and y
-KNOB_YAW = 0.0
-PITCH = 0.008  # m per turn: a quick thread
-SCREW_TRAVEL = 0.014
-SCREW_K, SCREW_D, SCREW_MAX = 3000.0, 20.0, 30.0
-THREAD_DRAG = 0.01  # N m s/rad
-TIGHT_N = 6.0  # the pad pressing on the plate with at least this force, i.e. the knob turned a quarter turn (2 mm)
-# past the pad meeting the plate: clamped (the soft simulated spring presses 6 N there; a real hand-tight clamp ~100 N)
+ARM_Z = (0.018, 0.030)  # the arm (12 mm thick), in the screw's starting frame (from the tip's underside)
+ARM_W = 0.025
+RISER_Y = (0.067, 0.092)  # the riser (25 x 25 mm), world y, 2 mm left of the plate's left edge
+KNOB_Z0 = STUD_Z[1]  # the knob's underside, in the screw's starting frame
+KNOB_R, KNOB_H = 0.020, 0.025  # the star knob: 40 mm across its lobes, 25 mm tall
+KNOB_HUB_R, KNOB_HUB_H = 0.007, 0.012  # its hub, 14 mm across and 12 mm tall, under the lobes
+KNOB_CORE_R, LOBE_R, LOBES = 0.0105, 0.0050, 5  # the lobes' root circle; each lobe ends in a 10 mm round
+SCREW_MASS = 0.073  # the knob (53 g) with its stud and the tip
+SCREW_TRAVEL = 0.012  # the stud can go 12 mm down before the knob meets the arm
+TIP_K = 3.0e5  # N/m: the rubber under the stud's 8 mm end compressing, with the arm's bending (computed)
+SCREW_K, SCREW_D, SCREW_MAX = TIP_K, 100.0, 1000.0
+THREAD_DRAG, THREAD_T0 = 2.0, 0.05  # the thread's own drag with no load: a stiff damper (N m s/rad) passing at most
+# 0.05 N m, i.e. a light dry friction that a knob rubbed by an opening hand does not overcome
+TIP_FRICTION = 0.63  # the rubber tip on the aluminium plate (it also carries the thread's own friction, see README)
+TIGHT_N = 85.0  # clamped: the tip pressing at least this (a real knob tightened to 0.5 N m)
+TIP_ON = 0.0005  # the tip's underside within this of the plate's top: on it
 
 STEEL, ALU, DARK, RED, BLACK, GREEN = (0.55, 0.57, 0.60), (0.80, 0.81, 0.83), (0.20, 0.21, 0.23), \
     (0.85, 0.12, 0.10), (0.05, 0.05, 0.05), (0.10, 0.62, 0.20)
 PAINT, PAINT_DARK, YELLOW, WHITE = (0.30, 0.42, 0.55), (0.22, 0.31, 0.41), (0.95, 0.78, 0.10), (0.92, 0.92, 0.90)
 BOARD = (0.86, 0.85, 0.80)  # white melamine
+ALU_DARK, IRON = (0.66, 0.67, 0.70), (0.24, 0.24, 0.25)  # aluminium bar stock; the cast-iron star knob
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 SAFE = 0.05  # every point of each gripper's hand and wrist at least this far from the bit and the chuck while they turn
@@ -161,28 +180,42 @@ def _plate() -> Body:
     shapes = [BoxShape((0.0, 0.0, 0.0), (PLATE_X[1] - PLATE_X[0], PLATE_Y[1] - PLATE_Y[0], PLATE_T), ALU),
               BoxShape((m[0], m[1], PLATE_T / 2 + 0.0002), (0.010, 0.0012, 0.0004), BLACK, collide=False),  # the mark
               BoxShape((m[0], m[1], PLATE_T / 2 + 0.0002), (0.0012, 0.010, 0.0004), BLACK, collide=False)]
-    return Body.build("plate", pos=(*PLATE_C, PT + PLATE_T / 2), mass=PLATE_MASS, shapes=shapes, friction=(1.0, 0.9),
+    return Body.build("plate", pos=(*PLATE_C0, PT + PLATE_T / 2), mass=PLATE_MASS, shapes=shapes, friction=(1.0, 0.9),
                       color=ALU)
 
 
 def _clamp() -> Body:
-    """The clamp's post and arm (fixed, bolted through the spoil board to the drill's table). Origin at the screw's
-    starting origin."""
-    post_y = 0.034  # the post, left of the plate
+    """The clamp's riser and arm (fixed: the riser is bolted through the spoil board, the arm to the riser). Origin at
+    the screw's starting origin."""
     bottom = PT - SCREW0[2]
-    shapes = [BoxShape((0.0, post_y, (bottom + ARM_Z[1]) / 2), (0.016, 0.014, ARM_Z[1] - bottom), DARK),
-              BoxShape((0.0, post_y / 2 + 0.003, (ARM_Z[0] + ARM_Z[1]) / 2), (0.016, post_y + 0.022,
-                                                                               ARM_Z[1] - ARM_Z[0]), DARK)]
-    return Body.build("clamp", pos=tuple(SCREW0.tolist()), mass=1.0, shapes=shapes, kinematic=True, color=DARK)
+    ry0, ry1 = RISER_Y[0] - CLAMP_XY[1], RISER_Y[1] - CLAMP_XY[1]
+    arm_y0 = -ARM_W / 2  # the arm's end, 12.5 mm past the screw's axis
+    shapes = [BoxShape((0.0, (ry0 + ry1) / 2, (bottom + ARM_Z[0]) / 2), (0.025, ry1 - ry0, ARM_Z[0] - bottom), ALU_DARK),
+              BoxShape((0.0, (arm_y0 + ry1) / 2, (ARM_Z[0] + ARM_Z[1]) / 2), (ARM_W, ry1 - arm_y0, ARM_Z[1] - ARM_Z[0]),
+                       ALU_DARK),
+              CylShape((0.0, (ry0 + ry1) / 2, ARM_Z[1] + 0.0032), 0.0085, 0.0064, STEEL, collide=False)]  # M10 bolt
+    return Body.build("clamp", pos=tuple(SCREW0.tolist()), mass=1.0, shapes=shapes, kinematic=True, color=ALU_DARK)
 
 
 def _screw() -> Body:
-    shapes = [CylShape((0.0, 0.0, PAD_H / 2), PAD_R, PAD_H, BLACK),
-              CylShape((0.0, 0.0, (PAD_H + KNOB_Z[0]) / 2), 0.004, KNOB_Z[0] - PAD_H, STEEL),
-              BoxShape((0.0, 0.0, (KNOB_Z[0] + KNOB_Z[1]) / 2), (KNOB_W, KNOB_W, KNOB_Z[1] - KNOB_Z[0]), RED,
-                       yaw=KNOB_YAW)]
-    return Body.build("screw", pos=tuple(SCREW0.tolist()), mass=0.03, shapes=shapes, friction=(1.2, 1.1), color=STEEL,
-                      com=(0.0, 0.0, 0.03))
+    """The clamp screw: the star knob (cast iron), its steel stud and the rubber tip on the stud's end."""
+    z0, z1 = KNOB_Z0 + KNOB_HUB_H, KNOB_Z0 + KNOB_H  # the lobes
+    zc, h = (z0 + z1) / 2, z1 - z0
+    shapes = [CylShape((0.0, 0.0, TIP_H / 2), TIP_R, TIP_H, BLACK),
+              CylShape((0.0, 0.0, (TIP_H + KNOB_Z0) / 2), STUD_R, KNOB_Z0 - TIP_H, DARK),
+              CylShape((0.0, 0.0, KNOB_Z0 + KNOB_HUB_H / 2), KNOB_HUB_R, KNOB_HUB_H, IRON),
+              CylShape((0.0, 0.0, zc), KNOB_CORE_R, h, IRON)]
+    for k in range(LOBES):  # the lobes (modelled as five), each ending in a round; one marked so the turning shows
+        a = 2 * math.pi * k / LOBES + math.pi / 2
+        u = np.array([math.cos(a), math.sin(a)])
+        r_end = KNOB_R - LOBE_R
+        shapes.append(BoxShape((*(u * r_end / 2).tolist(), zc), (r_end, 2 * LOBE_R, h), IRON, yaw=a))
+        shapes.append(CylShape((*(u * r_end).tolist(), zc), LOBE_R, h, IRON))
+        if k == 0:
+            shapes.append(CylShape((*(u * r_end).tolist(), z1 + 0.0003), 0.003, 0.0006, WHITE, collide=False))
+    return Body.build("screw", pos=tuple(SCREW0.tolist()), mass=SCREW_MASS, shapes=shapes,
+                      friction=(TIP_FRICTION, TIP_FRICTION), slick=True, color=IRON, com=(0.0, 0.0, 0.045),
+                      solver_iterations=32)
 
 
 def _drill() -> Body:
@@ -273,6 +306,22 @@ OBJECTS = [_board(), _plate(), _clamp(), _screw(), _drill(), _quill(), _chuck(),
 thread("clamp_screw", "clamp", "screw", anchor0=(0.0, 0.0, 0.0), axis0=(0.0, 0.0, -1.0), anchor1=(0.0, 0.0, 0.0),
        axis1=(0.0, 0.0, -1.0), slide_limits=(0.0, SCREW_TRAVEL), turn_damping=THREAD_DRAG, slide_stiffness=SCREW_K,
        slide_damping=SCREW_D, slide_max_force=SCREW_MAX, always_on=True)
+_plain_author_threads = bodykit._author_threads
+
+
+def _author_threads(stage, prim_path: str, spec) -> None:
+    """bodykit's threads, with the clamp's slide drive aimed at its start (bodykit aims it at the far end of its
+    travel, which would drive the stiff rubber tip into the plate while the scene settles)."""
+    _plain_author_threads(stage, prim_path, spec)
+    if spec.name == "screw":
+        from pxr import UsdPhysics
+
+        prim = stage.GetPrimAtPath(f"{prim_path}/clamp_screw")
+        UsdPhysics.DriveAPI(prim, "transX").GetTargetPositionAttr().Set(0.0)
+        UsdPhysics.DriveAPI(prim, "rotX").GetMaxForceAttr().Set(float(THREAD_T0))
+
+
+bodykit._author_threads = _author_threads
 # The quill slides in the head (z, - down) to the depth stop; the feed handle turns on the pinion's shaft (about +y: a
 # feed turns it -). PhysX's rack-and-pinion joint does not run in this GPU scene, so both carry a stiff drive toward one
 # shared gear position, re-aimed before every physics step (see _gear): a stiff, slightly springy mesh. The return
@@ -378,7 +427,7 @@ def _clearance(base, origin, chuck_pos) -> list[float]:
 # -- followed before every physics step: the rack and pinion, the return spring, the cutting thrust --------------------
 
 def _fresh() -> dict:
-    return {"phi": None, "turns": 0.0, "tcps": None, "unsafe": False, "caught": False, "forced": False,
+    return {"phi": None, "turns": 0.0, "target": 0.0, "press": 0.0, "press_max": 0.0, "tcps": None, "unsafe": False, "caught": False, "forced": False,
             "hole": 0.0, "hole_xy": None, "hole_ok": False, "motor": False, "cutting": None, "clear": [1.0, 1.0],
             "clear_min": [1.0, 1.0], "omega": 0.0, "st": {}, "gear_c": 0.0}
 
@@ -440,6 +489,27 @@ def _gear(base) -> None:
     set_hinge_drive("pinion", target_deg=math.degrees(-c / PINION_R))
 
 
+def _wrap(a: float) -> float:
+    return (a + math.pi) % (2 * math.pi) - math.pi
+
+
+def _clamp_step(base) -> None:
+    """The clamp's thread, before each physics step: the stud comes down PITCH per clockwise turn. Its slide drive is the
+    stiffness of the rubber under the stud's end, so once the tip is on the plate each further turn presses harder."""
+    origin = as_numpy(base.scene.env_origins[0])
+    s_pos, s_rot = _pose(base, origin, "screw")
+    phi = math.atan2(float(s_rot[1, 0]), float(s_rot[0, 0]))
+    if _EP["phi"] is not None:
+        _EP["turns"] -= _wrap(phi - _EP["phi"]) / (2 * math.pi)  # clockwise (from above) is +
+    _EP["phi"] = phi
+    target = min(max(PITCH * _EP["turns"], 0.0), SCREW_TRAVEL)
+    set_slide_target("clamp_screw", target)
+    _EP["target"] = target
+    slide = float(SCREW0[2] - s_pos[2])  # how far the stud has come down
+    _EP["press"] = min(SCREW_K * max(target - slide, 0.0), SCREW_MAX)  # the tip pressing on what is under it
+    _EP["press_max"] = max(_EP["press_max"], _EP["press"])
+
+
 def _hook_gear(base) -> None:
     scene = base.scene
     if getattr(scene, "_drill_gear", False):
@@ -448,6 +518,7 @@ def _hook_gear(base) -> None:
 
     def write_data_to_sim(*args, **kwargs):
         _gear(base)
+        _clamp_step(base)
         return plain(*args, **kwargs)
 
     scene.write_data_to_sim = write_data_to_sim
@@ -502,13 +573,13 @@ def _button_in(base, origin, name, y) -> float:
     return float(p[0] - SW_X[0])
 
 
-def _state(b_pos, b_rot, s_pos, target, down, buttons) -> dict:
+def _state(b_pos, b_rot, s_pos, down, buttons) -> dict:
     """The clamp, the plate and the drill as they are."""
-    slide = float(SCREW0[2] - s_pos[2])  # how far the screw has come down
-    force = min(SCREW_K * max(target - slide, 0.0), SCREW_MAX)
-    pad = b_rot.T @ (s_pos - b_pos)  # the pad's underside, in the plate's frame
+    slide = float(SCREW0[2] - s_pos[2])  # how far the stud has come down
+    force = _EP["press"]
+    pad = b_rot.T @ (s_pos - b_pos)  # the tip's underside, in the plate's frame
     on_plate = (abs(pad[0]) < (PLATE_X[1] - PLATE_X[0]) / 2 and abs(pad[1]) < (PLATE_Y[1] - PLATE_Y[0]) / 2
-                and abs(pad[2] - PLATE_T / 2) < 0.002)
+                and abs(pad[2] - PLATE_T / 2) < TIP_ON)
     clamped = on_plate and force >= TIGHT_N
     mark = b_pos + b_rot @ np.array([MARK_IN_PLATE[0], MARK_IN_PLATE[1], PLATE_T / 2])
     return {"slide": slide, "force": force, "on_plate": on_plate, "clamped": clamped, "down": down,
@@ -525,13 +596,6 @@ def _follow(env) -> None:
     s_pos, s_rot = _pose(base, origin, "screw")
     k_pos, _ = _pose(base, origin, "chuck")  # the bit's tip
     _EP["tcps"] = _tcps(base, origin)
-    # the clamp's thread: the screw comes down PITCH per clockwise turn (seen from above)
-    phi = math.atan2(float(s_rot[1, 0]), float(s_rot[0, 0]))
-    if _EP["phi"] is not None:
-        _EP["turns"] -= ((phi - _EP["phi"] + math.pi) % (2 * math.pi) - math.pi) / (2 * math.pi)
-    _EP["phi"] = phi
-    target = min(max(PITCH * _EP["turns"], 0.0), SCREW_TRAVEL)
-    set_slide_target("clamp_screw", target)
     # the switch: the start button pressed past its switch point starts the motor, the stop button stops it
     b_start, b_stop = _button_in(base, origin, "btn_start", BTN_START_Y), _button_in(base, origin, "btn_stop",
                                                                                      BTN_STOP_Y)
@@ -543,7 +607,7 @@ def _follow(env) -> None:
     _EP["omega"] = omega
     turning = omega > TURNING
     down = float(TIP0 - k_pos[2])
-    st = _state(b_pos, b_rot, s_pos, target, down, (b_start, b_stop))
+    st = _state(b_pos, b_rot, s_pos, down, (b_start, b_stop))
     _EP["st"] = st
     # safety: every point of each hand at least SAFE from the bit and the chuck while they turn
     clear = _clearance(base, origin, k_pos)
@@ -575,8 +639,10 @@ def _follow(env) -> None:
             tl, tr = _EP["tcps"]
             s_q, s_c = _feed_state(base, origin)
             _, rc = _pose(base, origin, "capstan")
-            print(f"[drill] t={_DEBUG['steps'] / 20:5.1f}s turns={_EP['turns']:5.2f} slide={st['slide'] * 1000:5.1f}mm "
-                  f"force={st['force']:5.1f}N clamped={st['clamped']} plate={np.round(b_pos * 1000).astype(int).tolist()} "
+            print(f"[drill] t={_DEBUG['steps'] / 20:5.1f}s turns={_EP['turns']:5.2f} slide={st['slide'] * 1000:6.2f}mm "
+                  f"target={_EP['target'] * 1000:6.2f}mm force={st['force']:5.1f}N max={_EP['press_max']:5.1f}N "
+                  f"on={st['on_plate']} "
+                  f"clamped={st['clamped']} plate={np.round(b_pos * 1000).astype(int).tolist()} "
                   f"plate_yaw={math.degrees(math.atan2(b_rot[1, 0], b_rot[0, 0])):6.1f} "
                   f"mark_off={st['mark_off'] * 1000:5.1f}mm quill={s_q * 1000:5.1f} handle={s_c * 1000:5.1f}mm "
                   f"handle_deg={-math.degrees(math.atan2(float(rc[0, 2]), float(rc[0, 0]))):6.1f} "
@@ -612,8 +678,9 @@ def _points(s) -> float:
 
 
 def score(objects) -> float:
-    """Clamped: the pad on the plate pressing at least 6 N (the knob a quarter turn past contact). Drilled through: the
-    turning bit cut 11.5 mm below the plate's top while it was clamped, through the 10 mm plate into the spoil board.
+    """Clamped: the clamp's rubber tip on the plate pressing at least 85 N (a knob tightened to about 0.5 N m). Drilled
+    through: the turning bit cut 11.5 mm below the plate's top while it was clamped, through the
+    10 mm plate into the spoil board.
     1.0 with a hole drilled through within 5 mm of the mark, no part of either hand within 5 cm of the bit or chuck
     while they turned, and at the end the plate still clamped, the quill up and the motor off with the chuck stopped;
     0.5 drilled through so (safely) but the drill left running or the quill down or the clamp loosened, or the plate
@@ -630,25 +697,35 @@ def success(objects) -> bool:
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
-# The right hand comes down on the plate's front-right part, fingers closed, and presses it onto the board. The left
-# hand comes down on the clamp's knob, fingers closing across its flats, and turns it clockwise in strokes (grip, turn a
-# quarter turn, let go, turn back, grip again) until the pad is tight on the plate. The left rises and goes to the
-# switch; the right lets go of the plate and takes the feed handle's front knob. With both hands clear the left presses
-# the green start button and moves away; the right pulls the handle down, feeding the bit through the plate into the
-# spoil board, and lets it back up under control. It lets go and goes home; the left presses the red stop button and
-# goes home.
+# The right hand comes down on the plate's front edge, fingers closed, presses it onto the board and slides it back
+# 20 mm, bringing its punch mark under the bit; it lifts off and comes down again on the plate's front-right part and
+# keeps pressing. The left hand comes down on the clamp's star knob, fingers closing across its lobes, and turns it
+# clockwise in strokes (grip, turn a quarter turn, let go, rise, turn back in the air, come down, grip again): four
+# strokes bring the rubber tip down onto the plate, a fifth and a shorter sixth press it past 85 N. The left rises and
+# goes home; the right lets go of the plate, presses the green start button, takes the feed handle's front knob, pulls
+# the handle down, feeding the bit through the plate into the spoil board, and lets it back up under control. It lets
+# go, presses the red stop button and goes home.
 
 L_TILT = math.radians(45.0)  # the left hand on the clamp's knob leans out to the left and toward the arms
 R_TILT = math.radians(55.0)  # the right hand pressing the plate leans toward the arms (clear of the head)
 R_WRIST = 200.0  # degrees (seen from above): where the right wrist sits from its fingers, toward the arms
-R_PRESS_XY = (SPX - 0.092, -0.072)
-R_PRESS = 0.020  # the right aims 2 cm below where its fingers meet the plate: the arm gives, pressing a few newtons
+R_PRESS_XY = (SPX - 0.092, -0.072)  # where the right holds the plate (in place): its front-right part
+R_PRESS = 0.030  # the right aims 3 cm below where its fingers meet the plate: the arm gives, pressing about 12 N
 R_LEAN = 0.008  # and this far back toward the arms: a leaning hand slides forward as it presses
-KNOB_IN_HAND = KNOB_Z[1] - 0.006  # the left TCP this far above the screw's origin: 6 mm below the knob's top
-KNOB_OPEN = FINGER_OPEN  # the left's fingers wide open round the 16 mm knob while it turns back
+R_PUSH_XY = (PLATE_X[0] - PLATE_START + 0.015, PLATE_C[1] + 0.018)  # where the right slides the plate from: its front
+# edge region, aimed so that its pressing fingertip (to the right of the TCP) is near the centre line and the slide
+# turns the plate little
+R_PUSH = 0.025  # how deep it aims there
+R_SLIDE_OVER = (0.001, -0.006)  # the slide's end, against how the plate creeps as it is pressed and slid
+R_SLIDE_S = 2.0
+KNOB_IN_HAND = KNOB_Z0 + (KNOB_HUB_H + KNOB_H) / 2  # the left TCP this far above the screw's origin: level with the
+# middle of the knob's lobes
+KNOB_OPEN = FINGER_OPEN  # the left's fingers wide open round the 40 mm knob while it turns back
 STROKE = math.radians(90.0)
-STROKES = 4
+STROKES = 6
+LAST_STROKE = math.radians(45.0)  # the last stroke is shorter: a turn brings the tip down, the rest presses it
 TURN_S, RELEASE_S, BACK_S, REGRIP_S = 1.6, 0.4, 1.0, 0.5
+LIFT, LIFT_S = 0.025, 0.4  # between strokes the open hand rises off the knob and turns back in the air
 LEAD_S, LEAD_STEPS = 3.0, 15
 CAP_GAMMA = math.radians(25.0)  # the right hand on the knob: pointing left, leaning this far toward the spoke's normal
 FEED_BETA = (SPOKES0[0], SPOKES0[0] + 19.0, 15.0)  # the front spoke: at rest; the tip at the plate; the end of the pull
@@ -677,7 +754,7 @@ def _frame(approach, closing) -> np.ndarray:
 
 # the left on the knob, in the middle of a stroke: fingers closing along 45 degrees (seen from above), leaned about the
 # closing axis so the wrist sits at 135 degrees, out to the left and toward the arms, clear of the head. A stroke turns
-# the hand from +45 degrees (fingers closing along y, across two flats) to -45 degrees (along x, across the other two)
+# the hand from +45 degrees (fingers closing along y) to -45 degrees (along x)
 _KNOB_CLOSE = np.array([math.cos(math.radians(225.0)), math.sin(math.radians(225.0)), 0.0])
 _KNOB_WRIST = np.array([math.cos(math.radians(135.0)), math.sin(math.radians(135.0)), 0.0])
 KNOB_GRIP = _frame(-math.sin(L_TILT) * _KNOB_WRIST + [0.0, 0.0, -math.cos(L_TILT)], _KNOB_CLOSE)
@@ -780,22 +857,30 @@ def _left(times: dict) -> list[Waypoint]:
     from yam_arena.constants import READY
 
     g_start, g_end = _rz(STROKE / 2) @ KNOB_GRIP, _rz(-STROKE / 2) @ KNOB_GRIP
-    via = _knob_at(0.0) + [-0.06, 0.08, 0.10]  # out in front and to the left of the head
-    out, q = _joint_move("left", READY, via, g_start, "toward the clamp, clear of the head", FINGER_OPEN, 2.0, 10)
+    via = _knob_at(0.0) + [-0.06, 0.08, 0.08]  # out in front and to the left of the head
+    p0, r0 = _ready_pose("left")
+    out = [_w(times["left_go"], p0, FINGER_OPEN, "wait: the right hand is placing the plate", r0)]
+    moves, q = _joint_move("left", READY, via, g_start, "toward the clamp, clear of the head", FINGER_OPEN, 2.0, 10)
+    out += moves
     out += [_w(1.2, _knob_at(0.0) + [0.0, 0.0, 0.04], KNOB_OPEN, "over the clamp's knob", g_start),
             _w(1.0, _knob_at(0.0), KNOB_OPEN, "down round the knob", g_start),
             _w(0.6, _knob_at(0.0), FINGER_CLOSED, "grip it", g_start)]
     turned = 0.0
     for k in range(STROKES):
+        stroke = LAST_STROKE if k == STROKES - 1 else STROKE
         for j in range(1, 5):  # a quarter of the stroke at a time
-            out.append(_w(TURN_S / 4, _knob_at(turned + STROKE * j / 4), FINGER_CLOSED, f"turn it clockwise ({k + 1})",
-                          _rz(STROKE / 2 - STROKE * j / 4) @ KNOB_GRIP))
-        turned += STROKE
+            out.append(_w(TURN_S / 4 * stroke / STROKE, _knob_at(turned + stroke * j / 4), FINGER_CLOSED,
+                          f"turn it clockwise ({k + 1})", _rz(STROKE / 2 - stroke * j / 4) @ KNOB_GRIP))
+        turned += stroke
         at = _knob_at(turned)
+        g_end = _rz(STROKE / 2 - stroke) @ KNOB_GRIP
         out.append(_w(RELEASE_S, at, KNOB_OPEN, "let go", g_end))
         if k < STROKES - 1:
+            up = at + [0.0, 0.0, LIFT]
+            out.append(_w(LIFT_S, up, KNOB_OPEN, "rise off the knob", g_end))
             for j in range(1, 5):
-                out.append(_w(BACK_S / 4, at, KNOB_OPEN, "turn back, open", _rz(-STROKE / 2 + STROKE * j / 4) @ KNOB_GRIP))
+                out.append(_w(BACK_S / 4, up, KNOB_OPEN, "turn back in the air", _rz(-STROKE / 2 + STROKE * j / 4) @ KNOB_GRIP))
+            out.append(_w(LIFT_S, at, KNOB_OPEN, "down round the knob", g_start))
             out.append(_w(REGRIP_S, at, FINGER_CLOSED, "take the knob again", g_start))
     times["clamped"] = sum(w.duration for w in out)
     rise = _knob_at(turned) + [-0.03, 0.0, 0.03]
@@ -828,19 +913,29 @@ def _right(times: dict) -> list[Waypoint]:
 
     press = np.array([R_PRESS_XY[0] - R_LEAN, R_PRESS_XY[1], PLATE_TOP + 0.013 - R_PRESS])
     touch = np.array([*R_PRESS_XY, PLATE_TOP + 0.013])
-    via = press + [-0.08, -0.02, 0.07]  # in front of the drill, below the feed handle
+    push_touch = np.array([*R_PUSH_XY, PLATE_TOP + 0.013])
+    push0 = push_touch + [-R_LEAN, 0.0, -R_PUSH]
+    push1 = push0 + [PLATE_START + R_SLIDE_OVER[0], R_SLIDE_OVER[1], 0.0]
+    via = push0 + [-0.08, -0.02, 0.07]  # in front of the drill, below the feed handle
     out, q = _joint_move("right", READY, via, PRESS_R, "toward the plate, below the feed handle", FINGER_CLOSED, 2.0, 10)
+    out += [_w(1.2, push_touch + [0.0, 0.0, 0.03], FINGER_CLOSED, "over the plate's front edge, on its centre line",
+               PRESS_R),
+            _w(1.0, push_touch, FINGER_CLOSED, "down onto it", PRESS_R),
+            _w(0.6, push0, FINGER_CLOSED, "press it onto the board", PRESS_R),
+            _w(R_SLIDE_S, push1, FINGER_CLOSED, "slide it back 20 mm: the punch mark under the bit", PRESS_R),
+            _w(0.6, push1 + [0.0, 0.0, R_PUSH + 0.03], FINGER_CLOSED, "lift off: the plate stays", PRESS_R)]
+    times["left_go"] = sum(w.duration for w in out) - 2.0  # the left sets off as the right lifts off
     out += [_w(1.2, touch + [0.0, 0.0, 0.03], FINGER_CLOSED, "over the plate's front-right part", PRESS_R),
-            _w(1.0, touch, FINGER_CLOSED, "down onto it", PRESS_R),
+            _w(0.8, touch, FINGER_CLOSED, "down onto it", PRESS_R),
             _w(0.6, press, FINGER_CLOSED, "press it firmly onto the board: it holds the plate still", PRESS_R)]
     t = sum(w.duration for w in out)
-    out.append(_w(max(times["clamped"] + 1.0 - t, 0.3), press, FINGER_CLOSED, "hold it while the clamp is tightened",
+    out.append(_w(max(times.get("clamped", 0.0) + 1.0 - t, 0.3), press, FINGER_CLOSED, "hold it while the clamp is tightened",
                   PRESS_R))
     up = press + [-0.06, -0.02, 0.08]
     out.append(_w(1.2, up, FINGER_CLOSED, "rise, back toward the arms", PRESS_R))
     t = sum(w.duration for w in out) + 2.5
     out += _press_button(BTN_START_Y, BTN_START_OUT, "press the green start button: the chuck turns",
-                         max(times["left_home"] - t, 0.0))
+                         max(times.get("left_home", 0.0) - t, 0.0))
     knob0 = _knob_pos(FEED_BETA[0])
     g0 = _cap_grip(FEED_BETA[0])
     out += [_w(2.5, knob0 - 0.03 * g0[:, 2], FINGER_OPEN, "beside the feed handle's front knob", g0),
@@ -870,6 +965,7 @@ def _right(times: dict) -> list[Waypoint]:
 
 def demo():
     times: dict = {}
+    _right(times)  # (for the time the left sets off)
     left = _left(times)
     right = _right(times)
     total = max(sum(w.duration for w in left), sum(w.duration for w in right)) + 6.0
