@@ -1,17 +1,20 @@
 """On the station table, a corked 75 cl bottle of red wine lies in a wooden pouring cradle, tipped up 10 degrees with
 its neck pointing back toward the right arm and its shoulder against the cradle's neck rest. A wing corkscrew has been
-set on its mouth, wings down: its bell over the neck, the point of its worm on the middle of the cork.
+set on its mouth, wings down: its bell over the neck, the point of its worm on the middle of the cork. The bottle is
+at the dimensions we measured on the bottle whose cork we pulled: 300 mm long, body 70 mm across, mouth 28 mm across,
+19 mm bore.
 
 Task (the instruction gives the goal only): open the bottle without taking it out of its cradle, and leave the cork off
-it. The agglomerated cork, 45 mm long, sits in the neck as tightly as a real one: it gives way only to a pull of
-263.3 N, the peak we measured pulling the cork of a bottle of this wine straight out with a corkscrew on a luggage
-scale (26.84 kg). The corkscrew's handle turns the worm into the cork, which draws the rack down and raises the two
-wings (each a lever on a pinion that meshes with the rack); pressing the wings back down pulls the rack, the worm and
-the cork out with 6.4:1 leverage: 41.0 N at the paddles together starts the cork. The corkscrew's 44.9 mm stroke is
-about the cork's length, so its last few millimetres come out with a straight pull on the corkscrew.
+it. The agglomerated cork, 45 mm long and 19 mm across in the bore, sits in the neck as tightly as a real one: it
+gives way only to a pull of 263.3 N, the peak we measured pulling the cork of that bottle straight out with a
+corkscrew on a luggage scale (26.84 kg). The corkscrew's handle turns the worm into the cork, which draws the rack
+down and raises the two wings (each a lever on a pinion that meshes with the rack); pressing the wings back down
+pulls the rack, the worm and the cork out with 6.4:1 leverage: 41.0 N at the paddles together starts the cork. The
+corkscrew's 44.9 mm stroke is about the cork's length, so its last few millimetres come out with a straight pull on
+the corkscrew.
 
-One hand or two: the demo presses both wings together (20.5 N each); we make no claim that the simulation needs two
-hands. One arm would need 41.0 N on its paddle: about the left arm's peak-torque push, more than the right's (README).
+One hand or two: the demo presses both wings together (20.5 N each); the score depends only on the outcome. One arm
+would need 41.0 N on its paddle (computed peak-torque push: right 28-36 N, left 35-46 N; README).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=uncork_a_wine_bottle_in_its_cradle.py \\
            --instruction "..." --scorer task_score ...
@@ -79,13 +82,17 @@ def _wxyz(m: np.ndarray) -> tuple[float, float, float, float]:
     return (w, x, y, z)
 
 
-# -- the bottle: a 75 cl Bordeaux bottle of red wine. Its frame: origin on its axis at the body's middle, the neck along
-# -y; it lies in the cradle tipped up 10 degrees, its neck toward the right arm and turned YAW toward the arms
+# -- the bottle: a 75 cl Bordeaux bottle of red wine, at the dimensions we measured on the bottle whose cork we pulled
+# (Bogle Family Vineyards Cabernet Sauvignon; README, "The measurements"): 300 mm long overall (body 190 mm, shoulder
+# 30 mm, neck 80 mm), body 70 mm across, mouth 28 mm across, bore 19 mm. Its frame: origin on its axis at the body's
+# middle, the neck along -y; it lies in the cradle tipped up 10 degrees, its neck toward the right arm and turned YAW
+# toward the arms
 TILT = math.radians(10.0)
 YAW = math.radians(55.0)
-BODY_R, BODY_Y = 0.0375, 0.095  # the body: 75 mm across, from y = -0.095 to +0.095 (190 mm)
-NECK_Y0, LIP_Y = -0.125, -0.205  # the neck from the shoulder to the mouth (80 mm)
-BORE_R, NECK_R, BEAD_R, BEAD_L = 0.00925, 0.0145, 0.0155, 0.010  # 18.5 mm bore (CETIE standard), 29 mm neck, 31 mm bead
+BODY_R, BODY_Y = 0.035, 0.095  # the body: 70 mm across, from y = -0.095 to +0.095 (190 mm)
+SHOULDER_Y = -0.125  # the shoulder: from the body (y = -0.095) to the neck (30 mm)
+NECK_Y0, LIP_Y = SHOULDER_Y, -0.205  # the neck from the shoulder to the mouth (80 mm)
+BORE_R, NECK_R, BEAD_R, BEAD_L = 0.0095, 0.014, 0.014, 0.010  # 19 mm bore; neck and mouth 28 mm across
 BOTTLE_MASS = 1.25  # 0.5 kg of glass and 0.75 kg of wine
 LIP = np.array([0.32, -0.02, TOP + 0.101])  # the middle of the bottle's mouth, in the world
 BOTTLE_R = _rz(-YAW) @ _rx(-TILT)
@@ -97,13 +104,11 @@ NORM = np.cross(OUT, FRONT)  # the wings' pivot axis (10 degrees off vertical)
 R_C = np.column_stack([OUT, FRONT, NORM])  # the corkscrew's frame: x out along the axis, y to the front wing, z ~up
 Q_C = _quat(R_C)
 
-# -- the cork: agglomerated (technical) cork, 45 mm long (measured), compressed into the 18.5 mm bore, flush with the lip
+# -- the cork: agglomerated (technical) cork, 45 mm long (measured), 19 mm across in the 19 mm bore, flush with the lip
 CORK_L = 0.045
-CORK_MASS = 0.010  # real: about 5.7 g (45 x 24 mm at 280 kg/m^3); heavier for the solver (see fidelity)
-# N to start it, measured by us on one bottle (Bogle Family Vineyards Cabernet Sauvignon, 750 ml): the cork pulled
-# straight out by hand with a winged corkscrew (used only as a puller) hung on a digital luggage scale, peak reading
-# 26.84 kg, 26.84 x 9.81 = 263.3 N. In line with the 120-400 N published for wine corks (e.g. Giunchi et al., J. Food
-# Eng. 88 (2008) 576-580: 196 +- 20 N for a natural cork).
+CORK_MASS = 0.010  # heavier than a real cork, for the solver (see fidelity)
+# N to start it, measured by us on the same bottle: the cork pulled straight out by hand with a winged corkscrew (used
+# only as a puller) hung on a digital luggage scale, peak reading 26.84 kg, 26.84 x 9.81 = 263.3 N.
 F_PEAK = 263.3
 NECK_K, NECK_D = 3.0e5, 2.0e3  # the friction hold's spring (N/m) and damping (N s/m), capped at the friction force
 CORK_FREE = CORK_L + 0.0005  # pulled this far, the cork's inner end is past the lip: out of the neck
@@ -111,7 +116,7 @@ CORK_C = (0.72, 0.55, 0.36)
 
 # -- the wing corkscrew (chrome-plated zinc alloy, steel worm): positions along its axis (u, m out from the lip face),
 # toward the front wing (v) and up its pivot axis (w) ---------------------------------------------------------------
-SKIRT = (-0.018, 0.0, 0.0165, 0.0195)  # the bell's skirt over the bead: from, to, inner and outer radius
+SKIRT = (-0.018, 0.0, 0.0165, 0.0195)  # the bell's skirt over the 28 mm mouth: from, to, inner and outer radius
 SHOULDER = (0.0, 0.004, 0.011)  # the ring inside the bell that sits on the lip
 BELL_U1, BELL_IN = 0.062, 0.016  # the bell's body, up to its head; inner radius
 WINDOW = (0.012, 0.052)  # open windows in the bell's top and bottom: the worm and the cork show through
@@ -137,8 +142,9 @@ THREAD_DRAG = 0.03  # N m s/rad
 DEPTH_MAX = TRAVEL + 0.002
 
 # -- the cradle -----------------------------------------------------------------------------------------------------
-WOOD, WOOD_D, GLASS, LABEL, FOIL = (0.55, 0.36, 0.20), (0.42, 0.27, 0.15), (0.10, 0.25, 0.13), (0.92, 0.88, 0.78), \
-    (0.45, 0.06, 0.10)
+# the glass near-black green and the capsule navy blue, as on the measured bottle (README, photo 7)
+WOOD, WOOD_D, GLASS, LABEL, FOIL = (0.55, 0.36, 0.20), (0.42, 0.27, 0.15), (0.03, 0.07, 0.04), (0.92, 0.88, 0.78), \
+    (0.07, 0.10, 0.30)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 DEPTH_25 = 0.020  # the worm at least 20 mm (2 turns) into the cork
@@ -186,7 +192,7 @@ def _neck_ring(r_in, r_out, y0, y1, color, n=16) -> list:
 
 def _bottle() -> Body:
     shapes = [CylShape((0.0, 0.0, 0.0), BODY_R, 2 * BODY_Y, GLASS, axis="Y"),
-              CylShape((0.0, -0.1025, 0.0), 0.031, 0.015, GLASS, axis="Y"),  # the shoulder
+              CylShape((0.0, -0.1025, 0.0), 0.031, 0.015, GLASS, axis="Y"),  # the shoulder, in two steps
               CylShape((0.0, -0.1175, 0.0), 0.021, 0.015, GLASS, axis="Y")]
     shapes += _neck_ring(BORE_R, NECK_R, NECK_Y0, LIP_Y + BEAD_L, GLASS)
     shapes += _neck_ring(BORE_R, BEAD_R, LIP_Y + BEAD_L, LIP_Y, GLASS)
@@ -197,7 +203,7 @@ def _bottle() -> Body:
 
 
 NECK_REST_Y, NECK_REST_T = -0.133, 0.013  # the neck rest: a U-yoke under the neck, its face 1.5 mm from the shoulder
-NECK_REST_GAP = 0.0165  # the yoke's notch: 2 mm round the 29 mm neck
+NECK_REST_GAP = NECK_R + 0.002  # the yoke's notch: 2 mm round the 28 mm neck
 
 
 def _cradle() -> Body:
@@ -233,8 +239,8 @@ def _cradle() -> Body:
 
 
 def _bell() -> Body:
-    """The corkscrew's bell, frame at the middle of the bottle's mouth (as it starts): the skirt over the bead, the ring
-    that sits on the lip, the body with a window top and bottom, and the head that carries the wings' pivots."""
+    """The corkscrew's bell, frame at the middle of the bottle's mouth (as it starts): the skirt over the mouth, the
+    ring that sits on the lip, the body with a window top and bottom, and the head that carries the wings' pivots."""
     def window(a):  # the boxes at the top and bottom of the tube (w up/down)
         return abs(math.cos(a)) > 0.75
 
@@ -371,7 +377,7 @@ _joint("revolute", "pivot_b", "bell", "wing_b", _c(PIVOT_U, -PIVOT_V), R_HINGE,
        limits=(-0.5, math.degrees(PHI_DOWN - PHI_UP) + 1.0),
        angular=(GEAR_K * PINION_R ** 2 * _DEG, GEAR_D * PINION_R ** 2 * _DEG))
 # the bell's collar on the neck: it keeps the bell on the neck's axis (free to turn on it and to slide off it, and it
-# sits on the lip) until the collar has slid COLLAR_OFF off the bead; then the bell is free
+# sits on the lip) until the collar has slid COLLAR_OFF off the mouth; then the bell is free
 COLLAR_OFF = 0.015
 COLLAR_ROLL = 0.003  # N m s per degree: the collar's friction on the lip resists the bell turning on the neck
 _joint("d6", "collar", "bottle", "bell", LIP, R_C, limits=(-0.0005, COLLAR_OFF + 0.01), lock=True, collide=True,
@@ -700,7 +706,7 @@ def _follow(env) -> None:
                 x0 = max(_EP["rest"], 0.0)
                 set_slide_target("worm", x0)
                 _EP.update(caught=True, x0=x0, turns=0.0)
-    # the bell's collar slid off the bead: the corkscrew is free of the bottle
+    # the bell's collar slid off the mouth: the corkscrew is free of the bottle
     collar = float((pe - (pb + rb @ np.array([0.0, LIP_Y, 0.0]))) @ out_dir)
     if _EP["collar"] and collar > COLLAR_OFF:
         _set_on("collar", False)
