@@ -1,17 +1,21 @@
 """A stainless single-bowl kitchen sink (25 x 22 in top-mount, bowl 21 x 15-3/4 in and 8 in deep) is set into the
 counter (the station table, cut out under it) on the right, with a gooseneck tap on its back deck. In its 3-1/2 in
 drain sits a fixed-post strainer basket holding nine food scraps (carrot and potato peel, rice, peas, broccoli, a piece
-of apple core). A 1.8 litre food-waste caddy, its lid off, stands on the counter just left of the sink. A real trial
-uses clean, dry stand-ins printed in ABS at the scraps' sizes and masses, which the simulated scraps copy.
+of apple core) that cling to it as wet scraps do: turned over, they stay in it; a firm shake frees them. A 1.8 litre
+food-waste caddy, its lid off, stands on the counter just left of the sink. A real trial uses stand-ins printed in ABS
+at the scraps' sizes and masses, which the simulated scraps copy, dipped in a cornstarch paste that makes them cling.
 
 Task: empty the scraps from the strainer into the caddy and put the strainer back in the drain, without letting any
 scraps go down the drain or onto the counter.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=empty_the_sink_strainer_into_the_bin.py \\
            --instruction "..." --scorer task_score ...
-Checks:  SINK_TEST=reseat (the demo first puts the full basket back in the drain and lifts it out again: still 1.0);
-         SINK_ONEHAND=1 (the right hand alone); python empty_the_sink_strainer_into_the_bin.py (the drain rule's
-         geometry, no simulator).
+Checks:  SINK_TEST=noshake (the demo, turned over without a shake: the scraps stay stuck); SINK_TEST=binbasket (the
+         basket set down in the caddy with the scraps still stuck in it: none counts); SINK_TEST=gentle (the
+         previous revision's gentle shakes instead); SINK_TEST=shakes (every bond kept on, a series of shakes: the
+         cling's loads, with SINK_DEBUG=1); SINK_TEST=reseat (the full basket put back in the drain and lifted out
+         again first); SINK_ONEHAND=1 (the right hand alone); python empty_the_sink_strainer_into_the_bin.py (the drain
+         rule's geometry and the cling rule, no simulator).
 """
 
 from __future__ import annotations
@@ -321,6 +325,38 @@ SCRAPS = [
 ]
 SCRAP_NAMES = [n for n, *_ in SCRAPS]
 
+# -- cling: wet, starchy scraps stick to the basket ---------------------------------------------------------------
+# Each scrap is held to the basket where it lies by a bond (a PhysX fixed joint), which lets go for good once the
+# cling it would have to supply exceeds CLING_G times the scrap's weight. The force the basket must put on a bonded
+# scrap is m (a - g): its weight plus whatever it takes to make the scrap follow the basket. In the basket's frame, a
+# push into the cup's floor (+z, toward the mouth) is carried by contact, and sideways shear up to CLING_MU times that
+# push by friction; the rest, any pull away from the floor and the shear beyond friction, is the cling's load. It is
+# averaged over CLING_AVG physics steps (12.5 ms). Held still upright the load is 0; on its side (90 deg) or upside
+# down it is 1.0 x the weight, so tipping alone leaves the scraps stuck. Lifting it, carrying it and turning it over
+# stay well under CLING_G; a firm shake (a quick stroke stopped short) or a knock goes over, and the scraps come
+# loose. Calibrated to the real stand-ins' cling check at each session: on its side and upside down, held still,
+# every piece stays; at one firm shake, every piece falls.
+G = 9.81
+CLING_G = 2.0
+CLING_MU = 0.40  # the scraps' friction on the basket's steel
+CLING_AVG = 3
+CLING_LOOSE_M, CLING_LOOSE_DEG = 0.0015, 6.0  # (debug) a bonded scrap this far off its place has slipped
+_TEST = os.environ.get("SINK_TEST", "")
+_SCRAP_BOND = {n: (np.asarray(loc, float), yaw, m) for n, _k, loc, yaw, m, *_ in SCRAPS}
+_CLING_LIMIT = math.inf if _TEST == "shakes" else CLING_G  # SINK_TEST=shakes keeps every bond, to measure the loads
+_CLING_PATHS: dict[str, str] = {}
+_CLING_ATTRS: dict[str, object] = {}
+
+
+def cling_load(f_basket) -> float:
+    """The cling's load, in multiples of the scrap's weight, for f_basket: the force per unit mass the basket must put on
+    the scrap, a - g, in the basket's frame (m/s2). A push into the floor (+z) is carried by contact and sideways shear
+    up to CLING_MU times that push by friction; the pull away from the floor and the shear beyond friction remain."""
+    push = float(f_basket[2])
+    pull = max(0.0, -push)
+    shear = max(0.0, math.hypot(float(f_basket[0]), float(f_basket[1])) - CLING_MU * max(0.0, push))
+    return math.hypot(pull, shear) / G
+
 
 def _scrap(name, kind, local, yaw, mass, dims, color) -> Body:
     pos = B_START + np.asarray(local)
@@ -407,8 +443,35 @@ def _author_sliders(stage, prim_path: str, spec) -> None:
 
         api = PhysxSchema.PhysxContactReportAPI.Apply(stage.GetPrimAtPath(f"{prim_path}/body"))
         api.CreateThresholdAttr(0.0)
+    if spec.name in _SCRAP_BOND:  # the scrap's bond to the basket (spawned before the scraps)
+        _author_cling(stage, prim_path, spec.name)
     _J[spec.name] = f"{prim_path}/body"
     _J["env"] = prim_path.rsplit("/", 1)[0]
+
+
+def _author_cling(stage, prim_path: str, name: str) -> None:
+    """A fixed joint from the basket to the scrap where it starts: the cling. _cling_step() switches it off for good once
+    its load exceeds CLING_G. The two still collide (a scrap that has come loose lies loose in the cup, it does not pass
+    through it). Every reset switches it back on, whole (bodykit re-arms the joints it lists)."""
+    from pxr import Gf, UsdPhysics
+
+    local, yaw, _mass = _SCRAP_BOND[name]
+    parent = prim_path.rsplit("/", 1)[0]
+    path = f"{prim_path}/cling"
+    joint = UsdPhysics.FixedJoint.Define(stage, path)
+    joint.CreateBody0Rel().SetTargets([f"{parent}/basket/body"])
+    joint.CreateBody1Rel().SetTargets([f"{prim_path}/body"])
+    joint.CreateLocalPos0Attr(Gf.Vec3f(*[float(v) for v in local]))  # the basket starts at B_START, unrotated
+    joint.CreateLocalRot0Attr(Gf.Quatf(math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)))
+    joint.CreateLocalPos1Attr(Gf.Vec3f(0.0, 0.0, 0.0))
+    joint.CreateLocalRot1Attr(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
+    joint.CreateJointEnabledAttr(True)
+    joint.CreateCollisionEnabledAttr(True)
+    joint.CreateExcludeFromArticulationAttr(True)
+    _CLING_PATHS[name] = path
+    _CLING_ATTRS.pop(name, None)
+    if path not in bodykit._BREAKABLE_PATHS:
+        bodykit._BREAKABLE_PATHS.append(path)
 
 
 bodykit._author_sliders = _author_sliders
@@ -497,17 +560,91 @@ CLEAR = 0.05  # at the end each gripper is at least this far from the basket
 def _fresh() -> dict:
     return {"tcps": None, "down_drain": [], "on_floor": [], "on_counter": [], "dropped": False, "lifted": False,
             "seated": True, "in_caddy": [], "hands_off": True, "max_pad": np.zeros(4), "max_fix": np.zeros(3),
-            "carried": 0, "steps": 0, "err": ""}
+            "carried": 0, "steps": 0, "err": "", "loose": {}, "peak": dict.fromkeys(SCRAP_NAMES, 0.0),
+            "win": 0.0, "step_max": 0.0}
 
 
 _EP = _fresh()
 _DEBUG = {"on": bool(os.environ.get("SINK_DEBUG"))}
+_PHYS = {"on": False, "hist": [], "dt": PHYSICS_DT}
 
 
 @on_reset
 def _new_episode() -> None:
     _EP.clear()
     _EP.update(_fresh())
+    _PHYS["hist"] = []
+
+
+def _release(name: str) -> None:
+    """Switch a scrap's bond off: it has come loose."""
+    if name not in _CLING_ATTRS:
+        from isaaclab.sim.utils.stage import get_current_stage
+        from pxr import UsdPhysics
+
+        _CLING_ATTRS[name] = UsdPhysics.Joint(get_current_stage().GetPrimAtPath(_CLING_PATHS[name])).GetJointEnabledAttr()
+    _CLING_ATTRS[name].Set(False)
+
+
+def _install_cling(base) -> None:
+    """Run _cling_step() after every physics step (the scene's buffers are updated once per physics step)."""
+    if _PHYS["on"]:
+        return
+    scene = base.scene
+    plain = scene.update
+    _PHYS["dt"] = float(getattr(base, "physics_dt", PHYSICS_DT))
+
+    def update(*args, **kwargs):
+        plain(*args, **kwargs)
+        try:
+            _cling_step(scene)
+        except Exception as exc:  # noqa: BLE001
+            if not _EP.get("err"):
+                _EP["err"] = "cling: " + repr(exc)[:300]
+                print(f"[sink] cling error: {_EP['err']}", file=sys.stderr, flush=True)
+
+    scene.update = update
+    _PHYS["on"] = True
+
+
+def _cling_step(scene) -> None:
+    """Each scrap still bonded: its cling load (cling_load) from its acceleration averaged over the last CLING_AVG
+    physics steps, in the basket's frame. Over _CLING_LIMIT, its bond is switched off."""
+    e = _EP
+    bonded = [n for n in SCRAP_NAMES if n not in e["loose"]]
+    hist = _PHYS["hist"]
+    if not bonded:
+        return
+    v = {n: as_numpy(scene[n].data.root_com_vel_w)[0][:3] for n in bonded}
+    hist.append(v)
+    if len(hist) <= CLING_AVG:
+        return
+    old = hist.pop(0)
+    br = rotation(as_numpy(scene["basket"].data.root_link_pose_w)[0][3:7])
+    t = e["steps"] / 20
+    for n in bonded:
+        if n not in old:
+            continue
+        a = (v[n] - old[n]) / (CLING_AVG * _PHYS["dt"])
+        load = cling_load(br.T @ (a + [0.0, 0.0, G]))
+        e["peak"][n] = max(e["peak"][n], load)
+        e["win"] = max(e["win"], load)
+        e["step_max"] = max(e["step_max"], load)
+        if load > _CLING_LIMIT:
+            e["loose"][n] = round(t, 2)
+            _release(n)
+            if _DEBUG["on"]:
+                print(f"[sink-cling] t={t:5.2f}s {n} came loose at a load of {load:.2f} x its weight",
+                      file=sys.stderr, flush=True)
+
+
+def _bond_slip(bp, br, p, r, name) -> tuple[float, float]:
+    """How far (m) and how much (deg) a scrap is off the place in the basket it is bonded to."""
+    local, yaw, _m = _SCRAP_BOND[name]
+    q = br.T @ (np.asarray(p, float) - bp)
+    rel = (br.T @ r) @ _rot((0.0, 0.0, 1.0), yaw).T
+    ang = math.degrees(math.acos(max(-1.0, min(1.0, (float(np.trace(rel)) - 1.0) / 2.0))))
+    return float(np.linalg.norm(q - local)), ang
 
 
 def _pose(base, origin, name):
@@ -611,10 +748,16 @@ def _follow_inner(env) -> None:
         e["dropped"] = True
     if bp[2] < FLOOR_Z:
         e["on_floor"] = sorted(set(e["on_floor"]) | {"basket"})
-    scr, inside, carried = {}, [], 0
+    _install_cling(base)
+    scr, inside, carried, in_vol = {}, [], 0, 0
     for name in SCRAP_NAMES:
-        p = _pose(base, origin, name)[0]
+        p, r = _pose(base, origin, name)
         scr[name] = p
+        if _DEBUG["on"] and name not in e["loose"]:
+            off, ang = _bond_slip(bp, br, p, r, name)
+            if off > CLING_LOOSE_M or ang > CLING_LOOSE_DEG:
+                print(f"[sink-cling] t={e['steps'] / 20:5.2f}s WARNING {name} is bonded but {off * 1000:.1f} mm, "
+                      f"{ang:.1f} deg off its place", file=sys.stderr, flush=True)
         in_b = _in_basket(bp, br, p)
         if not seated and _in_bore(p):
             if in_b:  # carried down in the bore inside the basket (lifting it out or putting it back): not lost
@@ -627,11 +770,20 @@ def _follow_inner(env) -> None:
                 and name not in e["on_counter"]):
             e["on_counter"].append(name)
         if _in_caddy(cp, cr, p):
-            inside.append(name)
+            in_vol += 1
+            if not in_b:  # a scrap still in the basket's cup is not in the caddy, even with the basket in the caddy
+                inside.append(name)
     e["in_caddy"] = inside
     e["carried"] = max(e["carried"], carried)  # the most scraps seen in the bore inside the unseated basket at once
     e["hands_off"] = (not held) and all(float(np.linalg.norm(t - bp)) >= CLEAR for t in tcps)
+    if _DEBUG["on"] and e["step_max"] > 1.25:
+        print(f"[sink-load] t={e['steps'] / 20:5.2f}s max bond load this step {e['step_max']:.2f} x weight, "
+              f"bonded {len(SCRAP_NAMES) - len(e['loose'])}", file=sys.stderr, flush=True)
+    e["step_max"] = 0.0
     if _DEBUG["on"] and e["steps"] % 5 == 0:
+        print(f"[sink-cling] t={e['steps'] / 20:5.2f}s bonded={len(SCRAP_NAMES) - len(e['loose'])} "
+              f"window_load={e['win']:.2f} loose={e['loose']}", file=sys.stderr, flush=True)
+        e["win"] = 0.0
         knob = bp + br @ np.array([0.0, 0.0, KNOB_GRIP_Z])
         cup = bp + br @ np.array([0.0, 0.0, CUP_GRIP_Z])
         cent = "" if bc is None else " ".join(
@@ -642,7 +794,8 @@ def _follow_inner(env) -> None:
               f"knob-TCPR={np.round((knob - tcps[1]) * 1000, 1).tolist()} "
               f"cup-TCPL={np.round((cup - tcps[0]) * 1000, 1).tolist()} "
               f"caddy={np.round((cp - [CAD_XY[0], CAD_XY[1], TOP + 0.0005]) * 1000, 1).tolist()}mm "
-              f"caddy_tilt={_tilt(cr):4.1f} in_caddy={len(inside)} carried_in_bore={carried}/{e['carried']} "
+              f"caddy_tilt={_tilt(cr):4.1f} in_caddy={len(inside)} in_caddy_volume={in_vol} "
+              f"carried_in_bore={carried}/{e['carried']} "
               f"drain={e['down_drain']} floor={e['on_floor']} "
               f"counter={e['on_counter']} dropped={e['dropped']} off={e['hands_off']} "
               f"fix={'?' if fx is None else np.round(fx, 2).tolist()} score={score(None)}", file=sys.stderr, flush=True)
@@ -650,6 +803,8 @@ def _follow_inner(env) -> None:
             print("[sink-scraps] " + " ".join(
                 f"{n}={np.round(cr.T @ (p - cp) * 1000).astype(int).tolist()}" for n, p in scr.items())
                   + " (caddy frame, mm)", file=sys.stderr, flush=True)
+            print("[sink-peak] " + " ".join(f"{n}={v:.2f}" for n, v in e["peak"].items())
+                  + " (peak bond load while bonded, x weight)", file=sys.stderr, flush=True)
 
 
 # -- scoring --------------------------------------------------------------------------------------------------------
@@ -665,7 +820,8 @@ def score(objects) -> float:
     scrap has landed on the counter, a scrap or the basket has fallen to the floor, or the basket has been dropped.
     Otherwise, at the end: 1.0 with all nine scraps
     in the caddy, the basket seated back in the strainer body and both hands off it; 0.5 with all nine scraps in the
-    caddy; 0.25 with at least five scraps in the caddy; else 0.0."""
+    caddy; 0.25 with at least five scraps in the caddy; else 0.0. A scrap in the caddy is one out of the basket: one
+    still in the basket's cup never counts, even with the basket set in the caddy."""
     e = _EP
     if _latched():
         return 0.0
@@ -684,11 +840,11 @@ def success(objects) -> bool:
 
 # -- scripted demo --------------------------------------------------------------------------------------------------
 # The right hand reaches into the bowl, grips the basket's knob and lifts the basket out of the strainer body and up
-# out of the bowl, upright, and carries it toward the caddy. The left hand comes in from the left and takes the
-# basket's cup from the side across its middle. Holding it together, they carry it over the caddy and turn it over
-# (95 deg about a level axis) so the scraps fall out, shake it twice, turn it back up and bring it back. The left lets
-# go; the right carries the basket back over the drain, lowers it into the strainer body, presses it home and lets
-# go. Both arms go back to where they started.
+# out of the bowl, upright, and carries it toward the caddy. The left hand comes in from the front and takes the
+# basket's cup across its rim; the right lets go. The left carries it over the caddy and turns it over (104 deg about
+# its own axis); the scraps stay stuck. It shakes it twice, a quick jab toward the caddy and straight back, and the
+# scraps come loose and fall in. It turns it back up and brings it back. The right takes the knob again, the left lets
+# go, and the right lowers the basket into the strainer body, presses it home and lets go. Both arms go home.
 
 def _rot(axis, a) -> np.ndarray:
     k = np.asarray(axis, float) / np.linalg.norm(axis)
@@ -720,7 +876,8 @@ DRAIN_KNOB = np.array([DRAIN[0], DRAIN[1], SEATED_Z + KNOB_GRIP_Z])
 LIFT_H = TOP + 0.07  # the knob this high: the basket's stem clears the rim by 1.5 cm
 HANDOVER = np.array([0.300, -0.040, TOP + 0.080])  # the cup's middle here when the left takes it
 TIP_AT = np.array([0.300, 0.165, TOP + 0.180])  # the cup's middle here, over the caddy, while it is turned over
-SHAKE = 0.025
+FIRM_D, FIRM_S, FIRM_HOLD_S = 0.05, 0.10, 0.5  # each firm shake: a jab 5 cm toward the basket's mouth in 0.1 s and
+# straight back in 0.1 s, then held 0.5 s
 PRESS = 0.012  # the right aims this far below the seated knob to press the basket home
 LEAD_S, LEAD_STEPS = 3.0, 15
 
@@ -788,7 +945,43 @@ def _hand(arm: str, cup_at, brot):
     return cup_at, brot @ GRIP_L
 
 
-def _basket_path():
+def _shakes(kind: str, tipped, mouth_h) -> list:
+    """The shakes over the caddy, the basket turned over (cup middle at TIP_AT). "firm" (the demo): twice, a jab FIRM_D
+    toward the mouth (level) in FIRM_S and straight back in FIRM_S; the hard stop and turn back at the far end is what
+    shakes the scraps loose, and they drop into the caddy. "gentle" (a check): the previous
+    revision's two slow 2.5 cm strokes. "none" (a check): no shake, held turned over as long. "calib"
+    (SINK_TEST=shakes): a series of shakes, to measure the cling's loads."""
+    up = np.array([0.0, 0.0, 1.0])
+    out = []
+    firm_s = 2 * (2 * FIRM_S + FIRM_HOLD_S)
+    if kind == "none":
+        return [(firm_s, TIP_AT, tipped, "held turned over, no shake")]
+    if kind == "gentle":
+        for _ in range(2):
+            out += [(0.22, TIP_AT + 0.025 * mouth_h, tipped, "gentle shake"), (0.22, TIP_AT, tipped, "gentle shake")]
+        return out + [(firm_s - 0.88, TIP_AT, tipped, "held turned over")]
+    if kind == "firm":
+        for k in range(2):
+            out += [(FIRM_S, TIP_AT + FIRM_D * mouth_h, tipped, f"shake {k + 1}: a quick jab toward the caddy"),
+                    (FIRM_S, TIP_AT, tipped, f"shake {k + 1}: and straight back"),
+                    (FIRM_HOLD_S, TIP_AT, tipped, f"shake {k + 1}: held")]
+        return out
+    # "calib": each candidate once, then a pause
+    for _ in range(2):
+        out += [(0.22, TIP_AT + 0.025 * mouth_h, tipped, "C1 gentle"), (0.22, TIP_AT, tipped, "C1 gentle")]
+    out.append((0.6, TIP_AT, tipped, "pause"))
+    out += [(0.5, TIP_AT + 0.06 * up, tipped, "C2 V6/0.10 raise"), (0.10, TIP_AT, tipped, "C2 V6/0.10 down"),
+            (0.6, TIP_AT, tipped, "pause")]
+    for name, d, t in (("C3 M3/0.10", 0.03, 0.10), ("C4 M4/0.10", 0.04, 0.10), ("C5 M5/0.10", 0.05, 0.10),
+                       ("C6 M4/0.15", 0.04, 0.15)):
+        out += [(t, TIP_AT + d * mouth_h, tipped, f"{name} thrust"), (0.4, TIP_AT, tipped, f"{name} back"),
+                (0.6, TIP_AT, tipped, "pause")]
+    out += [(0.10, TIP_AT + 0.04 * mouth_h, tipped, "C7 M4/0.10 out-back"), (0.10, TIP_AT, tipped, "C7 back"),
+            (0.6, TIP_AT, tipped, "pause")]
+    return out
+
+
+def _basket_path(shake: str = "firm"):
     """The shared part: (duration, cup middle, basket rotation, label) for each step both hands hold the basket."""
     tipped = _rot(TIP_AXIS, TIP)
     mouth = tipped @ np.array([0.0, 0.0, 1.0])
@@ -796,14 +989,12 @@ def _basket_path():
     start = HANDOVER + [0.0, 0.0, 0.03]
     path = [(1.0, start, UP, "lift it")]
     for (f, label), g in zip(((1 / 3, "carry it toward the caddy, turning it"), (2 / 3, "over the caddy, turning it over"),
-                              (1.0, "turned over: the scraps fall into the caddy")), (0.75, 1.0, 1.0)):
+                              (1.0, "turned right over")), (0.75, 1.0, 1.0)):
         at = start + (TIP_AT - start) * np.array([f, f, g])  # up first, so it clears the caddy's near wall
         path.append((1.3, at, _rot(TIP_AXIS, TIP * f), label))
-    path.append((1.0, TIP_AT, tipped, "let them fall"))
-    for _ in range(2):
-        path += [(0.22, TIP_AT + SHAKE * mouth_h, tipped, "shake"),
-                 (0.22, TIP_AT, tipped, "shake")]
-    path.append((1.0, TIP_AT, tipped, "hold"))
+    path.append((0.6, TIP_AT, tipped, "turned over: the scraps cling"))
+    path += _shakes(shake, tipped, mouth_h)
+    path.append((1.0, TIP_AT, tipped, "hold: the last scraps fall into the caddy"))
     for f, g in ((2 / 3, 1.0), (1 / 3, 0.75), (0.0, 0.0)):
         at = start + (TIP_AT - start) * np.array([f, f, g])
         path.append((1.3, at, _rot(TIP_AXIS, TIP * f), "turn it back up, back toward the sink"))
@@ -839,7 +1030,9 @@ def _right_before(reseat: bool = False) -> list[Waypoint]:
 def _right_after() -> list[Waypoint]:
     over = np.array([DRAIN_KNOB[0], DRAIN_KNOB[1], LIFT_H])
     r = [_w(2.5, over, FINGER_CLOSED, "carry it back over the drain", GRIP_R),
-         _w(2.5, DRAIN_KNOB + [0.0, 0.0, 0.010], FINGER_CLOSED, "lower it into the strainer body", GRIP_R),
+         _w(2.0, DRAIN_KNOB + [0.0, 0.0, 0.045], FINGER_CLOSED, "lower it to just over the strainer body", GRIP_R),
+         _w(0.6, DRAIN_KNOB + [0.0, 0.0, 0.045], FINGER_CLOSED, "let it settle over the drain", GRIP_R),
+         _w(1.5, DRAIN_KNOB + [0.0, 0.0, 0.010], FINGER_CLOSED, "lower it into the strainer body", GRIP_R),
          _w(1.0, DRAIN_KNOB - [0.0, 0.0, PRESS], FINGER_CLOSED, "press it home", GRIP_R),
          _w(0.8, DRAIN_KNOB - [0.0, 0.0, PRESS], FINGER_CLOSED, "hold it pressed", GRIP_R),
          _w(0.8, DRAIN_KNOB - [0.0, 0.0, PRESS], KNOB_FINGER, "let go", GRIP_R),
@@ -880,7 +1073,7 @@ def _two_hand_plans(reseat: bool = False) -> dict:
     right += release
     left.append(_w(sum(w.duration for w in release), lp, CUP_FINGER, "hold the basket", lr))
     # the left alone empties it
-    path = _basket_path()
+    path = _basket_path(_shake_kind())
     for dur, cup_at, brot, label in path:
         p, rot = _hand("left", cup_at, brot)
         left.append(_w(dur, p, CUP_FINGER, label, rot))
@@ -912,7 +1105,7 @@ def _one_hand_plans() -> dict:
     turns it over, shakes it twice, brings it back and presses it home; the left never moves."""
     right = _right_before()
     right.append(_w(LEAD_S + 4.5, right[-1].pos, FINGER_CLOSED, "hold", right[-1].yaw))
-    for dur, cup_at, brot, label in _basket_path():
+    for dur, cup_at, brot, label in _basket_path(_shake_kind()):
         p, rot = _hand("right", cup_at, brot)
         right.append(_w(dur, p, FINGER_CLOSED, label, rot))
     right += _right_after()
@@ -922,10 +1115,44 @@ def _one_hand_plans() -> dict:
     return {"left": [_w(total, ready_p, FINGER_OPEN, "stay", ready_r)], "right": right}
 
 
+def _bin_basket_plans() -> dict:
+    """The check SINK_TEST=binbasket: the right lifts the basket out by its knob, carries it over the caddy, sets it
+    down in the caddy (tilted 25 deg along the caddy, so the right can reach) with every scrap still stuck in it, lets
+    go and goes home; the left never moves. The scraps are inside the caddy's volume but still in the basket's cup, so
+    none counts: 0.0, not 0.5."""
+    right = _lift_out()
+    tilt = _rot((1.0, 0.0, 0.0), math.radians(25.0))
+    rot = tilt @ GRIP_R
+    xy = np.array([CAD_XY[0], CAD_XY[1] - 0.02])
+    # its lowest point (the seal's edge) 6 mm above the caddy's floor
+    low = min(float((tilt @ np.array(v))[2]) for v in ((0.0, sy, -SEAL_H) for sy in (-SEAL_R, SEAL_R)))
+    in_bin = np.array([*xy, TOP + 0.0035 + 0.006 - low + float((tilt @ [0.0, 0.0, KNOB_GRIP_Z])[2])])
+    over = np.array([*xy, TOP + 0.150])
+    right += [_w(1.5, [DRAIN_KNOB[0], DRAIN_KNOB[1], TOP + 0.150], FINGER_CLOSED, "check: up over the drain", GRIP_R),
+              _w(3.0, over, FINGER_CLOSED, "check: over the caddy", rot),
+              _w(2.5, in_bin, FINGER_CLOSED, "check: down into the caddy", rot),
+              _w(0.5, in_bin, FINGER_CLOSED, "check: hold", rot),
+              _w(0.8, in_bin, KNOB_FINGER, "check: let go of it in the caddy", rot),
+              _w(1.5, over, KNOB_FINGER, "check: up out of the caddy", rot)]
+    right += _go_home("right", over, rot, KNOB_FINGER)
+    total = sum(w.duration for w in right) + 3.0
+    right.append(_w(3.0, right[-1].pos, KNOB_FINGER, "hold still", right[-1].yaw))
+    ready_p, ready_r = _ready("left")
+    return {"left": [_w(total, ready_p, FINGER_OPEN, "stay", ready_r)], "right": right}
+
+
+def _shake_kind() -> str:
+    """The demo's shakes: "firm"; the checks SINK_TEST=noshake ("none"), SINK_TEST=gentle and SINK_TEST=shakes
+    ("calib") change them."""
+    return {"noshake": "none", "gentle": "gentle", "shakes": "calib"}.get(_TEST, "firm")
+
+
 def demo():
     if os.environ.get("SINK_ONEHAND"):
         return _one_hand_plans()
-    return _two_hand_plans(reseat=os.environ.get("SINK_TEST") == "reseat")
+    if _TEST == "binbasket":
+        return _bin_basket_plans()
+    return _two_hand_plans(reseat=_TEST == "reseat")
 
 
 # -- a check of the drain rule's geometry, no simulator needed: python empty_the_sink_strainer_into_the_bin.py ------
@@ -959,8 +1186,38 @@ def _drain_rule_selftest() -> list[str]:
     p = np.array([DRAIN[0], DRAIN[1], FLOOR - 0.03])
     out.append(f"pea 30 mm down the bore, basket away over the caddy: counted lost "
                f"{lost(np.array([0.30, 0.165, TOP + 0.18]), np.eye(3), p)}")
+    # the caddy count: a scrap in the basket's cup never counts, even with the basket standing in the caddy
+    cp, cr = np.array([CAD_XY[0], CAD_XY[1], TOP + 0.0005]), _rot((0.0, 0.0, 1.0), math.pi / 2)
+    bp = cp + [0.0, 0.0, 0.003 + SEAL_H + STEM_L]
+    in_cup = [bp + q for q in local]
+    out.append(f"basket standing in the caddy, all nine scraps in its cup: {sum(_in_caddy(cp, cr, q) for q in in_cup)} "
+               f"in the caddy's volume, {sum(_in_caddy(cp, cr, q) and not _in_basket(bp, np.eye(3), q) for q in in_cup)} "
+               f"counted in the caddy")
+    q = cp + [0.0, 0.07, 0.008]
+    out.append(f"pea on the caddy's floor beside that basket: counted in the caddy "
+               f"{_in_caddy(cp, cr, q) and not _in_basket(bp, np.eye(3), q)}")
+    return out
+
+
+def _cling_selftest() -> list[str]:
+    """The cling rule's load (cling_load, in multiples of the weight) for a basket held still at several angles and
+    moved in a few ways, and the force (mN) at which each scrap lets go. Prints one line per case."""
+    out = []
+    for tilt in (0.0, 45.0, 90.0, 104.0, 135.0, 180.0):  # held still, turned over about a level axis
+        r = _rot((1.0, 0.0, 0.0), math.radians(tilt))
+        out.append(f"held still, turned {tilt:5.1f} deg: load {cling_load(r.T @ np.array([0.0, 0.0, G])):.2f}")
+    for label, a in (("upright, lifted at 2 g", (0.0, 0.0, 2 * G)), ("upright, pushed sideways at 0.4 g", (0.4 * G, 0, 0)),
+                     ("upright, pushed sideways at 1.0 g", (G, 0.0, 0.0)), ("upright, dropped at 1.5 g", (0, 0, -1.5 * G))):
+        out.append(f"{label}: load {cling_load(np.asarray(a, float) + [0.0, 0.0, G]):.2f}")
+    r = _rot((1.0, 0.0, 0.0), math.pi)
+    for k in (0.5, 1.0, 1.5):
+        out.append(f"upside down, jerked up at {k:.1f} g (the scraps pulled from the floor): load "
+                   f"{cling_load(r.T @ np.array([0.0, 0.0, G + k * G])):.2f}")
+    out.append("lets go at (mN): " + ", ".join(f"{n} {CLING_G * m * G * 1000:.1f}" for n, (_l, _y, m) in
+                                              _SCRAP_BOND.items()) + f" ({CLING_G} x the weight)")
     return out
 
 
 if __name__ == "__main__":
     print("\n".join(_drain_rule_selftest()))
+    print("\n".join(_cling_selftest()))
