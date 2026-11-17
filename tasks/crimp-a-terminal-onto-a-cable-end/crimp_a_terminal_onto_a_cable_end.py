@@ -1,13 +1,14 @@
-"""On the bench stands a pneumatic lug crimper (an AM-70 hex-type press: a housing with its air cylinder, and a pair of
-jaws in front carrying a hexagonal die), its jaws inside a clear guard. A 16 mm2 tube cable lug lies in the lower half
-of the open 16 mm2 die, its barrel pointing left, its palm against a lug stop. The press's 5/2 pedal valve stands on the
-bench to its right, and a short 16 mm2 cable with a stripped end lies on two rests to its left.
+"""On the bench lies a battery-powered hydraulic lug crimper (a CM-300G: 75 kN, 16-300 mm2 dies, 18 V), strapped on its
+side in a plywood holder, its head turned so the head's opening faces up, inside a clear guard. A 16 mm2 tube cable lug
+lies in the head's open 16 mm2 die, its barrel pointing at the arms, its palm in a lug holder. The crimper's grip, with
+its trigger, points away from the arms on the right; a short 16 mm2 cable with a stripped end lies on two rests to the
+left.
 
 Task: crimp the lug onto the cable's end. One hand picks up the cable, pushes its stripped end through the guard's
 feed hole into the lug's barrel, straight along it, until the insulation meets the barrel's mouth, and holds it there;
-the other presses the pedal valve down and holds it while the press's jaws close and crimp, then lets it go, and the
-jaws open. Then the first hand pulls the cable out of the press with the lug crimped on its end, holds it up to show it,
-and lays it back on its rests, and both arms go back to where they started.
+the other squeezes the crimper's trigger against its grip, as a hand does, and holds it while the ram closes the die on
+the barrel; the ram then goes back by itself, and the hand lets go. Then the first hand pulls the cable out with the lug
+crimped on its end, holds it up to show it, and lays it back on its rests, and both arms go back to where they started.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=crimp_a_terminal_onto_a_cable_end.py \\
            --instruction "..." --scorer task_score ...
@@ -24,8 +25,8 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from bodykit import (Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, hinge, on_reset, on_step,  # noqa: E402
-                     plate, rotation)
+from bodykit import (Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, on_reset, on_step, plate,  # noqa: E402
+                     rotation, slider)
 from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
@@ -35,70 +36,75 @@ allow_matrix_grips()
 SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 
-# -- the press: an AM-70 hex-type pneumatic lug crimper, 510 x 150 x 195 mm overall, its long axis pointing at the arms.
-# Its jaws (in front, 10 mm thick) hold the 16 mm2 hexagonal die; the barrel's axis runs across them, along y. ---------
-BX = 0.27  # the die's centre (the barrel's axis), forward from the line between the arm bases
-AXIS_Z = 0.075  # the barrel's axis above the bench (estimated from the maker's photos)
-JAW_T = 0.010  # the jaws' and the die's thickness along the barrel (estimated)
-JAW_TIP = 0.22  # the jaws' front end (x)
-HOUSING_X = (0.40, 0.73)  # the housing (air cylinder) behind the jaws: 0.22 to 0.73 is the press's 510 mm length
-HOUSING_W, HOUSING_H, HANDLE_H = 0.15, 0.16, 0.035  # 150 mm wide; 160 mm housing + 35 mm handle = 195 mm tall
-JAW_PIVOT = np.array([0.38, 0.0, AXIS_Z + 0.012])  # the upper jaw's pivot (relative to the bench under y = 0)
-JAW_OPEN_DEG = 15.0  # the upper jaw open (front end up)
-T_CLOSE, T_OPEN = 1.0, 1.0  # s the cylinder takes to close and to open the jaws (assumed: not published)
+# -- the crimper: a CM-300G battery hydraulic crimper (75 kN, 16-300 mm2 dies, 17 mm stroke, 18 V 3.0 Ah), lying on its
+# side in its holder with its axis across the bench (along y): its head on the left, its body, grip and battery to the
+# right, the grip pointing away from the arms. Its head is turned on the tool's axis (as it is made to) so the head's
+# opening faces up: the die closes along y, and the barrel runs along x through the head. Sizes are scaled from the
+# maker's photo by the 18 V pack (115 mm long). A point (along the tool's axis toward the head, along its grip's
+# up-direction, along its width) maps to the bench as x = BX - up, y = YD + along, z = AXIS_Z + width. ---------------
+BX, YD = 0.30, 0.06  # the die's centre (the barrel's axis), forward from the line between the arm bases and to the left
+AXIS_Z = 0.075  # the tool's axis and the die's centre above the bench, set by the holder
+DIE_W = 0.010  # the die's width along the barrel (inside the 13 mm barrel)
+STROKE = 0.017  # the ram's stroke (maker): the moving die starts 17 mm from closed
+HEAD_T = 0.030  # the head's frame, front to back (along the barrel)
+T_CLOSE, T_RETURN = 3.0, 2.0  # s for the ram to close the die and to go back (design values: tools of this class are
+# listed at 3-6 s a crimp)
+BASE_T = 0.018  # the holder's plywood base
+
+# -- the trigger: a cordless-tool trigger at the top of the grip, squeezed toward the grip's back (-y here) ----------
+TRIG_FRONT = 0.143  # its front face this far behind the die's centre along the tool's axis
+TRIG_DEPTH = 0.017  # it stands 17 mm proud of the grip's front
+TRIG_UP = (0.050, 0.076)  # its span below the tool's axis, along the grip
+TRIG_W = 0.012  # its width
+GRIP_BACK = 0.205  # the grip's back, behind the die's centre along the tool's axis
+TRIG_TRAVEL, TRIG_SWITCH = 0.0085, 0.0020  # its full travel and where the motor switches on (as a cordless-tool trigger
+# switch, e.g. Omron C3AW: on at 2.0 mm of 8.5 mm, at most 20 N)
+TRIG_K, TRIG_PRE = 1200.0, 0.005  # N/m; pulled 5 mm past its rest stop: 6.0 N at rest, 8.4 N at the switch, 16.2 N at
+# its stop (inside the 20 N such switches are rated for)
 
 # -- the lug: a Klauke 3R8 tubular cable lug, Cu tinned, 16 mm2, M8: barrel 5.5 mm inside, 8.5 mm outside, 13 mm long;
 # palm 15 mm wide, 29 mm overall, 8.5 mm hole. Its frame: origin at the barrel's mouth, x along the barrel into it. --
 BAR_RI, BAR_T, BAR_L = 0.00275, 0.0015, 0.013
-CHAMFER = 0.0005  # the barrel's internal chamfer at its mouth, 45 degrees (Klauke: "precise internal chamfer"; size
-# assumed, not published)
+CHAMFER = 0.0005  # the barrel's internal chamfer at its mouth, 45 degrees (Klauke: "precise internal chamfer"; design
+# value)
 PALM_L, PALM_W, PALM_T = 0.016, 0.015, 0.003  # 29 mm overall less the 13 mm barrel; 3 mm: the tube flattened
 HOLE_R, HOLE_AT = 0.00425, 0.008  # the 8.5 mm stud hole, its centre 8 mm from the palm's end
-MOUTH = np.array([BX, BAR_L / 2, TOP + AXIS_Z])  # the barrel centred on the die (y = 0): its mouth 6.5 mm left of it
-BAR_DIR = np.array([0.0, -1.0, 0.0])  # into the barrel (to the right)
-LUG_ROT = np.array([[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])  # the lug's frame in the world (yaw -90 deg)
-STOP_T = 0.016  # the lug stop: a 24 x 16 mm block standing on the bench against the palm's end
+MOUTH = np.array([BX - BAR_L / 2, YD, TOP + AXIS_Z])  # the barrel centred on the die: its mouth 6.5 mm in front of it
+BAR_DIR = np.array([1.0, 0.0, 0.0])  # into the barrel (away from the arms)
+LUG_ROT = np.eye(3)  # the lug's frame in the world
+STOP_L = 0.016  # the lug stop behind the palm's end
 
-# -- the clear guard (3 mm polycarbonate) round the jaws, with a 22 mm square feed hole for the cable ---------------
+# -- the clear guard (3 mm polycarbonate) round the head, with a 22 mm square feed hole for the cable ---------------
 GUARD_T = 0.003
-GUARD_GAP = 0.018  # its left wall's inside face this far left of the barrel's mouth
+GUARD_GAP = 0.018  # its front wall's inside face this far in front of the barrel's mouth
 GUARD_HOLE = 0.022
-GUARD_X = (0.205, HOUSING_X[0])
-GUARD_Y = (-0.048, MOUTH[1] + GUARD_GAP + GUARD_T)  # outside faces: right and left walls
-GUARD_H = 0.16
-
-# -- the pedal valve: a Camozzi 354N-925 (Series 3, 5/2, G1/4): 245.9 x 138 mm, 67.5 mm body, 152.9 mm at its high
-# end. Its cover is hinged at the low end; pressing the high end down switches the valve: 17 N at 6 bar. It stands
-# along x, its low end away from the arms and its high end toward them. -----------------------------------------------
-PED_X0, PED_Y = 0.531, -0.24  # the cover's hinge (low end, far from the arms) and the pedal's centre line
-PED_L, PED_W, PED_BODY, PED_TOPH = 0.2459, 0.138, 0.0675, 0.1529
-PED_PRESS = 0.231  # where a hand presses: on the flat at the high end, this far from the hinge
-PED_STOP_DEG, PED_SWITCH_DEG = 6.0, 5.0  # the cover's travel and where the valve switches (assumed: not published)
-PED_SPRING, PED_SPRING_TO = 0.14, -26.0  # N m per degree, 26 deg past rest: 14.5 N at rest, 17.0 N at the switch
-PED_MASS, PED_COM_X = 0.25, 0.12
+GUARD_X = (MOUTH[0] - GUARD_GAP - GUARD_T, BX + 0.048)  # outside faces: front and back walls
+GUARD_Y = (YD - 0.098, YD + 0.070)  # outside faces: right wall (the tool's neck passes through it) and left wall
+GUARD_H = 0.150
+NECK_R = 0.024
 
 # -- the cable: 16 mm2 single-core H07V-R; its frame: origin at the stripped tip, the cable along -x -----------------
 STRIP_L, STRIP_R = 0.013, 0.00255  # 7 x 1.7 mm strands, 5.1 mm across, stripped to the barrel's 13 mm
 CABLE_L, CABLE_R = 0.16, 0.0035  # 7 mm over the insulation
 CABLE_MASS = 0.027  # 23 g of copper (16 mm2 x 16 cm x 8.96 g/cm3) and 4 g of PVC
-CABLE_ROT = LUG_ROT  # on its rests the cable lies along y, its tip pointing right (toward the press)
-TIP0 = np.array([0.20, 0.09])  # where the cable's tip lies on its rests
+TIP0 = np.array([0.21, 0.16])  # where the cable's tip lies on its rests, pointing away from the arms
 CABLE_Z = 0.03  # the cable's axis above the bench on its rests
 REST_AT = (0.045, 0.13)  # the two V-rests, along the cable from its tip (its centre of mass, 8 cm, between them)
 
-COPPER, BLACK, RED, STEEL, DARK, ORANGE, YELLOW, BLUE, CLEAR, BEIGE = (
+COPPER, BLACK, RED, STEEL, DARK, YELLOW, BEIGE, WHITE = (
     (0.80, 0.50, 0.25), (0.08, 0.08, 0.09), (0.75, 0.10, 0.10), (0.62, 0.63, 0.66), (0.20, 0.21, 0.23),
-    (0.90, 0.42, 0.08), (0.95, 0.72, 0.10), (0.18, 0.36, 0.62), (0.80, 0.90, 0.97), (0.85, 0.82, 0.74))
+    (0.95, 0.72, 0.10), (0.80, 0.68, 0.48), (0.92, 0.92, 0.90))
+CLEAR = (0.80, 0.90, 0.97)
 EDGE = (0.70, 0.80, 0.88)  # the guard's edges, drawn in place of its clear panels
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
-# a good crimp: the bare end this far into the 13 mm barrel when the jaws close (all but at most 2.5 mm of the copper
+# a good crimp: the bare end this far into the 13 mm barrel when the die closes (all but at most 2.5 mm of the copper
 # in: the insulation, too wide for the barrel, within 2.5 mm of its mouth) and the cable within this angle of its axis
 DEPTH = (0.0105, 0.0135)
 ALIGN_DEG = 8.0
 INSERTED = 0.0065  # the bare end pushed this far in (half the barrel) at some point
-LET_GO = 0.04  # both TCPs this far from the pedal's press point: let go
-OUT = 0.05  # the cable's tip this far from the barrel's mouth: taken out of the press (past the guard)
+LET_GO = 0.04  # both TCPs this far from the trigger: let go
+OUT = 0.05  # the cable's tip this far from the barrel's mouth: taken out of the crimper (past the guard)
 HOME_WITHIN = 0.05  # each TCP this close to where it started: the arms are back home
 ON_REST = (0.03, 0.015, 20.0)  # laid back on its rests: the tip this close to where it lay (across, up) and the cable
 # within this many degrees of lying along its rests
@@ -106,64 +112,119 @@ SUCCESS_HOLD_S = 1.0
 DT = 0.05  # s per control step (20 Hz)
 
 
-def _press() -> Body:
-    """The press's fixed parts: housing, handle, lower jaw and die, the clear guard; and the lug stop."""
-    hx0, hx1 = HOUSING_X
-    jaw_top = AXIS_Z - BAR_RI - BAR_T  # the lower die's seat: the barrel's underside
-    shapes = [BoxShape(((hx0 + hx1) / 2, 0.0, 0.004), (hx1 - hx0, HOUSING_W + 0.01, 0.008), BLACK),  # base plate
-              BoxShape(((hx0 + hx1) / 2, 0.0, 0.008 + (HOUSING_H - 0.008) / 2), (hx1 - hx0, HOUSING_W, HOUSING_H - 0.008),
-                       ORANGE),  # housing (the air cylinder)
-              BoxShape((hx0 + 0.06, 0.0, HOUSING_H + 0.01), (0.03, 0.03, 0.02), BLACK),  # handle posts
-              BoxShape((hx1 - 0.06, 0.0, HOUSING_H + 0.01), (0.03, 0.03, 0.02), BLACK),
-              BoxShape(((hx0 + hx1) / 2, 0.0, HOUSING_H + HANDLE_H - 0.0075), (hx1 - hx0 - 0.09, 0.03, 0.015), BLACK),
-              BoxShape(((JAW_TIP + hx0) / 2, 0.0, (0.035 + jaw_top - 0.012) / 2),
-                       (hx0 - JAW_TIP, JAW_T, jaw_top - 0.012 - 0.035), STEEL),  # lower jaw
-              BoxShape((BX, 0.0, jaw_top - 0.006), (0.04, JAW_T, 0.012), DARK),  # lower half of the 16 mm2 die
-              BoxShape((hx0 - 0.02, 0.0, 0.035 + 0.04), (0.04, 0.03, 0.08), STEEL)]  # jaw root at the housing
-    # the clear guard: left wall with the feed hole, right wall, front, top
+def _w2(up: float, along: float) -> tuple[float, float]:
+    """(x, y) on the bench of a point ``along`` the tool's axis (toward the head) and ``up`` its grip's up-direction."""
+    return BX - up, YD + along
+
+
+def _box(up0, up1, al0, al1, w0, w1, color, collide=True) -> BoxShape:
+    """A box spanning ``up`` (grip's up-direction), ``al`` (along the axis) and ``w`` (width, i.e. height here)."""
+    x0, y0 = _w2(up1, al0)
+    x1, y1 = _w2(up0, al1)
+    return BoxShape(((x0 + x1) / 2, (y0 + y1) / 2, AXIS_Z + (w0 + w1) / 2), (x1 - x0, y1 - y0, w1 - w0), color,
+                    collide=collide)
+
+
+def _tool() -> Body:
+    """The fixed parts: the holder (base, saddles, straps, clamps), the crimper (head with its fixed die, neck, body,
+    motor, grip, battery), the clear guard and the lug holder."""
+    shapes = []
+    # holder: 18 mm plywood base clamped to the bench at its far corners, saddles under the tool, two straps
+    bx0, bx1, by0, by1 = BX - 0.10, BX + 0.25, YD - 0.25, YD + 0.08
+    shapes.append(BoxShape(((bx0 + bx1) / 2, (by0 + by1) / 2, BASE_T / 2), (bx1 - bx0, by1 - by0, BASE_T), BEIGE))
+    for yc in (by0 + 0.03, by1 - 0.03):  # C-clamps on the base's far edge (shown only)
+        shapes += [BoxShape((bx1 - 0.02, yc, BASE_T + 0.006), (0.04, 0.02, 0.012), RED, collide=False),
+                   BoxShape((bx1 + 0.004, yc, BASE_T / 2), (0.008, 0.02, 0.05), RED, collide=False)]
+    sad = AXIS_Z - 0.0375 - BASE_T  # body and battery 75 mm wide: their underside 37.5 mm below the axis
+    shapes += [BoxShape((BX, YD - 0.17, BASE_T + sad / 2), (0.06, 0.08, sad), BEIGE),  # under the body
+               BoxShape((BX + 0.19, YD - 0.17, BASE_T + sad / 2), (0.05, 0.08, sad), BEIGE),  # under the battery
+               BoxShape((BX - 0.06, YD - 0.17, BASE_T + (AXIS_Z - 0.024 - BASE_T) / 2),
+                        (0.04, 0.08, AXIS_Z - 0.024 - BASE_T), BEIGE),  # under the motor
+               BoxShape((BX, YD - 0.01, BASE_T + (AXIS_Z - 0.045 - BASE_T) / 2), (HEAD_T, 0.10, AXIS_Z - 0.045 - BASE_T),
+                        BEIGE)]  # under the head
+    for xs, ys, xl in ((BX, YD - 0.15, 0.115), (BX + 0.19, YD - 0.20, 0.07)):  # straps over the body and the battery
+        shapes.append(BoxShape((xs, ys, AXIS_Z + 0.0385), (xl, 0.025, 0.002), BLACK, collide=False))
+    # crimper head: frame (C back, top latch, bottom, ram housing), fixed die on the +y side
+    h = HEAD_T / 2
+    shapes += [BoxShape((BX, YD + 0.050, AXIS_Z), (HEAD_T, 0.020, 0.090), STEEL),  # C back
+               BoxShape((BX, YD - 0.016, AXIS_Z + 0.040), (HEAD_T, 0.152, 0.010), STEEL),  # latch, over the top
+               BoxShape((BX, YD - 0.016, AXIS_Z - 0.040), (HEAD_T, 0.152, 0.010), STEEL),  # bottom of the frame
+               BoxShape((BX, YD - 0.076, AXIS_Z), (HEAD_T, 0.032, 0.090), STEEL),  # ram housing
+               BoxShape((BX, YD + (BAR_RI + BAR_T + 0.040) / 2, AXIS_Z),
+                        (DIE_W, 0.040 - BAR_RI - BAR_T, 0.028), DARK),  # fixed half of the 16 mm2 die
+               BoxShape((BX, YD + 0.030, AXIS_Z), (HEAD_T - 0.004, 0.020, 0.034), STEEL),  # die holder
+               BoxShape((BX - h - 0.0005, YD + 0.030, AXIS_Z + 0.008), (0.001, 0.008, 0.008), WHITE, collide=False)]
+    # neck, body (gearbox), motor, grip with the trigger guard, battery mount and battery
+    shapes += [CylShape((BX, YD - 0.103, AXIS_Z), NECK_R, 0.022, STEEL, axis="Y"),
+               _box(-0.034, 0.034, -0.226, -0.114, -0.0375, 0.0375, YELLOW),  # body
+               CylShape((BX - 0.060, YD - 0.170, AXIS_Z), 0.024, 0.112, BLACK, axis="Y"),  # motor
+               _box(-0.124, -0.034, -GRIP_BACK, -TRIG_FRONT - TRIG_DEPTH, -0.020, 0.020, BLACK),  # grip
+               _box(-TRIG_UP[0], -0.034, -0.170, -0.155, -0.015, 0.015, YELLOW),  # the grip's top, behind the trigger
+               _box(-0.162, -0.124, -0.225, -0.130, -0.030, 0.030, YELLOW),  # battery mount
+               _box(-0.224, -0.162, -0.228, -0.114, -0.0375, 0.0375, BLACK)]  # 18 V battery
+    # the clear guard: front wall with the feed hole, back wall, left wall, right wall round the neck, lid
     gx0, gx1 = GUARD_X
     gy0, gy1 = GUARD_Y
-    yl = gy1 - GUARD_T / 2
+    z0, zt = BASE_T, GUARD_H
+    xf = gx0 + GUARD_T / 2
     hz0, hz1 = AXIS_Z - GUARD_HOLE / 2, AXIS_Z + GUARD_HOLE / 2
-    hx_0, hx_1 = BX - GUARD_HOLE / 2, BX + GUARD_HOLE / 2
-    panels = [(((gx0 + gx1) / 2, yl, hz0 / 2), (gx1 - gx0, GUARD_T, hz0)),  # left wall, round the feed hole
-              (((gx0 + gx1) / 2, yl, (hz1 + GUARD_H) / 2), (gx1 - gx0, GUARD_T, GUARD_H - hz1)),
-              (((gx0 + hx_0) / 2, yl, AXIS_Z), (hx_0 - gx0, GUARD_T, GUARD_HOLE)),
-              (((hx_1 + gx1) / 2, yl, AXIS_Z), (gx1 - hx_1, GUARD_T, GUARD_HOLE)),
-              (((gx0 + gx1) / 2, gy0 + GUARD_T / 2, GUARD_H / 2), (gx1 - gx0, GUARD_T, GUARD_H)),  # right wall
-              ((gx0 + GUARD_T / 2, (gy0 + gy1) / 2, GUARD_H / 2), (GUARD_T, gy1 - gy0, GUARD_H)),  # front
-              (((gx0 + gx1) / 2, (gy0 + gy1) / 2, GUARD_H + GUARD_T / 2), (gx1 - gx0, gy1 - gy0, GUARD_T))]  # lid
-    shapes += [BoxShape(c, z, CLEAR, visible=False) for c, z in panels]  # clear: solid, but drawn only by its edges
+    hy0, hy1 = YD - GUARD_HOLE / 2, YD + GUARD_HOLE / 2
+    ny0, ny1 = AXIS_Z - NECK_R - 0.002, AXIS_Z + NECK_R + 0.002  # the right wall's cut-out round the neck (z)
+    nx0, nx1 = BX - NECK_R - 0.002, BX + NECK_R + 0.002
+    yr = gy0 + GUARD_T / 2
+    panels = [((xf, (gy0 + gy1) / 2, (z0 + hz0) / 2), (GUARD_T, gy1 - gy0, hz0 - z0)),  # front, below the hole
+              ((xf, (gy0 + gy1) / 2, (hz1 + zt) / 2), (GUARD_T, gy1 - gy0, zt - hz1)),  # front, above it
+              ((xf, (gy0 + hy0) / 2, AXIS_Z), (GUARD_T, hy0 - gy0, GUARD_HOLE)),  # front, beside it
+              ((xf, (hy1 + gy1) / 2, AXIS_Z), (GUARD_T, gy1 - hy1, GUARD_HOLE)),
+              ((gx1 - GUARD_T / 2, (gy0 + gy1) / 2, (z0 + zt) / 2), (GUARD_T, gy1 - gy0, zt - z0)),  # back
+              (((gx0 + gx1) / 2, gy1 - GUARD_T / 2, (z0 + zt) / 2), (gx1 - gx0, GUARD_T, zt - z0)),  # left
+              (((gx0 + gx1) / 2, yr, (z0 + ny0) / 2), (gx1 - gx0, GUARD_T, ny0 - z0)),  # right, round the neck
+              (((gx0 + gx1) / 2, yr, (ny1 + zt) / 2), (gx1 - gx0, GUARD_T, zt - ny1)),
+              (((gx0 + nx0) / 2, yr, AXIS_Z), (nx0 - gx0, GUARD_T, ny1 - ny0)),
+              (((nx1 + gx1) / 2, yr, AXIS_Z), (gx1 - nx1, GUARD_T, ny1 - ny0)),
+              (((gx0 + gx1) / 2, (gy0 + gy1) / 2, zt + GUARD_T / 2), (gx1 - gx0, gy1 - gy0, GUARD_T))]  # lid
+    shapes += [BoxShape(c, s, CLEAR, visible=False) for c, s in panels]  # clear: solid, but drawn only by its edges
     e = 0.003  # its edges and the feed hole's rim, shown only
-    zt = GUARD_H + GUARD_T
+    ztop = zt + GUARD_T
+    for x in (gx0 + e / 2, gx1 - e / 2):
+        for z in (z0 + e / 2, ztop - e / 2):
+            shapes.append(BoxShape((x, (gy0 + gy1) / 2, z), (e, gy1 - gy0, e), EDGE, collide=False))
+        for y in (gy0 + e / 2, gy1 - e / 2):
+            shapes.append(BoxShape((x, y, (z0 + ztop) / 2), (e, e, ztop - z0), EDGE, collide=False))
     for y in (gy0 + e / 2, gy1 - e / 2):
-        for z in (e / 2, zt - e / 2):
+        for z in (z0 + e / 2, ztop - e / 2):
             shapes.append(BoxShape(((gx0 + gx1) / 2, y, z), (gx1 - gx0, e, e), EDGE, collide=False))
-        shapes.append(BoxShape((gx0 + e / 2, y, zt / 2), (e, e, zt), EDGE, collide=False))
-    for z in (e / 2, zt - e / 2):
-        shapes.append(BoxShape((gx0 + e / 2, (gy0 + gy1) / 2, z), (e, gy1 - gy0, e), EDGE, collide=False))
     for z in (hz0 - e / 2, hz1 + e / 2):
-        shapes.append(BoxShape((BX, gy1 - e / 2, z), (GUARD_HOLE + 2 * e, e + 0.0005, e), EDGE, collide=False))
-    for x in (hx_0 - e / 2, hx_1 + e / 2):
-        shapes.append(BoxShape((x, gy1 - e / 2, AXIS_Z), (e, e + 0.0005, GUARD_HOLE), EDGE, collide=False))
-    # the lug stop against the palm's end
-    end = MOUTH[1] - BAR_L - PALM_L
-    shapes.append(BoxShape((BX, end - STOP_T / 2, (AXIS_Z + 0.006) / 2), (0.024, STOP_T, AXIS_Z + 0.006), DARK))
-    return Body.build("press", pos=(0.0, 0.0, TOP), mass=18.0, shapes=shapes, kinematic=True, friction=(0.4, 0.3),
-                      color=ORANGE)
+        shapes.append(BoxShape((gx0 + e / 2, YD, z), (e + 0.0005, GUARD_HOLE + 2 * e, e), EDGE, collide=False))
+    for y in (hy0 - e / 2, hy1 + e / 2):
+        shapes.append(BoxShape((gx0 + e / 2, y, AXIS_Z), (e + 0.0005, e, GUARD_HOLE), EDGE, collide=False))
+    # the lug holder behind the head: a rest under the palm and a stop at its end
+    p0 = BX + h  # the head's back face
+    end = MOUTH[0] + BAR_L + PALM_L  # the palm's end
+    pz = AXIS_Z - PALM_T / 2
+    shapes += [BoxShape(((p0 + end) / 2 + 0.0005, YD, (BASE_T + pz) / 2), (end - p0 - 0.001, 0.020, pz - BASE_T), DARK),
+               BoxShape((end + STOP_L / 2, YD, (BASE_T + AXIS_Z + 0.006) / 2), (STOP_L, 0.024, AXIS_Z + 0.006 - BASE_T),
+                        DARK)]
+    return Body.build("tool", pos=(0.0, 0.0, TOP), mass=6.0, shapes=shapes, kinematic=True, friction=(0.5, 0.4),
+                      color=YELLOW)
 
 
-def _upper_jaw() -> Body:
-    """The upper jaw and the upper half of the die (shown only): it turns about its pivot as the cylinder drives it."""
-    p = JAW_PIVOT
-    top = AXIS_Z + BAR_RI + BAR_T  # the upper die closed: the barrel's top
-    shapes = [BoxShape(((JAW_TIP + p[0] + 0.01) / 2 - p[0], 0.0, (top + 0.012 + top + 0.03) / 2 - p[2]),
-                       (p[0] + 0.01 - JAW_TIP, JAW_T, 0.018), STEEL, collide=False),
-              BoxShape((BX - p[0], 0.0, top + 0.006 - p[2]), (0.04, JAW_T, 0.012), DARK, collide=False),
-              CylShape((0.0, 0.0, 0.0), 0.008, JAW_T + 0.004, BLACK, axis="Y", collide=False)]
-    a = math.radians(JAW_OPEN_DEG) / 2
-    return Body.build("upper_jaw", pos=(p[0], p[1], TOP + p[2]), mass=0.5, shapes=shapes, kinematic=True, color=STEEL,
-                      start_xyzw=(0.0, math.sin(a), 0.0, math.cos(a)))
+RAM0 = np.array([BX, YD - BAR_RI - BAR_T - STROKE, TOP + AXIS_Z])  # the moving die's face, open
+
+
+def _ram() -> Body:
+    """The moving half of the die on the ram (shown only): it closes 17 mm onto the barrel as the ram runs."""
+    shapes = [BoxShape((0.0, -0.012, 0.0), (DIE_W, 0.024, 0.028), DARK, collide=False),
+              BoxShape((0.0, -0.030, 0.0), (HEAD_T - 0.004, 0.016, 0.034), STEEL, collide=False)]
+    return Body.build("ram", pos=tuple(RAM0.tolist()), mass=0.3, shapes=shapes, kinematic=True, color=STEEL)
+
+
+TRIG_C = np.array([*_w2(-(TRIG_UP[0] + TRIG_UP[1]) / 2, -TRIG_FRONT - TRIG_DEPTH / 2), TOP + AXIS_Z])  # its centre
+
+
+def _trigger() -> Body:
+    shapes = [BoxShape((0.0, 0.0, 0.0), (TRIG_UP[1] - TRIG_UP[0], TRIG_DEPTH, TRIG_W), BLACK)]
+    return Body.build("trigger", pos=tuple(TRIG_C.tolist()), mass=0.02, shapes=shapes, friction=(1.0, 0.9), color=BLACK)
 
 
 def _lug_shapes(r_in: float, collide: bool, solid: bool = False, chamfer: float = 0.0) -> list:
@@ -191,58 +252,34 @@ def _lug_shapes(r_in: float, collide: bool, solid: bool = False, chamfer: float 
     return shapes
 
 
-HIDE = np.array([BX, 0.05, TOP - 0.03])  # under the bench
-HIDE2 = np.array([BX, -0.05, TOP - 0.03])
+HIDE = np.array([BX, YD + 0.03, TOP - 0.03])  # under the bench
+HIDE2 = np.array([BX, YD - 0.03, TOP - 0.03])
 
 
 def _lug() -> Body:
     return Body.build("lug", pos=tuple(MOUTH.tolist()), mass=0.009, shapes=_lug_shapes(BAR_RI, True, chamfer=CHAMFER),
-                      kinematic=True, friction=(0.3, 0.25), slick=True, color=COPPER, yaw=-math.pi / 2)  # tinned, smooth
+                      kinematic=True, friction=(0.3, 0.25), slick=True, color=COPPER)  # tinned, smooth
 
 
 def _crimped() -> Body:
     """The lug crimped onto the copper (its barrel squeezed onto it): shown once crimped, following the cable."""
     return Body.build("crimped_lug", pos=tuple(HIDE.tolist()), mass=0.009, kinematic=True, color=COPPER,
-                      shapes=_lug_shapes(STRIP_R + 0.0003, False), yaw=-math.pi / 2)
+                      shapes=_lug_shapes(STRIP_R + 0.0003, False))
 
 
 def _crushed() -> Body:
-    """The lug crushed empty (the jaws closed with no copper in it): its barrel closed, nothing goes in any more."""
+    """The lug crushed empty (the die closed with no copper in it): its barrel closed, nothing goes in any more."""
     return Body.build("crushed_lug", pos=tuple(HIDE2.tolist()), mass=0.009, kinematic=True, color=COPPER,
-                      shapes=_lug_shapes(0.0008, True, solid=True), yaw=-math.pi / 2)
-
-
-def _pedal_base() -> Body:
-    shapes = [BoxShape((-PED_L / 2, 0.0, PED_BODY / 2), (PED_L, PED_W, PED_BODY), BLUE),
-              BoxShape((-0.006, 0.0, PED_BODY + 0.004), (0.012, PED_W - 0.02, 0.008), BLUE)]  # hinge block
-    return Body.build("pedal_base", pos=(PED_X0, PED_Y, TOP), mass=1.0, shapes=shapes, kinematic=True,
-                      friction=(0.8, 0.7), color=BLUE)
-
-
-def _pedal_cover() -> Body:
-    """The pedal's cover, origin on its hinge (at the low end, on the body's top), rising toward -x to the flat at the
-    high end."""
-    rise = PED_TOPH - PED_BODY
-    flat0 = PED_L - 0.03
-    t = 0.004
-    shapes = [plate((-0.004, 0.0, 0.0), (-flat0, 0.0, rise - t / 2), PED_W - 0.004, t, (rise, 0.0, flat0), YELLOW),
-              BoxShape((-(flat0 + PED_L) / 2, 0.0, rise - t / 2), (PED_L - flat0, PED_W - 0.004, t), YELLOW),
-              BoxShape((-(PED_L - 0.002), 0.0, rise / 2), (0.004, PED_W - 0.004, rise), YELLOW),  # its high end
-              BoxShape((-(flat0 + PED_L) / 2, 0.035, rise + 0.001), (0.02, 0.012, 0.003), RED, collide=False)]  # flap
-    for s in (-1, 1):  # side skirts
-        shapes.append(BoxShape((-PED_L * 0.6, s * (PED_W / 2 - 0.002), rise * 0.45), (PED_L * 0.75, 0.004, rise * 0.5),
-                               YELLOW, collide=False))
-    return Body.build("pedal", pos=(PED_X0, PED_Y, TOP + PED_BODY), mass=PED_MASS, shapes=shapes, friction=(1.0, 0.9),
-                      color=YELLOW, com=(-PED_COM_X, 0.0, rise * 0.5))
+                      shapes=_lug_shapes(0.0008, True, solid=True))
 
 
 def _rest() -> Body:
     shapes = []
-    h = CABLE_Z - CABLE_R
+    hgt = CABLE_Z - CABLE_R
     for d in REST_AT:
-        shapes += [BoxShape((0.0, d, h / 2), (0.03, 0.016, h), DARK),
-                   BoxShape((0.007, d, h + 0.003), (0.006, 0.016, 0.006), DARK),  # lips either side of the cable
-                   BoxShape((-0.007, d, h + 0.003), (0.006, 0.016, 0.006), DARK)]
+        shapes += [BoxShape((-d, 0.0, hgt / 2), (0.016, 0.03, hgt), DARK),
+                   BoxShape((-d, 0.007, hgt + 0.003), (0.016, 0.006, 0.006), DARK),  # lips either side of the cable
+                   BoxShape((-d, -0.007, hgt + 0.003), (0.016, 0.006, 0.006), DARK)]
     return Body.build("rest", pos=(TIP0[0], TIP0[1], TOP), mass=0.3, shapes=shapes, kinematic=True,
                       friction=(0.6, 0.5), color=DARK)
 
@@ -251,23 +288,22 @@ def _cable() -> Body:
     shapes = [CylShape((-STRIP_L / 2, 0.0, 0.0), STRIP_R, STRIP_L, COPPER, axis="X"),
               CylShape((-STRIP_L - (CABLE_L - STRIP_L) / 2, 0.0, 0.0), CABLE_R, CABLE_L - STRIP_L, BLACK, axis="X")]
     return Body.build("cable", pos=(TIP0[0], TIP0[1], TOP + CABLE_Z + 0.0005), mass=CABLE_MASS, shapes=shapes,
-                      friction=(1.0, 0.9), color=BLACK, com=(-CABLE_L / 2, 0.0, 0.0), yaw=-math.pi / 2)
+                      friction=(1.0, 0.9), color=BLACK, com=(-CABLE_L / 2, 0.0, 0.0))
 
 
-PRESS, PEDAL_BASE, PEDAL, REST, CABLE = _press(), _pedal_base(), _pedal_cover(), _rest(), _cable()
-OBJECTS = [PRESS, PEDAL_BASE, PEDAL, REST, CABLE, _upper_jaw(), _lug(), _crimped(), _crushed()]
-hinge("pedal_pin", "pedal_base", "pedal", anchor=(PED_X0, PED_Y, TOP + PED_BODY), axis="Y",  # pressed: negative
-      limits_deg=(-PED_STOP_DEG, 0.0), spring=PED_SPRING, damping=0.002, target_deg=-PED_SPRING_TO)
+TOOL, TRIGGER, REST, CABLE = _tool(), _trigger(), _rest(), _cable()
+OBJECTS = [TOOL, TRIGGER, REST, CABLE, _ram(), _lug(), _crimped(), _crushed()]
+slider("trigger_slide", "tool", "trigger", anchor=tuple(TRIG_C.tolist()), axis="Y", limits=(-TRIG_TRAVEL, 0.0),
+       stiffness=TRIG_K, damping=4.0, target=TRIG_PRE, max_force=200.0)  # squeezed: toward -y
 
 LUG_AT = MOUTH.copy()  # the lug's origin as it lies in the die
-PRESS_PT = np.array([PED_X0 - PED_PRESS, PED_Y, TOP + PED_TOPH])  # where a hand presses the pedal, at rest
 
 
-# -- followed after every control step: the valve, the jaws and the crimp -------------------------------------------
+# -- followed after every control step: the trigger, the ram and the crimp -------------------------------------------
 
 def _fresh() -> dict:
     return {"crimped": False, "good": False, "depth": None, "align": None, "best_depth": -1.0, "tcps": None,
-            "pedal_deg": 0.0, "valve": False, "jaw": 0.0, "on_cable": None, "tip": None}
+            "trig": 0.0, "on": False, "armed": True, "ram": 0.0, "back": False, "on_cable": None, "tip": None}
 
 
 _EP = _fresh()
@@ -289,11 +325,6 @@ def _tcps(base, origin) -> list[np.ndarray]:
         g = as_numpy(robot.data.body_link_pose_w)[0][i]
         out.append(g[:3] - origin + rotation(g[3:7]) @ np.array(TCP_OFFSET))
     return out
-
-
-def _pedal_deg(p_rot) -> float:
-    """The pedal cover's turn from rest (positive: pressed down, a negative turn about y)."""
-    return -math.degrees(math.atan2(p_rot[0, 2], p_rot[0, 0]))
 
 
 def _insertion(c_pos, c_rot) -> tuple[float, float, float]:
@@ -330,13 +361,8 @@ def _place(base, origin, name, pos, rot) -> None:
     asset.write_root_pose_to_sim(torch.tensor([[*p.tolist(), x, y, z, w]], dtype=torch.float32, device=asset.device))
 
 
-def _rot_y(deg: float) -> np.ndarray:
-    a = math.radians(deg)
-    return np.array([[math.cos(a), 0.0, math.sin(a)], [0.0, 1.0, 0.0], [-math.sin(a), 0.0, math.cos(a)]])
-
-
 def _crimp(base, origin, c_pos, c_rot, depth, off) -> None:
-    """The jaws have closed: with the copper in the barrel, the lug is crimped onto it and from now on goes where the
+    """The die has closed: with the copper in the barrel, the lug is crimped onto it and from now on goes where the
     cable goes; with no copper in it, the barrel is crushed shut."""
     _place(base, origin, "lug", HIDE, LUG_ROT)
     if depth > 0.0 and off < BAR_RI:
@@ -346,29 +372,45 @@ def _crimp(base, origin, c_pos, c_rot, depth, off) -> None:
         _place(base, origin, "crushed_lug", LUG_AT, LUG_ROT)
 
 
+def _ram_step() -> None:
+    """The crimper: the trigger squeezed past its switch point runs the pump and the ram closes the die (T_CLOSE for
+    the full stroke); let go before it closes, the ram stops where it is. Once the die has closed, the pressure valve
+    opens and the ram goes back (T_RETURN), held trigger or not; it runs again only after the trigger is let go."""
+    if _EP["back"]:
+        _EP["ram"] = max(0.0, _EP["ram"] - DT / T_RETURN)
+        _EP["back"] = _EP["ram"] > 0.0
+    elif _EP["on"] and _EP["armed"]:
+        _EP["ram"] = min(1.0, _EP["ram"] + DT / T_CLOSE)
+    if not _EP["on"]:
+        _EP["armed"] = True
+
+
 @on_step
 def _follow(env) -> None:
     base = env.unwrapped
     origin = as_numpy(base.scene.env_origins[0])
     c = as_numpy(base.scene["cable"].data.root_link_pose_w)[0]
-    pv = as_numpy(base.scene["pedal"].data.root_link_pose_w)[0]
+    tr = as_numpy(base.scene["trigger"].data.root_link_pose_w)[0]
     c_pos, c_rot = c[:3] - origin, rotation(c[3:7])
     depth, align, off = _insertion(c_pos, c_rot)
     if off < BAR_RI and not (_EP["crimped"] and _EP["on_cable"] is None):  # nothing goes into a crushed barrel
         _EP["best_depth"] = max(_EP["best_depth"], depth)
-    _EP["pedal_deg"] = _pedal_deg(rotation(pv[3:7]))
-    _EP["valve"] = _EP["pedal_deg"] >= PED_SWITCH_DEG  # the 5/2 valve: pressed, it drives the cylinder closed
-    was = _EP["jaw"]
-    _EP["jaw"] = min(1.0, was + DT / T_CLOSE) if _EP["valve"] else max(0.0, was - DT / T_OPEN)
-    if _EP["jaw"] != was:
-        _place(base, origin, "upper_jaw", JAW_PIVOT + [0.0, 0.0, TOP], _rot_y(JAW_OPEN_DEG * (1.0 - _EP["jaw"])))
+    _EP["trig"] = float(TRIG_C[1] - (tr[1] - origin[1]))  # how far the trigger is squeezed in
+    _EP["on"] = _EP["trig"] >= TRIG_SWITCH
+    was = _EP["ram"]
+    _ram_step()
+    if _EP["ram"] != was:
+        _place(base, origin, "ram", RAM0 + [0.0, STROKE * _EP["ram"], 0.0], np.eye(3))
     _EP["tcps"] = _tcps(base, origin)
-    if not _EP["crimped"] and _EP["jaw"] >= 1.0:  # the jaws have closed fully: the crimp
+    if not _EP["crimped"] and _EP["ram"] >= 1.0:  # the die has closed fully: the crimp
         _EP["crimped"] = True
+        _EP["back"], _EP["armed"] = True, False
         _EP["depth"], _EP["align"] = depth, align
         _EP["good"] = DEPTH[0] <= depth <= DEPTH[1] and align <= ALIGN_DEG and off < BAR_RI
         _crimp(base, origin, c_pos, c_rot, depth, off)
-    elif _EP["on_cable"] is not None:  # the crimped lug goes with the cable
+    elif _EP["ram"] >= 1.0:  # a later full closing: the ram goes back again
+        _EP["back"], _EP["armed"] = True, False
+    if _EP["on_cable"] is not None:  # the crimped lug goes with the cable
         p_rel, r_rel = _EP["on_cable"]
         _place(base, origin, "crimped_lug", c_pos + c_rot @ p_rel, c_rot @ r_rel)
     _EP["tip"] = c_pos
@@ -376,16 +418,17 @@ def _follow(env) -> None:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 10 == 0:
             st = _status()
-            tl, tr = _EP["tcps"]
-            print(f"[crimp] t={_DEBUG['steps'] / 20:5.1f}s pedal={_EP['pedal_deg']:5.2f} valve={int(_EP['valve'])} "
-                  f"jaw={_EP['jaw']:.2f} depth={depth * 1000:6.1f}mm align={align:5.1f} "
+            tl, tr_ = _EP["tcps"]
+            print(f"[crimp] t={_DEBUG['steps'] / 20:5.1f}s trig={_EP['trig'] * 1000:5.2f}mm on={int(_EP['on'])} "
+                  f"ram={_EP['ram']:.2f} depth={depth * 1000:6.1f}mm align={align:5.1f} "
                   f"axis={np.round(c_rot[:, 0], 3).tolist()} off={off * 1000:5.2f}mm "
-                  f"tipxz=({(c_pos[0] - MOUTH[0]) * 1000:.2f},{(c_pos[2] - MOUTH[2]) * 1000:.2f})mm "
+                  f"tipyz=({(c_pos[1] - MOUTH[1]) * 1000:.2f},{(c_pos[2] - MOUTH[2]) * 1000:.2f})mm "
                   f"crimped={_EP['crimped']} good={_EP['good']} "
                   f"at_crimp=({None if _EP['depth'] is None else round(_EP['depth'] * 1000, 1)}mm, "
                   f"{None if _EP['align'] is None else round(_EP['align'], 1)}deg) "
                   f"leftTCP-tip={np.round((tl - c_pos) * 1000).astype(int).tolist()} "
-                  f"rightTCP-press={np.round((tr - PRESS_PT) * 1000).astype(int).tolist()} score={_points(st)}",
+                  f"rightTCP-trig={np.round((tr_ - TRIG_C) * 1000).astype(int).tolist()} "
+                  f"trigpos={np.round((tr[:3] - origin - TRIG_C) * 1000, 1).tolist()} score={_points(st)}",
                   file=sys.stderr, flush=True)
 
 
@@ -393,11 +436,11 @@ def _follow(env) -> None:
 
 def _status() -> dict:
     tcps = _EP["tcps"]
-    let_go = tcps is None or all(float(np.linalg.norm(t - PRESS_PT)) >= LET_GO for t in tcps)
+    let_go = tcps is None or all(float(np.linalg.norm(t - TRIG_C)) >= LET_GO for t in tcps)
     tip = _EP["tip"]
     out = tip is not None and float(np.linalg.norm(tip - MOUTH)) >= OUT
     return {"crimped": _EP["crimped"] and _EP["on_cable"] is not None, "good": _EP["good"],
-            "released": not _EP["valve"] and _EP["jaw"] <= 0.0 and let_go, "inserted": _EP["best_depth"] >= INSERTED,
+            "released": not _EP["on"] and _EP["ram"] <= 0.0 and let_go, "inserted": _EP["best_depth"] >= INSERTED,
             "out": out and _EP["on_cable"] is not None}
 
 
@@ -411,8 +454,8 @@ def _points(st) -> float:
 
 def score(objects) -> float:
     """1.0 for a good crimp (the bare end 10.5 to 13.5 mm into the 13 mm barrel and the cable within 8 degrees of its
-    axis when the jaws closed) with the pedal let go and the jaws open again, the cable taken out of the press with the
-    lug on it (its tip at least 5 cm from where the barrel's mouth was) and laid back on its rests, and both arms back
+    axis when the die closed) with the trigger let go and the die open again, the cable taken out of the crimper with
+    the lug on it (its tip at least 5 cm from where the barrel's mouth was) and laid back on its rests, and both arms back
     where they started; 0.5 for any crimp with the bare end in the barrel; 0.25 if the end was pushed at least 6.5 mm
     into the barrel at some point; else 0.0."""
     pts = _points(_status())
@@ -427,7 +470,7 @@ def _on_rest(objects) -> bool:
     c = objects["cable"]
     tip, axis = np.asarray(c.pos, float), rotation(c.quat_xyzw)[:, 0]
     return (float(np.linalg.norm(tip[:2] - TIP0)) <= ON_REST[0] and abs(float(tip[2]) - (TOP + CABLE_Z)) <= ON_REST[1]
-            and abs(float(axis[1])) >= math.cos(math.radians(ON_REST[2])))
+            and abs(float(axis[0])) >= math.cos(math.radians(ON_REST[2])))
 
 
 _HOME: dict = {}
@@ -448,28 +491,31 @@ def _arms_home() -> bool:
 
 
 def success(objects) -> bool:
-    """Full score with the pedal and the cable still: the trial ends there."""
-    return score(objects) >= 1.0 and objects["pedal"].resting() and objects["cable"].resting()
+    """Full score with the trigger and the cable still: the trial ends there."""
+    return score(objects) >= 1.0 and objects["trigger"].resting() and objects["cable"].resting()
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
-# The left hand comes straight down on the cable 7.5 cm from its tip, fingers closing across it, lifts it off its
-# rests, lines it up with the barrel 3 cm outside the guard and pushes the bare end straight in through the feed hole,
-# aiming 2.5 mm past full depth so that the insulation meeting the barrel's mouth sets the depth, and holds it. The right
-# hand comes straight down on the pedal's high end, fingers closed, presses it down to its stop and holds it while the
-# jaws close (the crimp), then rises: the valve returns, the jaws open, and the right goes back to where it started. The
-# left pulls the cable straight back out through the feed hole with the lug crimped on its end, holds it up to show it,
-# lays it back on its rests and goes back to where it started.
+# The left hand comes straight down on the cable 7.5 cm behind its tip, fingers closing across it, lifts it off its
+# rests, lines it up with the barrel 3 cm in front of the guard and pushes the bare end straight in through the feed
+# hole, aiming 2.5 mm past full depth so that the insulation meeting the barrel's mouth sets the depth, and holds it.
+# The right hand comes down open round the crimper's grip, closes on the trigger and the grip's back (squeezing the
+# trigger in, as a hand does) and holds it while the ram closes the die (the crimp); the ram goes back and the hand
+# opens, rises and goes back to where it started. The left pulls the cable straight back out through the feed hole with
+# the lug crimped on its end, holds it up to show it, lays it back on its rests and goes back to where it started.
 
-GRIP_L = grip_rotation(-math.pi / 2)  # straight down, fingers closing along x (across the cable, which runs along y)
-GRIP_R = grip_rotation(0.0)  # straight down, fingers closed, pressing the pedal
+GRIP_L = grip_rotation(0.0)  # straight down, fingers closing along y (across the cable, which runs along x)
+GRIP_R = grip_rotation(0.0)  # straight down, fingers closing along y: on the trigger and the grip's back
 HOLD_AT = 0.075  # the left TCP this far back from the cable's tip (between the rests)
 IN_PAST = 0.0025  # aim this far past full depth: the insulation stops the cable at the barrel's mouth
-PRESS_BELOW = 0.07  # aim this far below the pedal's resting top (2.5 cm of travel, then the arm gives: about 19 N)
 SAG = 0.006  # the held cable hangs this far below the left TCP (the jaw pushes it toward the fingertips): aim above
-AIM = np.array([-0.0013, 0.0, -0.0039])  # trim of the left hand's aim at the barrel (x, z), from debug runs
+AIM = np.array([0.0, -0.0007, -0.0040])  # trim of the left hand's aim at the barrel (y, z), from debug runs
+NEAR = np.array([0.0, -0.0010, 0.0008])  # further trim once the tip is within 1 mm of the mouth (the arm drifts as
+# it comes in), from debug runs
 PROBE_IN, PROBE_R, PROBE_STEPS, PROBE_S = 0.004, (0.0002, 0.0015), 24, 0.15  # the search for the barrel's mouth
 LEAD_S, LEAD_STEPS = 3.0, 15
+SQ_AT = np.array([TRIG_C[0] + 0.004, YD - (TRIG_FRONT + GRIP_BACK) / 2, TOP + AXIS_Z + 0.006])  # the right TCP
+# squeezing: 4 mm toward the trigger's far end, so the finger's upper part clears the tool's body
 
 
 def _good_ik(arm: str, pos, rot) -> np.ndarray:
@@ -506,22 +552,22 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
     return Waypoint(t, tuple(float(v) for v in pos), finger, label, rot)
 
 
-def _tcp_for_tip(tip_y: float) -> np.ndarray:
-    """The left TCP holding the cable on the barrel's axis with its tip at ``tip_y``."""
-    return np.array([BX, tip_y + HOLD_AT, TOP + AXIS_Z + SAG]) + AIM
+def _tcp_for_tip(tip_x: float) -> np.ndarray:
+    """The left TCP holding the cable on the barrel's axis with its tip at ``tip_x``."""
+    return np.array([tip_x - HOLD_AT, YD, TOP + AXIS_Z + SAG]) + AIM
 
 
 def _left() -> tuple[list[Waypoint], float]:
-    pick = np.array([TIP0[0], TIP0[1] + HOLD_AT, TOP + CABLE_Z + 0.0005])
-    front = _tcp_for_tip(GUARD_Y[1] + 0.03)
-    pre = _tcp_for_tip(MOUTH[1] + 0.005)
-    at_mouth = _tcp_for_tip(MOUTH[1] + 0.0005)
-    held = _tcp_for_tip(MOUTH[1] - BAR_L - IN_PAST)
+    pick = np.array([TIP0[0] - HOLD_AT, TIP0[1], TOP + CABLE_Z + 0.0005])
+    front = _tcp_for_tip(GUARD_X[0] - 0.03)
+    pre = _tcp_for_tip(MOUTH[0] - 0.005)
+    at_mouth = _tcp_for_tip(MOUTH[0] - 0.0005) + NEAR
+    held = _tcp_for_tip(MOUTH[0] + BAR_L + IN_PAST) + NEAR
     out = _lead_in("left", pick + [0.0, 0.0, 0.05], GRIP_L, "over the cable", FINGER_OPEN)
     out += [_w(1.0, pick, FINGER_OPEN, "down round it", GRIP_L),
             _w(0.8, pick, FINGER_CLOSED, "grip it", GRIP_L),
             _w(0.8, pick + [0.0, 0.0, 0.03], FINGER_CLOSED, "lift it off the rests", GRIP_L),
-            _w(1.5, front, FINGER_CLOSED, "line it up with the barrel, 3 cm outside the guard", GRIP_L),
+            _w(1.5, front, FINGER_CLOSED, "line it up with the barrel, 3 cm in front of the guard", GRIP_L),
             _w(0.8, front, FINGER_CLOSED, "settle", GRIP_L),
             _w(1.2, pre, FINGER_CLOSED, "through the feed hole, the tip 5 mm from the barrel's mouth", GRIP_L),
             _w(0.6, pre, FINGER_CLOSED, "settle", GRIP_L),
@@ -529,33 +575,27 @@ def _left() -> tuple[list[Waypoint], float]:
             _w(0.8, at_mouth, FINGER_CLOSED, "settle", GRIP_L)]
     # feel for the mouth: press lightly (aiming 4 mm past it) while the tip circles out to 1.5 mm off the axis; once the
     # tip finds the chamfer it slides in, and the barrel then holds it while the hand finishes the circles
-    probe = _tcp_for_tip(MOUTH[1] - PROBE_IN)
+    probe = _tcp_for_tip(MOUTH[0] + PROBE_IN) + NEAR
     for k in range(PROBE_STEPS):
         r = PROBE_R[0] + (PROBE_R[1] - PROBE_R[0]) * k / (PROBE_STEPS - 1)
         a = 2 * math.pi * k / 8
-        out.append(_w(PROBE_S, probe + [r * math.cos(a), 0.0, r * math.sin(a)], FINGER_CLOSED,
+        out.append(_w(PROBE_S, probe + [0.0, r * math.cos(a), r * math.sin(a)], FINGER_CLOSED,
                       "feel for the barrel's mouth: small circles, pressing lightly", GRIP_L))
     out += [_w(0.5, probe, FINGER_CLOSED, "back on the axis", GRIP_L),
             _w(3.0, held, FINGER_CLOSED, "push the bare end straight in until the insulation meets the barrel", GRIP_L)]
     return out, sum(w.duration for w in out)
 
 
-def _press_top(deg: float) -> np.ndarray:
-    """The top of the pedal's flat (world) at the press point with the cover turned ``deg``."""
-    p = np.array([-PED_PRESS, 0.0, PED_TOPH - PED_BODY]) @ _rot_y(-deg).T
-    return np.array([PED_X0, PED_Y, TOP + PED_BODY]) + p
-
-
 def _right(start: float) -> list[Waypoint]:
-    above = _press_top(0.0) + [0.0, 0.0, 0.04]
-    out = _lead_in("right", above, GRIP_R, "over the pedal", FINGER_CLOSED)
+    above = SQ_AT + [0.0, 0.0, 0.045]
+    out = _lead_in("right", above, GRIP_R, "over the crimper's grip", FINGER_OPEN)
     t = sum(w.duration for w in out)
-    out.append(_w(max(start - t, 0.2), above, FINGER_CLOSED, "wait for the cable to be held in the barrel", GRIP_R))
-    press = _press_top(0.0) - [0.0, 0.0, PRESS_BELOW]
-    out += [_w(0.8, _press_top(0.0) + [0.0, 0.0, 0.005], FINGER_CLOSED, "onto the pedal", GRIP_R),
-            _w(1.2, press, FINGER_CLOSED, "press the pedal down: the valve drives the jaws closed", GRIP_R),
-            _w(T_CLOSE + 0.8, press, FINGER_CLOSED, "hold it down while the jaws close: the crimp", GRIP_R),
-            _w(1.2, above, FINGER_CLOSED, "rise: the pedal springs up, the jaws open", GRIP_R)]
+    out.append(_w(max(start - t, 0.2), above, FINGER_OPEN, "wait for the cable to be held in the barrel", GRIP_R))
+    out += [_w(1.0, SQ_AT, FINGER_OPEN, "down, open, round the trigger and the grip", GRIP_R),
+            _w(0.8, SQ_AT, FINGER_CLOSED, "squeeze the trigger: the ram closes the die", GRIP_R),
+            _w(T_CLOSE + 0.4, SQ_AT, FINGER_CLOSED, "hold it while the die closes: the crimp", GRIP_R),
+            _w(0.6, SQ_AT, FINGER_OPEN, "let go: the ram goes back", GRIP_R),
+            _w(1.0, above, FINGER_OPEN, "rise", GRIP_R)]
     return out
 
 
@@ -580,12 +620,12 @@ def demo():
     left, t_held = _left()
     right = _right(t_held + 0.3)
     t_r = sum(w.duration for w in right)
-    right += _go_home("right", right[-1].pos, GRIP_R, FINGER_CLOSED)
+    right += _go_home("right", right[-1].pos, GRIP_R, FINGER_OPEN)
     held = np.asarray(left[-1].pos)
-    pulled = held + [0.0, PULL_OUT, 0.0]
+    pulled = held - [PULL_OUT, 0.0, 0.0]
     shown = pulled + [0.0, 0.0, SHOW_UP]
-    rest = np.array([TIP0[0], TIP0[1] + HOLD_AT, TOP + CABLE_Z + SAG])  # the cable back on its rests
-    left += [_w(max(t_r - t_held, 0.2) + T_OPEN + 0.3, held, FINGER_CLOSED, "hold the cable until the jaws are open",
+    rest = np.array([TIP0[0] - HOLD_AT, TIP0[1], TOP + CABLE_Z + SAG])  # the cable back on its rests
+    left += [_w(max(t_r - t_held, 0.2) + T_RETURN, held, FINGER_CLOSED, "hold the cable until the die is open",
                 GRIP_L),
              _w(2.0, pulled, FINGER_CLOSED, "pull it straight out: the lug comes with it, crimped on", GRIP_L),
              _w(1.0, shown, FINGER_CLOSED, "hold it up to show the lug", GRIP_L),
@@ -599,5 +639,5 @@ def demo():
     left.append(_w(3.0, left[-1].pos, FINGER_OPEN,
                    "hold still: the trial ends once the full score has held 1 s with both arms home", left[-1].yaw))
     t_r = sum(w.duration for w in right)
-    right.append(_w(max(t_l - t_r, 0.5) + 3.0, right[-1].pos, FINGER_CLOSED, "wait at the start", right[-1].yaw))
+    right.append(_w(max(t_l - t_r, 0.5) + 3.0, right[-1].pos, FINGER_OPEN, "wait at the start", right[-1].yaw))
     return {"left": left, "right": right}
