@@ -1,6 +1,7 @@
 """On the station table, a saucepan with its lid on stands on a fixed stove block in front of the arms, its handle
-pointing back toward the arms. In it are six dumplings (24 mm beads) in their cooking water (twenty 5 mm beads). In
-front of the stove is a fixed sink basin with no drain (a plugged sink). The pan, the lid and the beads are loose.
+pointing back toward the arms. In it are six dumplings (24 mm beads standing in for six boiled mini pierogies, 13 g
+each) in their water (twenty 5 mm beads). In front of the stove is a fixed sink basin with no drain (a plugged sink).
+The pan, the lid and the beads are loose.
 
 Task: drain the water into the sink but keep every dumpling in the pan, then set the pan back on the stove. Tipped with
 the lid loose, the lid slides off and the dumplings follow the water, so one hand holds the lid slid back a little (a
@@ -9,7 +10,12 @@ narrow gap at the front rim) while the other tips the pan by its handle. The 20 
 plugged sink, lifts out any dumplings that went in with it (each one is a lost dumpling, never water) and measures the
 water on a kitchen scale or in a measuring jug; water anywhere else is a spill and earns nothing. Here only water beads
 whose centres end inside the basin (inside its walls, below its rim) count, and dumplings in the sink are counted
-separately.
+separately. A dumpling that leaves the pan at any time is lost, even if it is put back (a real trial judges this from
+the trial video), so tipping everything into the sink and picking the dumplings back out earns nothing.
+
+The pan and the lid have the real items' masses (worked out below from density x volume). Their walls are thicker
+here than the real sheet steel (3 mm and 4 mm against 0.8 mm and 0.6 mm) so that the contacts stay stable; the inside
+diameter, depth and the lid's diameter are the real ones.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=drain_a_pot_through_a_lid_held_ajar.py \\
            --instruction "..." --scorer task_score ...
@@ -37,13 +43,20 @@ SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 
 # -- the pan (origin at the centre of its underside) and the lid (origin at the centre of its disc's underside) -------
-R_IN, WALL_T, WALL_H, FLOOR_T = 0.055, 0.003, 0.075, 0.005
+R_IN, WALL_T, WALL_H, FLOOR_T = 0.055, 0.003, 0.075, 0.005  # the wall here is 3 mm (the real one 0.8 mm), see above
 R_OUT = R_IN + WALL_T
 POT_H = FLOOR_T + WALL_H
-POT_MASS = 0.40
+# The real pan (304 stainless 7.93 g/cm3, aluminium 2.70, phenolic 1.40): 0.8 mm wall, inside 11 cm x 7.5 cm deep,
+# pi (5.58^2 - 5.50^2) x 7.5 = 20.89 cm3 = 165.6 g; 0.8 mm floor, pi 5.58^2 x 0.08 = 7.83 cm3 = 62.1 g; its encapsulated
+# base, an aluminium disc 9.5 cm x 3.7 mm, pi 4.75^2 x 0.37 = 26.23 cm3 = 70.8 g, under a 0.5 mm steel cap 9.8 cm
+# across, pi 4.9^2 x 0.05 = 3.77 cm3 = 29.9 g (floor 0.8 + 3.7 + 0.5 = 5 mm); a solid phenolic handle 7 x 2.5 x 2.2 cm,
+# 38.5 cm3 = 53.9 g; two steel rivets, 3 g. In all 385.3 g.
+POT_MASS = 0.385
 HANDLE_LEN, HANDLE_W, HANDLE_H = 0.070, 0.025, 0.022  # long (pointing back, -x), wide (y), tall
 HANDLE_Z = POT_H - 0.005 - HANDLE_H / 2  # its centre, just under the rim
-LID_R, DISC_T, LID_MASS = R_OUT + 0.010, 0.004, 0.08  # the lid overhangs the rim by 1 cm
+# The real lid: a flat 0.6 mm stainless disc 13.6 cm across, pi 6.8^2 x 0.06 = 8.72 cm3 = 69.1 g; a solid phenolic knob
+# 2.2 x 3.0 x 5.2 cm, 34.32 cm3 = 48.0 g; one M5 screw, 2 g. In all 119.1 g. (A 4 mm steel disc would be 461 g.)
+LID_R, DISC_T, LID_MASS = R_OUT + 0.010, 0.004, 0.119  # 13.6 cm across; the disc here is 4 mm (the real one 0.6 mm)
 KNOB_X, KNOB_Y, KNOB_H = 0.022, 0.030, 0.052  # a tall square knob: flat faces front and back for the fingers
 
 # -- layout (world frame: x forward from the arm bases, y left, z up; metres) ----------------------------------------
@@ -52,7 +65,7 @@ STOVE_TOP = TOP + STOVE_H
 SINK_XY, SINK_IN, SINK_T, SINK_H = (0.41, -0.01), 0.16, 0.004, 0.07  # square basin: inside width, wall, height
 
 WATER_R, WATER_MASS, N_WATER = 0.0025, 0.0005, 20
-DUMPLING_R, DUMPLING_MASS, N_DUMPLING = 0.012, 0.008, 6
+DUMPLING_R, DUMPLING_MASS, N_DUMPLING = 0.012, 0.013, 6  # a mini pierogi: 143 g per 11 (its label), 13.0 g each
 
 STEEL, DARK, LID_C, STONE = (0.72, 0.73, 0.75), (0.10, 0.10, 0.11), (0.80, 0.81, 0.83), (0.30, 0.30, 0.32)
 WATER_C, DUMPLING_C, SINK_C = (0.30, 0.60, 0.95), (0.95, 0.85, 0.45), (0.85, 0.86, 0.88)
@@ -149,24 +162,31 @@ def _in_sink(p) -> bool:
             and TOP + 0.004 < p[2] < TOP + SINK_H)  # the floor's top is 4 mm up
 
 
+_LEFT_PAN: set = set()  # dumplings that have been out of the pan at some control step of this episode
+
+
 def _tally(objects) -> dict:
-    """Water collected in the sink, water left in the pan, water spilled elsewhere; dumplings in the pan and in the
-    sink (lost with the water: counted separately, never as water); whether the pan stands on the stove."""
+    """Water collected in the sink, water left in the pan, water spilled elsewhere; dumplings kept (in the pan now and
+    never out of it during the episode: one put back after leaving it is still lost) and in the sink (lost with the
+    water: counted separately, never as water); whether the pan stands on the stove. score() and success() run every
+    control step, so a dumpling out of the pan at any step is remembered."""
     pot = objects["pan"]
     drained = sum(_in_sink(objects[n].pos) for n in WATER_NAMES)
     water_left = sum(_in_pot(objects[n].pos, pot) for n in WATER_NAMES)
-    kept = sum(_in_pot(objects[n].pos, pot) for n in DUMPLING_NAMES)
+    _LEFT_PAN.update(n for n in DUMPLING_NAMES if not _in_pot(objects[n].pos, pot))
+    kept = sum(n not in _LEFT_PAN for n in DUMPLING_NAMES)
     dumplings_in_sink = sum(_in_sink(objects[n].pos) for n in DUMPLING_NAMES)
     p = np.asarray(pot.pos, float)
     on_stove = (_tilt(rotation(pot.quat_xyzw)) < UPRIGHT and abs(p[2] - STOVE_TOP) < 0.01
                 and math.hypot(p[0] - STOVE_XY[0], p[1] - STOVE_XY[1]) < ON_STOVE)
     return {"drained": int(drained), "water_left": int(water_left), "spilled": int(N_WATER - drained - water_left),
-            "kept": int(kept), "dumplings_in_sink": int(dumplings_in_sink), "on_stove": on_stove}
+            "kept": int(kept), "dumplings_in_sink": int(dumplings_in_sink), "ever_out": len(_LEFT_PAN),
+            "on_stove": on_stove}
 
 
 def _points(t) -> float:
-    """Drained water is only what is in the sink (spills earn nothing); a dumpling not in the pan (in the sink or
-    anywhere else) is a lost dumpling."""
+    """Drained water is only what is in the sink (spills earn nothing); a dumpling that is not in the pan, or has
+    been out of it at any time (in the sink or anywhere else, even if put back), is a lost dumpling."""
     if not t["on_stove"]:
         return 0.0
     if t["kept"] == N_DUMPLING and t["drained"] >= FULL_DRAINED:
@@ -184,13 +204,15 @@ _DEBUG = {"on": bool(os.environ.get("DRAIN_DEBUG")), "calls": 0}
 @on_reset
 def _new_episode() -> None:
     _DEBUG["calls"] = 0
+    _LEFT_PAN.clear()
 
 
 def score(objects) -> float:
     """0 unless the pan ends standing upright on the stove. Otherwise 1.0 with at least 16 of the 20 water beads (240 of
     300 ml) inside the sink basin and all 6 dumplings in the pan; 0.5 with at least 10 (150 ml) in the sink and at
     least 5 dumplings in the pan; 0.25 with at least 5 (75 ml) in the sink and all 6 dumplings in the pan; else 0.
-    Water beads outside the sink (spilled) never count; dumplings in the sink are lost dumplings, not water."""
+    Water beads outside the sink (spilled) never count; dumplings in the sink are lost dumplings, not water; a
+    dumpling counts as in the pan only if it never left it during the trial."""
     t = _tally(objects)
     if _DEBUG["on"]:  # DRAIN_DEBUG=1: one line a second (at 20 Hz) on stderr
         _DEBUG["calls"] += 1
@@ -201,7 +223,7 @@ def score(objects) -> float:
             lid_tilt = math.degrees(math.acos(max(-1.0, min(1.0, float(rotation(pot.quat_xyzw)[:, 2] @ rotation(lid.quat_xyzw)[:, 2])))))
             print(f"[drain] t={_DEBUG['calls'] / 20:5.1f}s drained={t['drained']} ({t['drained'] * ML_PER_BEAD} ml) "
                   f"water_in_pan={in_pot} spilled={t['spilled']} ({t['spilled'] * ML_PER_BEAD} ml) lid_tilt={lid_tilt:.1f}deg "
-                  f"dumplings_kept={t['kept']} dumplings_in_sink={t['dumplings_in_sink']} pan_tip={math.degrees(_tilt(rotation(pot.quat_xyzw))):.0f}deg "
+                  f"dumplings_kept={t['kept']} ever_out={t['ever_out']} dumplings_in_sink={t['dumplings_in_sink']} pan_tip={math.degrees(_tilt(rotation(pot.quat_xyzw))):.0f}deg "
                   f"lid_vs_pan_cm={np.round(rel * 100, 1).tolist()} on_stove={t['on_stove']} score={_points(t)}",
                   file=sys.stderr, flush=True)
     return _points(t)
