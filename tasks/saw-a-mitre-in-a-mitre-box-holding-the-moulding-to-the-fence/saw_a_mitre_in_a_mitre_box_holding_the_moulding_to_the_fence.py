@@ -1,16 +1,17 @@
 """On the station table stands a beech mitre box: a channel between a front wall and a back fence, with saw slots cut
-through both walls at 90 degrees and at 45 degrees either way, on a long base board. In front of it lies a length of
-black-lacquered pine picture-frame moulding with a gold lip, a pencil line across it at 45 degrees near its right end.
-To the right a 10-inch gents saw (a steel blade with a brass back and a turned handle) stands in its wooden rest,
-blade down.
+through both walls at 90 degrees and at 45 degrees either way, an MDF packing strip along its floor. In front of it
+lies a length of black picture-frame moulding with a gold lip, a pencil line across it at 45 degrees near its right
+end. To the right a 10-inch gents saw (a steel blade with a brass back and a turned walnut handle) stands in its wooden
+rest, blade down.
 
 Task: saw the moulding right through at its pencil line in the mitre box's 45-degree slot, the moulding against the
 box's back fence, so the cut is a true 45-degree mitre (within half a degree); leave the saw standing back in its rest,
 the cut moulding lying on the table in front of the box and both arms back where they started. The moulding is light
 and slides in the box: the saw's strokes drag it along with the blade unless it is held. The slots hold the saw's
 direction in the box, so the cut is true only if the moulding stays square against the fence. The wood is not cut in
-simulation: counted strokes stand in for the kerf's depth (real trials measure it; see task.json), and the cut's angle
-is the blade's angle in the moulding's own frame.
+simulation: counted strokes stand in for the kerf's depth (real trials measure it; see task.json). A stroke counts only
+while the teeth bear on the bottom of the cut against its resistance (PhysX contact and friction forces), and the cut's
+angle is the blade's angle in the moulding's own frame.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=saw_a_mitre_in_a_mitre_box_holding_the_moulding_to_the_fence.py \\
            --instruction "..." --scorer task_score ...
@@ -30,7 +31,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import bodykit  # noqa: E402,F401
 from bodykit import (Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, glue, on_reset, on_step,  # noqa: E402
                      rotation, set_glue_on, set_slider_drive, slider)
-from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402,F401
+from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, PHYSICS_DT, TCP_OFFSET  # noqa: E402,F401
 from yam_arena.demo import Waypoint, grip_rotation  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
 
@@ -39,15 +40,20 @@ allow_matrix_grips()
 SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 
-# -- the mitre box: the channel's centre line runs along y at XC; the 45-degree slots cross it at YX ------------------
-XC, YX = 0.350, -0.050
-IN_HALF = 0.030  # the channel is 6 cm wide inside
-WT, WH = 0.015, 0.040  # wall thickness, wall height over the floor (below the saw's back at full depth)
-FT = 0.015  # the floor (base board) thickness
-FLOOR = TOP + FT
-BOX_Y0, BOX_Y1 = -0.150, 0.080  # where the walls run
-BASE_Y1 = 0.280  # the base board runs on to the left, under the moulding's far end
-SX0, SX1 = XC - IN_HALF - WT - 0.008, XC + IN_HALF + WT + 0.008
+# -- the mitre box (a Pinie solid-beech mitre box, 24-250653819: 245 x 103 x 60 mm outside, 245 x 65 x 41 mm inside,
+# 19 mm beech sides on an 18 mm birch-ply base): the channel's centre line runs along y at XC; the 45-degree slots
+# cross it at YX ---------------------------------------------------------------------------------------------------------
+XC, YX = 0.3475, -0.050
+IN_HALF = 0.0325  # the channel is 65 mm wide inside
+WT, WH = 0.019, 0.041  # wall thickness, wall height over the box's floor
+FT = 0.018  # the box's base (birch ply)
+PACK = 0.006  # an MDF packing strip along the channel's floor: the moulding lies on it, the saw cuts into it, and at
+#   full depth the saw's brass back stays above the walls
+FLOOR = TOP + FT + PACK  # the moulding's bottom when it lies in the box
+WALL_TOP = TOP + FT + WH
+BOX_Y0, BOX_Y1 = -0.150, 0.095  # the box, 245 mm long
+BASE_Y1 = 0.280  # a support block of the same ply butted to its left end, under the moulding's far end
+SX0, SX1 = XC - IN_HALF - WT, XC + IN_HALF + WT  # the box's front and back faces (103 mm apart)
 Y90 = 0.030  # the 90-degree slot
 BLADE_T = 0.002  # the saw blade's thickness (simulated)
 SLOT_W = 0.0025  # each slot's width (square to it): 0.5 mm wider than the blade
@@ -57,20 +63,22 @@ SLOT_PLAY = math.degrees(math.atan((SLOT_W - BLADE_T) / SLOT_SPAN))  # how far t
 FENCE = XC + IN_HALF  # the back fence's face
 D = np.array([math.sqrt(0.5), math.sqrt(0.5), 0.0])  # along the 45-degree slot used (front right to back left)
 N = np.array([-math.sqrt(0.5), math.sqrt(0.5), 0.0])  # across it
-# -- the moulding: its frame on its centre line at the pencil mark, at its bottom; it lies along y ---------------------
-MW, MH = 0.026, 0.022
+# -- the moulding (LION L2525 26 x 23 mm 'Fino' black frame moulding, pine or fir): its frame on its centre line at the
+# pencil mark, at its bottom; it lies along y --------------------------------------------------------------------------
+MW, MH = 0.026, 0.023
 L_MAIN, L_OFF = 0.290, 0.050  # left of the mark (kept), right of it (the offcut)
 MX = FENCE - MW / 2  # its centre line when it lies against the fence
 YM = YX + (MX - XC)  # where the 45-degree slot crosses its centre line: the mark lies here in the box
 MX0 = 0.215  # its centre line where it lies at the start, on the table in front of the box
 M0 = (MX0, TOP)
-M_MASS, OFF_MASS = 0.080, 0.014
+M_MASS, OFF_MASS = 0.084, 0.0145  # 26 x 23 mm x 34 cm at 0.485 g/cm3 (pine): 98.5 g
 NSL = 8  # slices across its width that make its 45-degree ends
-# -- the backsaw: its frame at the middle of the blade's toothed edge, the blade along x -----------------------------
-BL, BH = 0.250, 0.050
+# -- the backsaw (a Thomas Flinn Pax 10-inch gents saw, PG10: 255 mm cutting length, 40 mm under the brass back, 20 tpi):
+# its frame at the middle of the blade's toothed edge, the blade along x ------------------------------------------------
+BL, BH = 0.255, 0.045  # the blade's length, and its height to the middle of the back (40 mm under the back)
 G = np.array([-BL / 2 - 0.058, 0.0, BH])  # where a hand holds its handle
 SAW_MASS = 0.16
-SAW_COM = (-0.100, 0.0, 0.042)
+SAW_COM = (-0.100, 0.0, 0.037)
 # -- the saw rest: two slotted blocks; the saw stands in them, blade along x -----------------------------------------
 XR, YR = 0.380, -0.210
 REST_Z = TOP + 0.010  # the slots' floor: where the saw's teeth rest
@@ -79,8 +87,19 @@ PIN = (0.40, -0.10, 0.30)  # hidden, under the table: where the drawn-only bodie
 MARK_Y, MARK_X, MARK_YAW, MARK_Z = 0.010, 0.006, 4.0, 0.004  # laid at the mark, against the fence
 LAID_S = 0.5
 LAT, SAW_YAW, SAW_ROLL = 0.009, 8.0, 12.0  # the saw in the 45-degree slot
-ON_KERF_UP, ON_KERF_DOWN = 0.007, 0.008  # its teeth this near the bottom of the cut
-STROKE = 0.030  # a stroke: the saw pushed this far along the slot
+# sawing: the saw cuts only while its teeth bear on the bottom of the cut (measured contact force) and the cut resists
+# its motion along the slot (the measured friction between them). The resistance required is what a backsaw fed by its
+# own weight meets: the ratio of main cutting force to normal force measured for handsaw teeth cutting Norway spruce,
+# 27.3 N / 9.4 N = 2.9 (Mellqvist, Buck and Johansson 2026, Eur. J. Wood Wood Prod. 84:132), times the saw's weight
+CUT_RATIO = 27.3 / 9.4
+FT_MIN = 3.5  # N: each stroke's mean resistance over its sawing travel, about three quarters of CUT_RATIO x 1.57 N
+#   (4.56 N)
+FN_MIN = 1.5  # N: the teeth pressed on the cut at least this hard at both ends of a control step that counts (about
+#   the saw's own 1.57 N weight)
+MU_TEETH = 1.5  # the teeth's friction on the bottom of the cut: the resistance is this times the force pressing them
+#   in. Simulated teeth need more feed than real ones (2.3 N for 3.5 N): a friction of 2.9 made the softly held saw
+#   stick, dig in and jump out of the cut
+STROKE = 0.030  # a stroke: the saw pushed this far along the slot while it cuts
 MOVE_TOL = 0.004  # ... while the moulding moves at most this much
 MITRE, MITRE_TOL = 45.0, 0.5  # the cut's angle to the moulding's edge (degrees): a frame corner closes without a gap
 STROKES_DONE = 8
@@ -94,8 +113,9 @@ SUCCESS_HOLD_S = 1.0
 
 BEECH, BEECH_DARK, PLY, KERF = (0.66, 0.45, 0.27), (0.50, 0.34, 0.20), (0.56, 0.50, 0.42), (0.20, 0.13, 0.08)
 LACQUER, GOLD, BARE, PENCIL = (0.07, 0.07, 0.08), (0.86, 0.70, 0.30), (0.93, 0.84, 0.66), (0.86, 0.86, 0.88)
-STEEL, TEETH, BRASS, ROSEWOOD = (0.76, 0.78, 0.81), (0.46, 0.47, 0.50), (0.80, 0.62, 0.26), (0.42, 0.22, 0.13)
+STEEL, TEETH, BRASS, WALNUT = (0.76, 0.78, 0.81), (0.46, 0.47, 0.50), (0.80, 0.62, 0.26), (0.36, 0.23, 0.15)
 DUST, SLIT, SCREW = (0.94, 0.86, 0.68), (0.16, 0.10, 0.06), (0.35, 0.35, 0.37)
+MDF, SEAM = (0.58, 0.45, 0.32), (0.30, 0.26, 0.20)
 
 
 def _slot_gaps(xc: float, w: float, width: float) -> list[tuple[float, float]]:
@@ -113,8 +133,10 @@ def _slot_gaps(xc: float, w: float, width: float) -> list[tuple[float, float]]:
 
 
 def _box() -> Body:
-    """The mitre box on its base board (frame at (XC, 0) on the table)."""
-    shapes = [BoxShape(((SX0 + SX1) / 2 - XC, (BOX_Y0 + BASE_Y1) / 2, FT / 2), (SX1 - SX0, BASE_Y1 - BOX_Y0, FT), PLY)]
+    """The mitre box, and the support block butted to its left end (frame at (XC, 0) on the table)."""
+    shapes = [BoxShape(((SX0 + SX1) / 2 - XC, (BOX_Y0 + BASE_Y1) / 2, FT / 2), (SX1 - SX0, BASE_Y1 - BOX_Y0, FT), PLY),
+              BoxShape(((SX0 + SX1) / 2 - XC, BOX_Y1, FT / 2), (SX1 - SX0 + 0.0006, 0.0008, FT + 0.0006), SEAM,
+                       collide=False)]  # where the box's base meets the support block
     zl = FT + WH - MOUTH_D  # where each slot's chamfered mouth starts
     for x0w in (XC - IN_HALF - WT, XC + IN_HALF):  # front wall, back fence: 5 slices each (collision only)
         for k in range(5):
@@ -151,16 +173,20 @@ def _box() -> Body:
                 xf = xm + side * (WT / 2 + 0.0003)
                 shapes.append(BoxShape((xf, YX + (xf if yaw > 0 else -xf) if yaw else Y90, FT + WH / 2),
                                        (0.0006, SLOT_W * (math.sqrt(2) if yaw else 1.0), WH), KERF, collide=False))
-    # the slots' dark kerfs in the floor, from use, and the screws holding the walls (drawn only)
-    for s in (1.0, -1.0):
-        shapes.append(BoxShape((0.0, YX, FT + 0.0002), (2 * IN_HALF * math.sqrt(2), 0.0015, 0.0004), KERF,
-                               collide=False, yaw=s * math.pi / 4))
-    shapes.append(BoxShape((0.0, Y90, FT + 0.0002), (2 * IN_HALF, 0.0015, 0.0004), KERF, collide=False))
+    # the screws holding the walls (drawn only)
     for xw in (-IN_HALF - WT / 2, IN_HALF + WT / 2):
         for y in (BOX_Y0 + 0.02, BOX_Y1 - 0.02):
             shapes.append(CylShape((xw, y, FT + WH + 0.0002), 0.003, 0.0004, SCREW, collide=False))
     return Body.build("mitre_box", pos=(XC, 0.0, TOP), mass=3.0, kinematic=True, color=BEECH, shapes=shapes,
                       friction=(0.20, 0.18), slick=True)
+
+
+def _packing() -> Body:
+    """A 6 mm MDF strip along the channel's floor and on over the support block: the moulding lies on it, and the saw
+    cuts into it instead of the box's floor (the saw passes through it here)."""
+    return Body.build("packing", pos=(XC, 0.0, TOP + FT), mass=0.1, kinematic=True, color=MDF, shapes=[
+        BoxShape((0.0, (BOX_Y0 + BASE_Y1) / 2, PACK / 2), (2 * IN_HALF - 0.001, BASE_Y1 - BOX_Y0, PACK), MDF)],
+        friction=(0.32, 0.30), slick=True)
 
 
 def _vee(x: float, y0: float, z0: float, half: float, h: float, length: float, deg: float) -> list:
@@ -232,25 +258,27 @@ def _offcut() -> Body:
 
 def _kerf() -> Body:
     """The bottom of the saw cut (not drawn): a plate the saw's teeth ride on, sliding down inside the moulding as the
-    cut deepens, and dragging the moulding along with the saw."""
+    cut deepens. Its friction on the teeth (MU_TEETH, the higher of the pair) is the cut's resistance to the saw: it
+    drags the moulding along with the saw."""
     return Body.build("kerf", pos=(M0[0], YM, M0[1] + MH), mass=0.01,
                       shapes=[BoxShape((0.0, 0.0, -0.0015), (0.046, 0.034, 0.003), None, yaw=math.pi / 4)],
-                      friction=(1.2, 1.1), ignore=("mitre_box", "offcut"))
+                      friction=(MU_TEETH, MU_TEETH), ignore=("mitre_box", "packing", "offcut"))
 
 
 def _saw() -> Body:
-    """A backsaw: a thin steel blade with a brass back along its top, and a turned rosewood handle in line with it."""
+    """A gents saw: a thin steel blade with a brass back along its top, and a turned walnut handle (133 mm with its
+    brass ferrule) in line with it."""
     shapes = [BoxShape((0.0, 0.0, BH / 2), (BL, 0.002, BH), STEEL),
               BoxShape((0.0, 0.0, 0.002), (BL, 0.0024, 0.004), TEETH, collide=False),
               BoxShape((0.0, 0.0, BH + 0.001), (BL, 0.006, 0.012), BRASS),
               CylShape((-BL / 2 - 0.006, 0.0, BH), 0.0115, 0.012, BRASS, axis="X"),
-              CylShape((-BL / 2 - 0.063, 0.0, BH), 0.0100, 0.100, ROSEWOOD, axis="X"),
-              CylShape((-BL / 2 - 0.115, 0.0, BH), 0.0115, 0.006, ROSEWOOD, axis="X")]
+              CylShape((-BL / 2 - 0.0695, 0.0, BH), 0.0100, 0.115, WALNUT, axis="X"),
+              CylShape((-BL / 2 - 0.130, 0.0, BH), 0.0115, 0.006, WALNUT, axis="X")]
     for x in (-0.095, -0.065):  # the brass back's rivets (drawn only)
         for s in (-1.0, 1.0):
             shapes.append(CylShape((x, s * 0.0032, BH + 0.001), 0.002, 0.0006, BRASS, collide=False, axis="Y"))
     return Body.build("saw", pos=(XR, YR, REST_Z), mass=SAW_MASS, shapes=shapes, color=STEEL, friction=(1.2, 1.1),
-                      com=SAW_COM, damping=(0.0, 0.2), ignore=("moulding", "offcut"))
+                      com=SAW_COM, damping=(0.0, 0.2), ignore=("packing", "moulding", "offcut"))
 
 
 def _slit() -> Body:
@@ -262,16 +290,37 @@ def _slit() -> Body:
 
 def _dust(name: str, bits) -> Body:
     """Sawdust on the box's floor in front of the cut (box's frame)."""
-    shapes = [BoxShape((x, y, FT + h / 2), (s, s * 0.8, h), DUST, collide=False, yaw=a) for x, y, s, h, a in bits]
+    shapes = [BoxShape((x, y, FT + PACK + h / 2), (s, s * 0.8, h), DUST, collide=False, yaw=a) for x, y, s, h, a in bits]
     return Body.build(name, pos=PIN, mass=0.01, kinematic=True, color=DUST, shapes=shapes)
 
 
-slider("kerf", "moulding", "kerf", anchor=(M0[0], YM, M0[1] + MH), axis="Z", limits=(-(MH + 0.004), 0.002),
+slider("kerf", "moulding", "kerf", anchor=(M0[0], YM, M0[1] + MH), axis="Z", limits=(-(MH + 0.020), 0.002),
        stiffness=3000.0, damping=30.0, target=0.0)
 glue("cut", "moulding", "offcut", anchor=(M0[0], YM, M0[1] + MH / 2))
 
+# the saw's and the cut's bodies report their contacts (the force between the teeth and the bottom of the cut), and the
+# cut's friction on the teeth takes the higher of the two frictions (MU_TEETH)
+_PATHS: dict = {}
+_author_plain = bodykit._author_sliders
+
+
+def _author_sliders(stage, prim_path: str, spec) -> None:
+    _author_plain(stage, prim_path, spec)
+    if spec.name in ("saw", "kerf"):
+        from pxr import PhysxSchema
+
+        prim = stage.GetPrimAtPath(f"{prim_path}/body")
+        PhysxSchema.PhysxContactReportAPI.Apply(prim).CreateThresholdAttr(0.0)
+        _PATHS[spec.name] = f"{prim_path}/body"
+        if spec.name == "kerf":
+            material = stage.GetPrimAtPath(f"{prim_path}/Looks/physics")
+            PhysxSchema.PhysxMaterialAPI.Apply(material).CreateFrictionCombineModeAttr().Set("max")
+
+
+bodykit._author_sliders = _author_sliders
+
 _DX = MX - XC - MW / 2 - 0.012  # in front of the moulding, under the cut
-OBJECTS = [_box(), _rest(), _pin(), _moulding(), _offcut(), _kerf(), _saw(), _slit(),
+OBJECTS = [_box(), _packing(), _rest(), _pin(), _moulding(), _offcut(), _kerf(), _saw(), _slit(),
            _dust("dust1", [(_DX, YX - 0.012, 0.012, 0.0015, 0.3), (_DX - 0.006, YX - 0.004, 0.008, 0.001, 1.1)]),
            _dust("dust2", [(_DX - 0.004, YX - 0.020, 0.016, 0.0025, 0.7), (_DX + 0.002, YX - 0.002, 0.012, 0.002, 0.2),
                            (_DX - 0.010, YX - 0.012, 0.010, 0.0015, 1.4)])]
@@ -281,11 +330,52 @@ OBJECTS = [_box(), _rest(), _pin(), _moulding(), _offcut(), _kerf(), _saw(), _sl
 
 def _fresh() -> dict:
     return {"laid": False, "at_mark_s": 0.0, "strokes": 0, "push": None, "cut": False, "retracted": False,
-            "angles": [], "bevels": [], "offsets": [], "shown": set(), "tcps": None, "s": {}}
+            "angles": [], "bevels": [], "offsets": [], "fns": [], "fts": [], "shown": set(), "tcps": None, "s": {},
+            "s_prev": None, "fn_prev": 0.0, "view": None, "view_err": "", "near": [1.0, 1.0]}
 
 
 _EP = _fresh()
-_DEBUG = {"on": bool(os.environ.get("MITRE_DEBUG")), "steps": 0}
+_DEBUG = {"on": bool(os.environ.get("MITRE_DEBUG")), "every": int(os.environ.get("MITRE_DEBUG_EVERY", "5")),
+          "steps": 0}
+
+
+def _np(a) -> np.ndarray:
+    if hasattr(a, "numpy") and not hasattr(a, "detach"):
+        return np.asarray(a.numpy(), float)
+    return as_numpy(a)
+
+
+def _cut_force() -> tuple[np.ndarray, np.ndarray] | None:
+    """The contact force on the saw from the bottom of the cut (world, N): (normal, friction), from PhysX's
+    rigid-contact view; None until the view exists."""
+    if _EP["view"] is None and not _EP["view_err"] and len(_PATHS) == 2:
+        try:
+            from isaaclab_physx.physics import PhysxManager
+
+            sim = PhysxManager.get_physics_sim_view()
+            _EP["view"] = sim.create_rigid_contact_view([_PATHS["saw"]], filter_patterns=[[_PATHS["kerf"]]],
+                                                        max_contact_data_count=256)
+        except Exception as e:  # noqa: BLE001
+            _EP["view_err"] = repr(e)[:300]
+    if _EP["view"] is None:
+        return None
+    view = _EP["view"]
+    normal = _np(view.get_contact_force_matrix(dt=PHYSICS_DT)).reshape(-1, 3).sum(axis=0)
+    friction = np.zeros(3)
+    try:
+        forces, _, counts, starts = view.get_friction_data(dt=PHYSICS_DT)
+        n, i0 = int(_np(counts).reshape(-1)[0]), int(_np(starts).reshape(-1)[0])
+        if n > 0:
+            friction = _np(forces).reshape(-1, 3)[i0:i0 + n].sum(axis=0)
+    except Exception as e:  # noqa: BLE001
+        _EP["view_err"] = "friction: " + repr(e)[:200]
+    return normal, friction
+
+
+def _seg_dist(p, a, b) -> float:
+    ab = b - a
+    t = min(1.0, max(0.0, float((p - a) @ ab) / float(ab @ ab)))
+    return float(np.linalg.norm(p - (a + t * ab)))
 
 
 @on_reset
@@ -336,7 +426,7 @@ def _follow(env) -> None:
     _EP["at_mark_s"] = _EP["at_mark_s"] + 0.05 if at_mark else 0.0
     if _EP["at_mark_s"] >= LAID_S:
         _EP["laid"] = True
-    # the saw in the 45-degree slot, its teeth on the bottom of the cut
+    # the saw in the 45-degree slot
     rel = sp - np.array([XC, YX, 0.0])
     s, lat = float(rel @ D), float(rel @ N)
     syaw = _yaw(sr)
@@ -345,9 +435,19 @@ def _follow(env) -> None:
     mpitch = math.degrees(math.asin(max(-1.0, min(1.0, float(mr[2, 1])))))
     kerf_top = float(kp[2])
     u = float((sr.T @ (kp - sp))[0])  # where along the blade the bottom of the cut lies
-    up = float((sp + sr @ np.array([u, 0.0, 0.0]))[2]) - kerf_top if abs(u) <= BL / 2 else 1.0
-    in_slot = (abs(lat) <= LAT and abs(syaw - 45.0) <= SAW_YAW and abs(roll) <= SAW_ROLL and -0.07 <= s <= 0.07
-               and -ON_KERF_DOWN <= up <= ON_KERF_UP)
+    up = float((sp + sr @ np.array([u, 0.0, 0.0]))[2]) - kerf_top if abs(u) <= BL / 2 else 1.0  # (debug only)
+    in_slot = abs(lat) <= LAT and abs(syaw - 45.0) <= SAW_YAW and abs(roll) <= SAW_ROLL and -0.07 <= s <= 0.07
+    # sawing: the teeth pressed on the bottom of the cut (the contact force along the moulding's up) at both ends of
+    # this control step, and the cut resisting the saw's motion along the slot (the contact force against it)
+    f = _cut_force()
+    fn = float(f[0] @ mr[:, 2]) if f is not None else 0.0
+    ds = s - _EP["s_prev"] if _EP["s_prev"] is not None else 0.0
+    ft = -float(f[1] @ D) * (1.0 if ds >= 0.0 else -1.0) if f is not None else 0.0
+    sawing = in_slot and at_mark and ds > 0.0 and fn >= FN_MIN and _EP["fn_prev"] >= FN_MIN
+    _EP["s_prev"], _EP["fn_prev"] = s, fn
+    # how near each fingertip centre comes to the teeth (debug: the saw's teeth and the grippers' pads)
+    a, b = sp + sr @ np.array([-BL / 2, 0.0, 0.0]), sp + sr @ np.array([BL / 2, 0.0, 0.0])
+    _EP["near"] = [min(n, _seg_dist(t, a, b)) for n, t in zip(_EP["near"], tcps)]
     # the cut as the wood sees it: the blade's line in the moulding's own frame (its angle to the moulding's edge, its
     # lean off square to the moulding's top, and how far the blade's plane lies from the pencil mark)
     bm, nm = mr.T @ sr[:, 0], mr.T @ sr[:, 1]
@@ -356,32 +456,39 @@ def _follow(env) -> None:
     offset = float((mp - sp) @ sr[:, 1])
     st = _EP["push"]
     if in_slot and at_mark:
-        if st is None or s < st["smin"] or s < st["smax"] - 0.010:  # drawn back: the next push starts from here
-            st = {"smin": s, "smax": s, "m0": mp.copy(), "moved": 0.0, "counted": False, "n": 0, "a": 0.0, "b": 0.0,
-                  "d": 0.0}
+        if st is None or s < st["smax"] - 0.010:  # drawn back: the next push starts from here
+            st = {"smax": s, "m0": mp.copy(), "moved": 0.0, "travel": 0.0, "work": 0.0, "counted": False, "n": 0,
+                  "a": 0.0, "b": 0.0, "d": 0.0, "fn": 0.0, "ft": 0.0}
         st["smax"] = max(st["smax"], s)
         st["moved"] = max(st["moved"], float(np.linalg.norm(mp - st["m0"])))
-        if not st["counted"]:
+        if sawing and not st["counted"]:  # only the steps that cut add to the stroke
+            st["travel"] += ds
+            st["work"] += ft * ds  # the work done against the cut
             st["n"] += 1
             st["a"] += mitre
             st["b"] += bevel
             st["d"] += offset
-        if not st["counted"] and s - st["smin"] >= STROKE:
+            st["fn"] += fn
+            st["ft"] += ft
+        if not st["counted"] and st["travel"] >= STROKE and st["work"] >= FT_MIN * st["travel"]:
             st["counted"] = True
             if st["moved"] <= MOVE_TOL and _EP["strokes"] < STROKES_DONE:
                 _EP["strokes"] += 1
-                _EP["angles"].append(st["a"] / st["n"])  # this stroke's cut, averaged over the push
+                _EP["angles"].append(st["a"] / st["n"])  # this stroke's cut, averaged over its cutting steps
                 _EP["bevels"].append(st["b"] / st["n"])
                 _EP["offsets"].append(st["d"] / st["n"])
+                _EP["fns"].append(st["fn"] / st["n"])
+                _EP["fts"].append(st["work"] / st["travel"])
                 set_slider_drive("kerf", target=-STEP * _EP["strokes"])
-                if _EP["strokes"] >= STROKES_DONE:
-                    _EP["cut"] = True
-                    set_glue_on("cut", False)
+                if _EP["strokes"] >= STROKES_DONE:  # cut through: the offcut comes free, and the plate drops away
+                    _EP["cut"] = True               # below the moulding, out of the saw's reach (the box's floor
+                    set_glue_on("cut", False)       # under the cut now carries the saw)
+                    set_slider_drive("kerf", target=-(MH + 0.018))
     else:
         st = None
     _EP["push"] = st
-    # once the saw is out of the finished cut, the plate goes back up inside the moulding (out of everything's way)
-    if _EP["cut"] and not _EP["retracted"] and float(sp[2]) > FLOOR + 0.045:
+    # once the whole blade is up out of the box, the plate goes back up inside the moulding (out of everything's way)
+    if _EP["cut"] and not _EP["retracted"] and min(float(a[2]), float(b[2])) > WALL_TOP + 0.005:
         _EP["retracted"] = True
         set_slider_drive("kerf", target=-0.008)
     # drawn only: the saw cut across the top while sawing, and sawdust
@@ -397,19 +504,24 @@ def _follow(env) -> None:
             _write_pose(base, name, braw)
             _EP["shown"].add(name)
     _EP["tcps"] = tcps
-    _EP["s"] = {"at_mark": at_mark, "s": s, "lat": lat, "up": up, "mitre": mitre, "bevel": bevel}
+    _EP["s"] = {"at_mark": at_mark, "s": s, "lat": lat, "up": up, "mitre": mitre, "bevel": bevel, "fn": fn, "ft": ft}
+    fd = float(f[1] @ D) if f is not None else 0.0
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
-        if _DEBUG["steps"] % 5 == 0:
+        if _DEBUG["steps"] % _DEBUG["every"] == 0:
             tl, trc = tcps
             push = _EP["push"]
-            print(f"[mitre] t={_DEBUG['steps'] / 20:5.1f}s mould={np.round((mp - [MX, YM, FLOOR]) * 1000).astype(int).tolist()}"
+            print(f"[mitre] t={_DEBUG['steps'] / 20:5.2f}s mould={np.round((mp - [MX, YM, FLOOR]) * 1000).astype(int).tolist()}"
                   f" myaw={myaw:5.1f} mpitch={mpitch:5.1f} at_mark={at_mark} laid={_EP['laid']}"
                   f" saw s={s * 1000:6.1f} lat={lat * 1000:5.1f} up={up * 1000:6.1f} yaw={syaw:5.1f} roll={roll:5.1f} pitch={pitch:5.1f}"
-                  f" in_slot={in_slot} moved={(push['moved'] * 1000 if push else -1):5.1f} strokes={_EP['strokes']}"
+                  f" in_slot={in_slot} fn={fn:5.2f} ft={ft:5.2f} fd={fd:5.2f} ds={ds * 1000:5.1f} sawing={sawing}"
+                  f" travel={(push['travel'] * 1000 if push else -1):5.1f} work={(push['work'] if push else -1):5.3f}"
+                  f" moved={(push['moved'] * 1000 if push else -1):5.1f} strokes={_EP['strokes']}"
                   f" mitre={mitre:6.2f} bevel={bevel:5.2f} off={offset * 1000:5.2f}"
                   f" cuts={[round(a - MITRE, 2) for a in _EP['angles']]} bev={[round(b, 2) for b in _EP['bevels']]}"
                   f" offs={[round(d * 1000, 2) for d in _EP['offsets']]}"
+                  f" fns={[round(v, 2) for v in _EP['fns']]} fts={[round(v, 2) for v in _EP['fts']]}"
+                  f" near={[round(v * 1000) for v in _EP['near']]} verr={_EP['view_err'][:80]}"
                   f" cut={_EP['cut']} kerf={(kerf_top - FLOOR) * 1000:5.1f}"
                   f" sawpos={np.round((sp - [XR, YR, REST_Z]) * 1000).astype(int).tolist()}"
                   f" fing={[round(f * 1000, 1) for f in fingers]}"
@@ -428,7 +540,7 @@ def cut_true() -> bool:
 def score(objects) -> float:
     """1.0: the moulding cut through at 45 degrees (every counted stroke within 0.5 degrees of it), the saw back in its
     rest, the cut moulding out of the box on the table and both arms back where they started, at the end; 0.75: cut
-    through at 45 degrees (within 0.5); 0.5: at least half the strokes (a kerf at least 11 mm deep), at any angle,
+    through at 45 degrees (within 0.5); 0.5: at least half the strokes (a kerf at least 11.5 mm deep), at any angle,
     or cut through at another angle; 0.25: the moulding laid in the box against the fence with its mark at the
     45-degree slot; else 0.0."""
     if _EP["cut"] and cut_true():
@@ -479,8 +591,9 @@ def success(objects) -> bool:
 # The left hand comes down on the moulding's far part, fingers closing across it (turned against the moulding's turn in
 # the fingers, so it lies square), lifts it over the box's front wall, lays it in the channel against the back fence
 # with its pencil line at the 45-degree slot and holds it there, pressing it down. The right hand takes the saw from its
-# rest by the handle, lifts it, turns it to the slot and sets it in; it saws ten strokes, each a little deeper (the
-# eighth cuts the moulding through), eases the saw out with its toe raised a little and stands it back in its rest. The
+# rest by the handle, lifts it, turns it to the slot and sets it in; it saws on the push, twice at each depth, each depth
+# a little deeper (the eighth counted stroke cuts the moulding through), levers the saw toe up about the box floor's
+# front edge, lifts it out and stands it back in its rest. The
 # left then lifts the cut moulding out of the box and lays it on the table in front of the box; both arms go back to
 # where they started.
 
@@ -493,19 +606,26 @@ M_OFF = 0.0  # a gripped moulding sits this far +x of the TCP
 M_TWIST = math.radians(4.0)  # ... and turned this much (+ about z) by the slanted pads: the hand turns against it
 SAW_TWIST = math.radians(2.9)  # a gripped saw turns this much (+ about z) in the hand: the hand turns against it
 PUSH_X = 0.012  # laid 7 mm clear of the fence, then slid back this far (the fence stops it)
-PRESS_S = -0.008  # the saw aimed this far below the bottom of the cut (above it: the arm sags about 6 mm, and the
-#   saw's own weight rests it on the cut)
-N_STROKES = STROKES_DONE + 2  # the demo saws two strokes more than needed, in case one does not count
+PRESS_S = 0.0  # the saw aimed this far below the bottom of the cut: the arm sags under the saw, which then bears on
+#   the cut with about 3 N
+PRESS_DEEP = 0.00025  # ... and this much more for each 3 mm deeper (the deeper strokes bore on the cut more lightly)
+RETURN_UP = 0.006  # ... and this much higher on the return stroke, eased off the cut
+N_STROKES = 2 * STROKES_DONE + 1  # the demo pushes twice at each depth, in case a push does not count (three times at
+#   the last)
 SAW_LAT = 0.012  # with the hand square, a gripped saw's middle sits this far to its own left (+y) of where it would
 #   sit unturned (measured; mostly its 2.9-degree turn in the hand): aim against it
 SAW_LAT_SLOT = 0.0035  # ... and with the hand turned against that turn, over the slot
 SAW_SLID = 0.010  # the saw slides about 1.5 cm back along its handle in the hand while sawing: aim its return forward
-S_BACK, S_FWD = -0.030, 0.035
+S_BACK, S_FWD = -0.035, 0.042
 CARRY = 0.105  # TCP height (above the table) carrying the moulding over the wall
 SAW_UP = 0.115  # the saw's teeth this high (above the table) carrying it
 LEAD_S, LEAD_STEPS = 3.0, 15
 T_LAID = 10.5  # the right hand sets the saw in the slot once the moulding is in place (s)
-EASE_S, EASE_TILT = 2.0, math.radians(4.0)  # the saw eased out of the cut over this long, its toe raised this much
+LEVER = math.radians(12.0)  # once the cut is through, the hand presses the handle down with the teeth on the box's
+#   floor, levering the saw toe up this much about the floor's front edge: the fingers on its round handle can barely
+#   hold its pitch, so lifted level it would tip toe down onto the far slot's bottom and pivot there
+LEVER_S = 0.040  # ... with the saw this far forward along the slot (its handle's end clear of the rest's cradle)
+LIFT_OUT = 0.065  # ... then lifts it this much, briskly, out of the slots
 SET_TILT = math.radians(5.0)  # ... and set back down in its rest toe first, its toe this much down
 
 
@@ -601,21 +721,33 @@ def _right() -> tuple[list[Waypoint], float]:
     out.append(_w(1.6, _saw_tcp(over, math.pi / 4, SAW_LAT_SLOT), FINGER_CLOSED, "turn it over the 45-degree slot", r45))
     out.append(_w(1.2, _saw_tcp(slot(S_BACK, kerf0 - PRESS_S), math.pi / 4, SAW_LAT_SLOT), FINGER_CLOSED,
                   "set the saw in the slot, its teeth on the pencil line", r45))
-    for k in range(N_STROKES):
-        z = kerf0 - STEP * min(k, STROKES_DONE) - PRESS_S
+    for k in range(N_STROKES):  # cutting on the push; eased up off the cut for the return, as a backsaw is used
+        level = min(k // 2, STROKES_DONE - 1)
+        z = kerf0 - STEP * level - PRESS_S - PRESS_DEEP * level
+        if k:
+            out.append(_w(0.3, _saw_tcp(slot(S_BACK, z), math.pi / 4, SAW_LAT_SLOT), FINGER_CLOSED,
+                          "rest the teeth on the cut", r45))
         for j in range(1, 4):
-            out.append(_w(0.30, _saw_tcp(slot(S_BACK + (S_FWD - S_BACK) * j / 3, z), math.pi / 4, SAW_LAT_SLOT),
+            out.append(_w(0.40, _saw_tcp(slot(S_BACK + (S_FWD - S_BACK) * j / 3, z), math.pi / 4, SAW_LAT_SLOT),
                           FINGER_CLOSED, f"push the saw along the slot ({k + 1} of {N_STROKES})", r45))
-        z2 = kerf0 - STEP * min(k + 1, STROKES_DONE) - PRESS_S
+        z2 = kerf0 - STEP * min((k + 1) // 2, STROKES_DONE - 1) - PRESS_S + RETURN_UP
+        if k == N_STROKES - 1:  # the cut is through: the teeth settle on the box's floor, the saw well forward
+            out.append(_w(0.6, _saw_tcp(slot(LEVER_S, TOP + FT - 0.004), math.pi / 4, SAW_LAT_SLOT), FINGER_CLOSED,
+                          "settle the teeth on the box's floor", r45))
+            continue
         out.append(_w(0.6, _saw_tcp(slot(S_BACK, max(z2, FLOOR - PRESS_S)), math.pi / 4, SAW_LAT_SLOT),
-                      FINGER_CLOSED, "draw it back", r45))
-    # lifted out slowly with its toe raised a little: the slots' friction would otherwise tip the toe down in the hand
-    r_ease = _rz(math.pi / 4 - SAW_TWIST) @ _ry(-EASE_TILT) @ grip_rotation(0.0)
-    out.append(_w(EASE_S, _saw_tcp(slot(S_BACK, FLOOR + WH + 0.012), math.pi / 4, SAW_LAT_SLOT, EASE_TILT),
-                  FINGER_CLOSED, "ease the saw up out of the cut and the slots", r_ease))
-    t_out = sum(w.duration for w in out)
+                      FINGER_CLOSED, "draw it back, eased off the cut", r45))
+    # levered toe up about the box floor's front edge (see LEVER), then lifted out of the slots
+    s_p = -(IN_HALF + WT) * math.sqrt(2)  # the floor's front edge, along the slot
+    pivot = slot(s_p, TOP + FT)
+    levered = pivot + (LEVER_S - s_p) * (math.cos(LEVER) * D + math.sin(LEVER) * np.array([0.0, 0.0, 1.0]))
+    r_lever = _rz(math.pi / 4 - SAW_TWIST) @ _ry(-LEVER) @ grip_rotation(0.0)
+    lever_tcp = _saw_tcp(levered, math.pi / 4, SAW_LAT_SLOT, LEVER) - [0.0, 0.0, 0.004]
+    out.append(_w(1.2, lever_tcp, FINGER_CLOSED, "press the handle down, levering the saw's toe up", r_lever))
+    out.append(_w(0.8, lever_tcp + [0.0, 0.0, LIFT_OUT], FINGER_CLOSED, "lift the saw out of the slots", r_lever))
     out.append(_w(0.8, _saw_tcp(slot(S_BACK, TOP + SAW_UP), math.pi / 4, SAW_LAT_SLOT), FINGER_CLOSED,
                   "lift it clear of the box", r45))
+    t_out = sum(w.duration for w in out)
     # set down toe first: the front V-block takes the blade, then the rear one and the cradle under the handle
     r_toe = _ry(SET_TILT) @ grip_rotation(0.0)
     rest_at = at_rest + [SAW_SLID, 0.0, 0.0]
