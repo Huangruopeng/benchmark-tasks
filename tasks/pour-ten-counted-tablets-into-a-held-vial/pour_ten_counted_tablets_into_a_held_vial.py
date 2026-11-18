@@ -6,7 +6,19 @@ stainless-steel counting spatula in the slot.
 
 Task: count out a prescription of exactly ten tablets: open the stock bottle, pour tablets onto the counting tray, put
 exactly ten into the tray's trough with the spatula and close the trough's lid, and screw the bottle's cap back on; no
-tablet touched by a gripper or dropped.
+tablet touched by a gripper or dropped. Only tablets the spatula pushes from the counting floor into the trough count.
+
+Scoring (_follow, _count and _points, after every 0.05 s control step):
+- each tablet's place: in the bottle, the trough (or its spout), on the counting floor (or the return spout), down on
+  the counter or floor, or in the air;
+- two PhysX contact views: each tablet against the spatula and every link of both arms; each tablet against each other;
+- the spatula's pushed group: tablets touching the blade, those touching them, and so on;
+- an entry into the trough counts only straight from the counting floor, after 1 s at rest there, pushed within the
+  last 1 s, with the tray within 5 degrees of level; a tablet that leaves the trough loses its count;
+- latched 0 for the whole trial: a tablet down, any arm link touching a tablet (over 0.0001 N), or any other entry;
+- at the end, with the bottle opened, exactly 10 counted tablets inside the trough's tube and the other 6 in the bottle
+  or on the counting floor: 1.0 with the lid shut (within 3 degrees) and the cap screwed down, 0.5 with the lid shut,
+  0.25 with it open; else 0.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=pour_ten_counted_tablets_into_a_held_vial.py \\
            --instruction "..." --scorer task_score ...
@@ -123,8 +135,9 @@ OFF_DEG = 360.0  # a 400 finish has one turn of thread: unscrewed a full turn, t
 BREAK_NM, RUN_NM = 1.0, 0.3  # torque to break the cap loose (about half its 2.0 N m application torque), then to turn it
 ROT_K = 0.05  # N m per degree: the thread's friction spring (the task file drags its target along: stick-slip)
 
-# The tablets: round, flat-faced, bevel-edged, film-coated, 10 mm across and 4 mm thick, 0.35 g.
-TAB_R, TAB_H, TAB_M, TAB_MU = 0.005, 0.004, 0.00035, 0.25
+# The tablets: inert stand-ins for 10 mm round tablets, white Smarties Original candy tablets (compressed dextrose): a
+# disc about 10 mm across and 4 mm thick (modelled flat-faced), 0.49 g (a 7.35 g roll holds 15).
+TAB_R, TAB_H, TAB_M, TAB_MU = 0.005, 0.004, 0.00049, 0.25
 N_TABS, DOSE = 16, 10
 
 
@@ -133,7 +146,7 @@ def _bottle() -> Body:
     s += ring(B_R - B_T / 2, 0.0, B_SH, B_T, 24, HDPE)
     s += cone(B_R - B_T / 2, B_SH, NECK_RO - 0.0012, B_NECK0, B_T, 24, HDPE)
     s += ring((NECK_RO + NECK_RI) / 2, B_NECK0, B_H, NECK_RO - NECK_RI, 16, HDPE)
-    # its inside surface, where the tablets slide: HDPE on film coating, slick (collision only, its own material)
+    # its inside surface, where the tablets slide: slick (collision only, its own material)
     global B_SLICK
     liner = len(s)
     s += ring(B_R - B_T - 0.0001 - LINER_T / 2, 0.0015, B_SH, LINER_T, 24, None)
@@ -351,7 +364,7 @@ def _author_threads(stage, prim_path: str, spec) -> None:
         _J["thread"] = f"{prim_path}/cap_thread"
 
 
-HDPE_MU = 0.25  # film-coated tablets on the bottle's HDPE inside (the outside keeps 1.0 for the fingers)
+HDPE_MU = 0.25  # the tablets on the bottle's HDPE inside (the outside keeps 1.0 for the fingers)
 
 
 def _author_sliders(stage, prim_path: str, spec) -> None:
@@ -383,8 +396,10 @@ def _author_sliders(stage, prim_path: str, spec) -> None:
 bodykit._author_threads = _author_threads
 bodykit._author_sliders = _author_sliders
 
-PADS = [(arm, tip) for arm in ("LeftArm", "RightArm") for tip in ("tip_left", "tip_right")]
-_CT = {"view": None, "failed": ""}
+# Every rigid link of both arms: the base, link1-link5, the gripper body and its two fingers
+ARM_LINKS = [(arm, link) for arm in ("LeftArm", "RightArm")
+             for link in ("base", "link1", "link2", "link3", "link4", "link5", "gripper", "tip_left", "tip_right")]
+_CT = {"view": None, "tt": None, "failed": ""}
 
 
 def _np(a) -> np.ndarray:
@@ -393,36 +408,46 @@ def _np(a) -> np.ndarray:
     return as_numpy(a)
 
 
-def _view():
-    """A PhysX rigid-contact view, made once: each tablet against the four finger pads."""
-    if _CT["view"] is None and not _CT["failed"] and "env" in _J and all(n in _J for n in TAB_NAMES):
+def _views():
+    """Two PhysX rigid-contact views, made once: each tablet against every arm link and the spatula; and each tablet
+    against each of the other 15 tablets."""
+    if _CT["view"] is None and not _CT["failed"] and "env" in _J and all(n in _J for n in [*TAB_NAMES, "spatula"]):
         try:
             from isaaclab_physx.physics import PhysxManager
             from yam_arena.robot import asset_link_paths
 
             links = asset_link_paths()
-            pads = [f"{_J['env']}/{arm}{links[tip]}" for arm, tip in PADS]
+            pats = [f"{_J['env']}/{arm}{links[link]}" for arm, link in ARM_LINKS] + [_J["spatula"]]
             sim = PhysxManager.get_physics_sim_view()
-            _CT["view"] = sim.create_rigid_contact_view([_J[n] for n in TAB_NAMES],
-                                                        filter_patterns=[pads] * len(TAB_NAMES),
+            tabs = [_J[n] for n in TAB_NAMES]
+            _CT["view"] = sim.create_rigid_contact_view(tabs, filter_patterns=[pats] * len(TAB_NAMES),
                                                         max_contact_data_count=0)
+            _CT["tt"] = sim.create_rigid_contact_view(
+                tabs, filter_patterns=[[t for t in tabs if t != own] for own in tabs], max_contact_data_count=0)
         except Exception as e:  # noqa: BLE001
             _CT["failed"] = repr(e)[:300]
             print(f"[tab] contact view failed: {_CT['failed']}", file=sys.stderr, flush=True)
-    return _CT["view"]
+    return _CT["view"], _CT["tt"]
 
 
-def _pad_touch() -> float:
-    """The largest force (N) any finger pad puts on any tablet now (0 if unknown)."""
-    v = _view()
-    if v is None:
-        return 0.0
+def _contacts():
+    """Contact forces now (N): per tablet, the largest from any arm link (16,), from the spatula (16,), and between
+    each pair of tablets (16, 16). None if the views can't be read."""
+    v, tt = _views()
+    if v is None or tt is None:
+        return None
     try:
-        m = _np(v.get_contact_force_matrix(dt=PHYSICS_DT)).reshape(len(TAB_NAMES), len(PADS), 3)
+        n = len(TAB_NAMES)
+        m = np.linalg.norm(_np(v.get_contact_force_matrix(dt=PHYSICS_DT)).reshape(n, len(ARM_LINKS) + 1, 3), axis=2)
+        f = np.linalg.norm(_np(tt.get_contact_force_matrix(dt=PHYSICS_DT)).reshape(n, n - 1, 3), axis=2)
     except Exception as e:  # noqa: BLE001
         _CT["failed"] = "read: " + repr(e)[:300]
-        return 0.0
-    return float(np.linalg.norm(m, axis=2).max())
+        print(f"[tab] contact read failed: {_CT['failed']}", file=sys.stderr, flush=True)
+        return None
+    pair = np.zeros((n, n))
+    for i in range(n):
+        pair[i, [j for j in range(n) if j != i]] = f[i]
+    return m[:, :-1].max(axis=1), m[:, -1], np.maximum(pair, pair.T), m[:, :-1]
 
 
 def _thread_target_attr():
@@ -437,8 +462,11 @@ def _thread_target_attr():
 
 # =====================================================================================================================
 # Followed after every control step.
-TOUCH_N = 0.05  # a finger pad pushing a tablet this hard: touched
-LID_SHUT = 8.0  # the trough's lid shut: within this many degrees of closed
+CONTACT_N = 0.0001  # a contact force above this (N; a 48th of a tablet's weight) is a touch
+DWELL = 20  # a tablet must have lain on the counting floor this many steps (1 s) before it may enter the trough
+PUSH_GAP = 20  # ...and have been in the spatula's pushed group within this many steps (1 s) before it enters
+TRAY_FLAT = 5.0  # ...with the tray within this many degrees of level (sitting flat on the counter, not tipped)
+LID_SHUT = 3.0  # the trough's lid shut: within this many degrees of closed (a tablet under its edge holds it 6.1)
 DOWN_Z = 0.012  # a tablet outside the bottle and the tray with its centre this low over the counter: dropped
 CATCH = (0.006, 12.0, (-0.014, 0.002), 20.0)  # recapping: radial (m), tilt (deg), slide window (m), turn to catch (deg)
 SEAT_SLIDE = -0.0006  # screwed down: the cap within 0.6 mm of its seat
@@ -448,7 +476,13 @@ SUCCESS_HOLD_S = 1.0
 def _fresh() -> dict:
     return {"on": True, "turn": 0.0, "last_yaw": None, "tgt": 0.0, "loose": False, "off": False, "opened": False,
             "pre": 0.0, "x0": 0.0, "recap_turn": 0.0, "caught": False, "slide": 0.0,
-            "where": ["bottle"] * N_TABS, "spilt": False, "touched": False, "touch_max": 0.0, "lid": 110.0, "s": {}}
+            "where": ["bottle"] * N_TABS, "spilt": False, "touched": False, "touch_max": 0.0, "lid": 110.0, "s": {},
+            # the count: each tablet's place a step ago, its steps on the counting floor, the last step it was in the
+            # spatula's pushed group, whether its last entry into the trough was a counted one; any other entry
+            "k": 0, "prev": None, "floor_n": [0] * N_TABS, "pushed": [-99] * N_TABS, "counted": [False] * N_TABS,
+            "bad": "", "entries": [], "exits": 0, "tilt": 0.0, "nocontact": False,
+            # tablets over the trough but higher than the inside of its closed tube (on top of the lid, say)
+            "high": 0}
 
 
 _EP = _fresh()
@@ -508,6 +542,70 @@ def _where(p, bottle, tray) -> str:
     if p[2] < TOP + DOWN_Z:
         return "down"
     return "air"
+
+
+def _count(where: list, tilt: float) -> None:
+    """The spatula count, after every control step. A tablet's entry into the trough (from anywhere else) is counted
+    only if it comes from the counting floor, where it has lain at least 1 s, pushed by the spatula: the blade touching
+    it, directly or through a chain of touching tablets, within the last 1 s (a tablet pushed onto the rib's crest
+    topples in a few steps after the blade leaves it), with the tray level. Any other entry (poured or dropped in,
+    bounced in, tipped in, pushed by anything else) spoils the whole trial. A tablet that leaves the trough loses its
+    count, and coming back in needs a new push of the spatula. Any touch of a tablet by any part of either arm spoils
+    the whole trial too."""
+    k = _EP["k"]
+    _EP["k"] = k + 1
+    _EP["tilt"] = tilt
+    c = _contacts()
+    if c is None:
+        _EP["nocontact"] = True
+        _EP["touch_now"] = 0.0
+        arm, spat, pair = np.zeros(N_TABS), np.zeros(N_TABS), np.zeros((N_TABS, N_TABS))
+    else:
+        arm, spat, pair, per_link = c
+        _EP["touch_now"] = float(arm.max())
+        _EP["touch_max"] = max(_EP["touch_max"], _EP["touch_now"])
+        if arm.max() > CONTACT_N:
+            if not _EP["touched"] and _DEBUG["on"]:
+                i, j = np.unravel_index(int(np.argmax(per_link)), per_link.shape)
+                print(f"[tab] TOUCH t={k * DT:.2f} tablet {i} by {ARM_LINKS[j]} {per_link[i, j]:.4f} N",
+                      file=sys.stderr, flush=True)
+            _EP["touched"] = True
+    group = spat > CONTACT_N  # the spatula's pushed group: touching the blade, or a tablet in the group
+    touching = pair > CONTACT_N
+    while True:
+        more = group | touching[:, group].any(axis=1)
+        if (more == group).all():
+            break
+        group = more
+    for i in np.flatnonzero(group):
+        _EP["pushed"][i] = k
+    prev = _EP["prev"] or where  # the first step has nothing to compare with
+    for i, (p, w) in enumerate(zip(prev, where)):
+        if w == "floor":
+            _EP["floor_n"][i] += 1
+        elif w != "trough":
+            _EP["floor_n"][i] = 0  # off the tray's floor (into the air, the bottle, down): it must come to rest again
+        if w == "trough" and p != "trough":
+            gap = k - _EP["pushed"][i]
+            why = ("" if p == "floor" else f"came from the {p}") or \
+                  ("" if _EP["floor_n"][i] >= DWELL else f"on the floor only {_EP['floor_n'][i]} steps") or \
+                  ("" if gap <= PUSH_GAP else f"not pushed by the spatula ({gap} steps since)") or \
+                  ("" if tilt <= TRAY_FLAT else f"tray tipped {tilt:.1f} deg")
+            _EP["counted"][i] = not why
+            _EP["entries"].append((round(k * DT, 2), i, gap, bool(spat[i] > CONTACT_N), why))
+            if why and not _EP["bad"]:
+                _EP["bad"] = f"tablet {i} at t={k * DT:.2f}: {why}"
+            if _DEBUG["on"]:
+                print(f"[tab] ENTRY t={k * DT:.2f} tablet {i} from {p} gap={gap} direct={bool(spat[i] > CONTACT_N)} "
+                      f"floor_n={_EP['floor_n'][i]} tilt={tilt:.1f} group={int(group.sum())} "
+                      f"{'COUNTED' if not why else 'BAD: ' + why}", file=sys.stderr, flush=True)
+        elif p == "trough" and w != "trough":
+            _EP["counted"][i] = False
+            _EP["pushed"][i] = -99  # coming back in needs a new push of the spatula, after it left
+            _EP["exits"] += 1
+            if _DEBUG["on"]:
+                print(f"[tab] EXIT t={k * DT:.2f} tablet {i} to {w}", file=sys.stderr, flush=True)
+    _EP["prev"] = list(where)
 
 
 @on_step
@@ -578,10 +676,10 @@ def _follow(env) -> None:
                       f"(was {_EP['where'][i]})", file=sys.stderr, flush=True)
             _EP["spilt"] = True
     _EP["where"] = where
-    touch = _pad_touch()
-    _EP["touch_max"] = max(_EP["touch_max"], touch)
-    if touch > TOUCH_N:
-        _EP["touched"] = True
+    _EP["high"] = sum(1 for p, w in zip(tabs, where)
+                      if w == "trough" and float((tray[1].T @ (p - tray[0]))[2]) > Z_A + R_I)
+    _count(where, math.degrees(math.acos(max(-1.0, min(1.0, float(tray[1][2, 2]))))))
+    touch = _EP["touch_now"]
     _EP["s"] = {"seated": bool(_EP["caught"] and slide >= SEAT_SLIDE and _EP["recap_turn"] >= 300.0)}
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
@@ -608,8 +706,9 @@ def _follow(env) -> None:
                   f"cap={np.round(cp * 1000).astype(int).tolist()} tray={np.round(tray[0] * 1000).astype(int).tolist()} "
                   f"ttilt={ttilt:4.1f} lid={lid_deg:5.1f} "
                   f"L={np.round(tl * 1000).astype(int).tolist()} R={np.round(trc * 1000).astype(int).tolist()} "
-                  f"fing={fing} {spat}cnt={cnt} touch={touch:.3f} lat=spilt:{_EP['spilt']},touch:{_EP['touched']} "
-                  f"score={_points()}", file=sys.stderr, flush=True)
+                  f"fing={fing} {spat}cnt={cnt} touch={touch:.4f} lat=spilt:{_EP['spilt']},touch:{_EP['touched']},"
+                  f"bad:{bool(_EP['bad'])} counted={sum(1 for w, c in zip(where, _EP['counted']) if w == 'trough' and c)} "
+                  f"in={len(_EP['entries'])} out={_EP['exits']} score={_points()}", file=sys.stderr, flush=True)
             if os.environ.get("TAB_POS") and _DEBUG["steps"] % (_DEBUG["every"] * 4) == 0:
                 print("[tabpos] t=%.2f " % (_DEBUG["steps"] * DT) + " ".join(
                     f"{i}:{w}:{p[0] * 1000:.1f},{p[1] * 1000:.1f},{(p[2] - TOP) * 1000:.1f}"
@@ -620,11 +719,12 @@ def _follow(env) -> None:
 # Scoring.
 
 def _points() -> float:
-    if _EP["spilt"] or _EP["touched"]:
+    if _EP["spilt"] or _EP["touched"] or _EP["bad"] or _EP["nocontact"]:
         return 0.0
     where = _EP["where"]
     rest_ok = all(w in ("bottle", "floor") for w in where if w != "trough")
-    if where.count("trough") != DOSE or not rest_ok or not _EP["opened"]:
+    counted = sum(1 for w, c in zip(where, _EP["counted"]) if w == "trough" and c)
+    if where.count("trough") != DOSE or counted != DOSE or _EP["high"] or not rest_ok or not _EP["opened"]:
         return 0.0
     shut = _EP["lid"] <= LID_SHUT
     if shut and _EP["s"].get("seated"):
@@ -633,10 +733,11 @@ def _points() -> float:
 
 
 def score(objects) -> float:
-    """0 for the whole trial if a tablet was ever dropped (on the counter or the floor) or touched by a finger pad.
-    Otherwise, with the bottle opened, exactly 10 tablets in the tray's trough and every other tablet in the stock
-    bottle or on the tray's counting floor: 1.0 with the trough's lid shut and the bottle's cap screwed back down; 0.5
-    with the lid shut; 0.25 with the lid open; else 0."""
+    """0 for the whole trial if a tablet was ever dropped (on the counter or the floor), touched by any part of either
+    arm, or entered the trough other than from the counting floor pushed by the spatula (see _count). Otherwise, with
+    the bottle opened, exactly 10 tablets in the tray's trough, each counted in by the spatula and lying inside the
+    trough's tube (none on top of the lid), and every other tablet in the stock bottle or on the tray's counting floor: 1.0 with the trough's lid shut and the bottle's cap screwed
+    back down; 0.5 with the lid shut; 0.25 with the lid open; else 0."""
     return _points()
 
 
@@ -814,15 +915,15 @@ SWEEP_DZ = -0.002  # aim the blade's tip this much lower: it then rests on the f
 RIB_Y0, RIB_Y1 = TY + V_A + R_I + RIB_W + 0.006, TY + V_A + R_I - 0.007  # blade: start rising; end, over the trough
 # The strokes, tuned to where the poured tablets lie (fixed waypoints): the blade's pitch (deg), the x of its tip and
 # the y where it comes down beside the group; it then pushes the group toward the trough (-y), up the rib and in.
-SWEEPS = [(6.0, 0.249, -0.0289), (5.0, 0.258, -0.0476), (6.5, 0.276, -0.028)]
+SWEEPS = [(6.0, 0.249, -0.0289), (5.0, 0.258, -0.0476), (6.5, 0.276, -0.028), (6.0, 0.345, -0.080)]
 SPAT_REST = np.array([0.15, -0.235, TOP + 0.0005 + BLADE_W / 2 + 0.010])  # laid down right of the tray
 # -- the right hand on the lid: fingers closed, pushing with their thin face
 LID_PUSH = (TX, TY + HINGE_V - 0.048, TY + HINGE_V + 0.020, TOP + 0.065)  # from beside the open lid, past its hinge
 # -- the left hand steadies the tray, pinching its left wall while the right counts
 TRAY_HOLD = np.array([TX + 0.07, TY + TW / 2 - WT / 2, TOP + 0.0005 + WALL_TOP - 0.006])  # the left TCP, astride the wall
 L_PRESS = grip_rotation(0.0)  # straight down, the fingers closing across the left wall: pinching it
-BOTTLE_SET = np.array([-0.001, -0.003])  # measured: where the bottle stands after the pour, from BOTTLE_BACK
-BOTTLE_HELD = np.array([0.168, 0.0805])  # measured: where the bottle's axis is once the left hand holds it there
+BOTTLE_SET = np.array([-0.001, -0.003])  # where the left hand takes the bottle after the pour, from BOTTLE_BACK
+BOTTLE_HELD = np.array([0.168, 0.084])  # measured: where the bottle's axis is once the left hand holds it there
 
 
 def _spat(origin, pitch=0.0, twist=0.0):
