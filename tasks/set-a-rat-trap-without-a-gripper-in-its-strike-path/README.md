@@ -30,8 +30,8 @@ right let go. With the left hand alone, the lock bar comes down on a sprung hamm
 
 ## How it is modelled
 
-`yam_arena` task files place single boxes, cylinders and spheres. The plank and the trap's board are one kinematic body,
-fixed where it is put. The hammer and the lock bar are loose rigid bodies made of shapes from `bodykit.py`.
+`yam_arena` task files place single boxes, cylinders and spheres. The plank and the trap's board are one loose rigid
+body (0.55 kg) lying on the table: it can slide or tip, and everything the scorer checks is measured in its own frame. The hammer and the lock bar are loose rigid bodies made of shapes from `bodykit.py`.
 
 - **The hammer.** A hinge about the axle (a `Hinge` from `bodykit.py`), from sprung forward (0 degrees) over the top to
   the near end (175 degrees). Its spring is the hinge's drive: about 0.3 N m with the hammer pulled right back.
@@ -98,7 +98,7 @@ Set `TRAP_DEBUG=1` to print what the score is built from twice a second:
 
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 900 steps (193 s on the clock, with Dream answering in 0.87 s on average), and about 2 minutes for the scripted demo (630 steps, 31.5 s of simulated time, 114 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one L40S: about 2.5 minutes for a Dream-1 trial of 900 steps (138 s on the clock), and about 2 minutes for the scripted demo (631 steps, 31.5 s of simulated time; 112 s on the clock while rendering at 1280 x 720). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 

@@ -42,6 +42,7 @@ TOP = TABLE_TOP[SCENE]
 # -- the plank and the trap: the trap along x, its near end toward the arms ------------------------------------------
 XC = 0.27  # the hammer's axle
 PLANK_T = 0.015
+BASE_MASS = 0.55  # the plank (0.38 kg) and the trap screwed to it, lying loose on the table
 BOARD = (0.140, 0.365, 0.090, 0.011)  # the trap's board: near end, far end (x), width, thickness
 BASE_TOP = TOP + PLANK_T + BOARD[3]
 AXLE_Z = BASE_TOP + 0.015  # the axle, on its brackets
@@ -51,6 +52,8 @@ BAR_R = 0.005  # the cross bar's radius (10 mm steel)
 SPRING = 0.0017  # N m per degree, toward sprung: about 0.3 N m with the hammer pulled right back (PhysX wraps a drive's
 # error past 180 degrees, so the drive's target stays at 0 and the travel short of 180)
 COCKED = 175.0  # the hammer's travel, from sprung forward (0) over the top to the near end
+
+BASE0 = np.array([XC, 0.0, TOP])  # the plank's origin where it starts (under the axle, on the table)
 
 # -- the lock bar: on a staple post at the near end, slightly left of the middle ---------------------------------------
 XH, YL = 0.150, 0.015  # its pin
@@ -100,8 +103,8 @@ def _base() -> Body:
                         collide=False),  # the catch's lip
                BoxShape((0.050, 0.0, zb + 0.002), (0.055, 0.050, 0.004), YELLOW, collide=False),  # the trigger pedal
                BoxShape((HAMMER_R, 0.0, zb + 0.001), (0.020, 0.07, 0.002), RUBBER, collide=False)]
-    return Body.build("trap_base", pos=(XC, 0.0, TOP), mass=2.0, shapes=shapes, kinematic=True, color=PINE,
-                      friction=(0.7, 0.6))
+    return Body.build("trap_base", pos=(XC, 0.0, TOP), mass=BASE_MASS, shapes=shapes, color=PINE, friction=(0.6, 0.5),
+                      solver_iterations=24, com=(0.0, 0.0, PLANK_T / 2))
 
 
 def _hammer() -> Body:
@@ -134,7 +137,8 @@ hinge("lock_bar_pin", "trap_base", "lock_bar", anchor=(XH, YL, ZH), axis="Y", li
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"latched": False, "snapped": False, "unsafe": False, "pulled": False, "tcps": None, "s": {}, "steps": 0}
+    return {"latched": False, "snapped": False, "unsafe": False, "pulled": False, "tcps": None, "tcps_w": None, "s": {},
+            "steps": 0, "moved": 0.0}
 
 
 _EP = _fresh()
@@ -169,18 +173,25 @@ def _turn_about_y(r: np.ndarray) -> float:
 def _follow(env) -> None:
     base = env.unwrapped
     origin = as_numpy(base.scene.env_origins[0])
+    # everything is measured in the trap's own frame (the plank lies loose and may be moved): a point p in the world
+    # is taken to where it would be had the plank stayed where it starts
+    b = base.scene["trap_base"].data
+    bpose = as_numpy(b.root_link_pose_w)[0]
+    rb, pb = rotation(bpose[3:7]), bpose[:3] - origin
+    to_trap = lambda p: rb.T @ (np.asarray(p, float) - pb) + BASE0  # noqa: E731
     h = base.scene["hammer"].data
     hp = as_numpy(h.root_link_pose_w)[0]
-    back = -_turn_about_y(rotation(hp[3:7]))  # 0: sprung forward; 180: pulled right back
+    rh = rb.T @ rotation(hp[3:7])
+    back = -_turn_about_y(rh)  # 0: sprung forward; 180: pulled right back
     if back < -20.0:
         back += 360.0
-    speed = float(as_numpy(h.root_ang_vel_w)[0][1])  # deg/s toward sprung is positive about +y
-    speed = math.degrees(speed)
+    w_rel = rb.T @ (as_numpy(h.root_ang_vel_w)[0] - as_numpy(b.root_ang_vel_w)[0])
+    speed = math.degrees(float(w_rel[1]))  # deg/s toward sprung is positive about the trap's y
     lp = as_numpy(base.scene["lock_bar"].data.root_link_pose_w)[0]
-    lrot = rotation(lp[3:7])
+    lrot = rb.T @ rotation(lp[3:7])
     up = -_turn_about_y(lrot)  # the lock bar: 0 lying forward, 110 leaning back
-    tip = lp[:3] - origin + lrot @ np.array([LOCK_LEN, 0.0, 0.0])
-    bar = hp[:3] - origin + rotation(hp[3:7]) @ np.array([HAMMER_R, 0.0, 0.0])  # the cross bar's middle
+    tip = to_trap(lp[:3] - origin + rotation(lp[3:7]) @ np.array([LOCK_LEN, 0.0, 0.0]))
+    bar = to_trap(hp[:3] - origin + rotation(hp[3:7]) @ np.array([HAMMER_R, 0.0, 0.0]))  # the cross bar's middle
     if back >= PULLED_BACK:
         _EP["pulled"] = True
     if not _EP["latched"] and back >= PULLED_BACK and float(np.linalg.norm(tip - CATCH)) <= CATCH_WITHIN:
@@ -188,8 +199,11 @@ def _follow(env) -> None:
         set_hinge_drive("lock_bar_pin", target_deg=-up, spring=LATCH_SPRING, damping=0.002)
     if back >= 30.0 and speed > SNAP_SPEED:
         _EP["snapped"] = True
-    grips = _grippers(base, origin)
+    grips_w = _grippers(base, origin)
+    _EP["tcps_w"] = [g[0] for g in grips_w]  # in the world (for "back where they started")
+    grips = [(to_trap(t), to_trap(f)) for t, f in grips_w]
     _EP["tcps"] = [g[0] for g in grips]
+    _EP["moved"] = float(np.linalg.norm(pb - BASE0))
     held = _EP["latched"] or any(abs(float(t[1] - bar[1])) <= HAMMER_W / 2 + 0.01 and math.hypot(
         float(t[0] - bar[0]), float(t[2] - bar[2])) <= HOLDING for t, _ in grips)
     if _EP["latched"] and any(PEDAL[0] <= float(p[0]) <= PEDAL[1] and abs(float(p[1])) <= PEDAL[2]
@@ -210,7 +224,7 @@ def _follow(env) -> None:
     _EP["steps"] += 1
     if _DEBUG["on"] and _EP["steps"] % 10 == 0:
         (tl, _), (tr, _) = grips
-        print(f"[trap] t={_EP['steps'] / 20:5.1f}s hammer={back:6.1f}deg speed={speed:7.1f} lock={up:6.1f}deg "
+        print(f"[trap] t={_EP['steps'] / 20:5.1f}s moved={_EP['moved'] * 1000:5.1f}mm hammer={back:6.1f}deg speed={speed:7.1f} lock={up:6.1f}deg "
               f"tip-catch={np.round((tip - CATCH) * 1000).astype(int).tolist()} latched={_EP['latched']} "
               f"held={held} snapped={_EP['snapped']} unsafe={_EP['unsafe']} clear={clear} "
               f"rTCP-bar={np.round((tr - bar) * 1000).astype(int).tolist()} "
@@ -246,7 +260,7 @@ def _arms_home() -> bool:
     from yam_arena import ik, station
     from yam_arena.constants import READY
 
-    tcps = _EP.get("tcps")
+    tcps = _EP.get("tcps_w")
     if tcps is None:
         return False
     if "tcps" not in _HOME:
