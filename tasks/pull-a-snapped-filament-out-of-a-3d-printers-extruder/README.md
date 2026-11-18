@@ -17,7 +17,7 @@ length; then finishing the job (the piece in the tray, the lever let go, both ha
 the goal.
 
 Why two hands: the drive gear holds the piece until the lever is pressed down, and the lever springs back up as soon
-as it is let go; the pad is 16 cm from where the piece sticks out. With one hand (each arm doing its part of the demo
+as it is let go; the press tab is about 10 cm from where the piece sticks out. With one hand (each arm doing its part of the demo
 alone, the other never moving) the demo scored 0 both ways: the left alone pulled the piece a few millimetres before
 its fingers slid off it, and it sprang back into the drive gear; the right alone pressed the lever down, and the piece
 stayed where it was.
@@ -27,9 +27,10 @@ stayed where it was.
 A real trial uses the same parts: a NEMA 17 (42 mm) stepper with an aluminium-bodied lever extruder of the common MK8
 type for 1.75 mm filament (brass MK8 drive gear, 40 teeth, 11 mm across, 5 mm bore, on the motor shaft; a 623 idler
 bearing, 10 mm across, on the lever 1.2 cm from its pivot; a 2 mm filament bore from the inlet fitting through the nip
-to a PTFE tube, 4 mm outside and 2 mm bore). The lever's compression spring is chosen so that, with the lever's own
-weight helping, the pad needs about 0.85 N to start moving, 2.5 N to turn the lever 8 degrees (pad about 1.3 cm down),
-where the idler leaves the filament, and 5.1 N at its 20-degree stop. A 13 cm piece of 1.75 mm PLA weighs 0.39 g.
+to a PTFE tube, 4 mm outside and 2 mm bore). The lever is the kit's own: its arm runs 4.2 cm from the pivot to
+the press tab (1.6 by 1.4 cm), just past the end of the housing. Its compression spring is chosen so that, with the
+lever's own weight helping, the tab needs about 1.3 N to start moving, 3.6 N to turn the lever 8 degrees (tab about
+6 mm down), where the idler leaves the filament, and 7 N at its 20-degree stop. A 13 cm piece of 1.75 mm PLA weighs 0.39 g.
 Reset: snap a fresh 13 cm piece off the spool, feed it in through the inlet with the lever held open until its tip is
 3.5 cm past the centre line, and let the lever go.
 
@@ -94,7 +95,7 @@ path, where it is and whether it lies in the tray, where each TCP is and the fin
 
 ## Runtime per trial
 
-On one RTX 5090: about 2 minutes for a Dream-1 trial of 900 steps (104 s on the clock, with Dream answering in 0.61 s on average), and about 1 minute for the scripted demo (361 steps, 18.1 s of simulated time, 83 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one L40S: about 2 minutes for a Dream-1 trial of 900 steps (119 s on the clock), and about 1.5 minutes for the scripted demo (362 steps, 18.1 s of simulated time; 77 s on the clock while rendering at 1280 x 720). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 

@@ -43,8 +43,8 @@ INLET_Y = EY + HOUSE[1] / 2 + 0.012  # the inlet fitting's mouth (the filament c
 GEAR_Y = EY  # the drive gear and the idler bearing pinch the filament here
 # -- the tension lever: hinged about x on top of the housing, its arm reaching toward -y to a pad -----------------------
 LEVER_PIVOT = np.array([EX, EY + 0.012, TOP + 0.108])
-LEVER_LEN = 0.095  # pivot to the pad's middle
-PAD = (0.026, 0.026, 0.008)
+LEVER_LEN = 0.042  # pivot to the pad's middle (the MK8 lever's press tab, just past the housing's end)
+PAD = (0.016, 0.014, 0.008)
 OPEN_DEG = 8.0  # pressed down past 8 degrees, the idler is off the filament
 LEVER_MAX_DEG = 20.0
 RELEASED_DEG = 4.0
@@ -113,12 +113,12 @@ def _lever() -> Body:
               BoxShape((0.0, -LEVER_LEN, 0.004), PAD, RED),
               CylShape((0.0, -0.012, -0.012), 0.005, 0.004, (0.75, 0.76, 0.78), axis="X", collide=False),  # 623 idler
               BoxShape((0.0, -0.012, -0.007), (0.008, 0.008, 0.010), RED, collide=False),
-              CylShape((0.0, -0.030, -0.010), 0.004, 0.014, (0.70, 0.70, 0.72), collide=False)]  # the spring
+              CylShape((0.0, -0.026, -0.010), 0.004, 0.014, (0.70, 0.70, 0.72), collide=False)]  # the spring
     for k in range(3):  # ridges on the pad
-        shapes.append(BoxShape((0.0, -LEVER_LEN - 0.008 + 0.008 * k, 0.0085), (PAD[0], 0.002, 0.001), BLACK,
+        shapes.append(BoxShape((0.0, -LEVER_LEN - 0.0045 + 0.0045 * k, 0.0085), (PAD[0], 0.0015, 0.001), BLACK,
                                collide=False))
-    return Body.build("lever", pos=tuple(LEVER_PIVOT), mass=0.04, shapes=shapes, friction=(1.0, 0.9), color=RED,
-                      com=(0.0, -0.05, 0.0), damping=(0.0, 1.0))
+    return Body.build("lever", pos=tuple(LEVER_PIVOT), mass=0.025, shapes=shapes, friction=(1.0, 0.9), color=RED,
+                      com=(0.0, -0.025, 0.0), damping=(0.0, 1.0))
 
 
 def _piece() -> Body:
@@ -145,7 +145,7 @@ OBJECTS = [_printer(), _tray(), _lever(), _piece()]
 _PRINTER = OBJECTS[0]
 # The lever's hinge: sprung down onto its stop (pressed shut on the filament), pressing its pad down lifts the idler.
 hinge("lever_pivot", "printer", "lever", anchor=tuple(LEVER_PIVOT), axis="X", limits_deg=(0.0, LEVER_MAX_DEG),
-      spring=0.02, damping=0.0004, target_deg=-5.0)
+      spring=0.012, damping=0.0004, target_deg=-5.0)
 # The filament in the extruder's path: a joint authored switched on that keeps it on the path's axis and slides it
 # along it, pulled by a stiff spring toward a target the task file moves. Its slide coordinate runs along -y (into
 # the extruder) so that the authored target (the upper limit) is where the piece starts.
@@ -302,7 +302,8 @@ def success(objects) -> bool:
 # across, pulls it straight out of the extruder along its length, lifts it, carries it over the scrap tray, lays it in
 # and lets go. The right lets the lever back up; both arms go back to where they started.
 
-PRESS = 0.034  # the pad pressed this far down (the lever stops at 20 degrees, about 3.2 cm)
+PAD_AIM = np.array([float(v) for v in os.environ.get("FIL_PAD_AIM", "0,0.003,0").split(",")])  # from trial runs
+PRESS = float(os.environ.get("FIL_PRESS", "0.030"))  # the pad aimed this far down (the lever stops at 20 degrees, 1.4 cm)
 GRIP_Y = FIL_MID0[1] + FIL_L / 2 - 0.022  # the left takes the piece 2.2 cm from its outer end
 PULL = 0.105
 LEAD_S, LEAD_STEPS = 3.0, 15
@@ -353,12 +354,22 @@ def _w(t, pos, finger, label, rot) -> Waypoint:
 
 
 FIL_FINGER = -0.020
-G_ACROSS = grip_rotation(-math.pi / 2)  # down, fingers closing along x: across the piece
-G_PAD = grip_rotation(math.pi / 2)
+LEAN = math.radians(float(os.environ.get("FIL_LEAN", "25")))  # each hand leans out to its own side: the wrists keep apart
+
+
+def _frame(approach, close) -> np.ndarray:
+    z = np.asarray(approach, float) / np.linalg.norm(approach)
+    x = np.asarray(close, float) - np.dot(close, z) * z
+    x /= np.linalg.norm(x)
+    return np.column_stack([x, np.cross(z, x), z])
+
+
+G_ACROSS = _frame((0.0, -math.sin(LEAN), -math.cos(LEAN)), (-1.0, 0.0, 0.0))  # down from the left, closing along x
+G_PAD = _frame((0.0, math.sin(LEAN), -math.cos(LEAN)), (1.0, 0.0, 0.0))  # down from the right, fingers closed
 
 
 def _right(release_at: float) -> tuple[list[Waypoint], float]:
-    pad = LEVER_PIVOT + [0.0, -LEVER_LEN, PAD[2]]  # the pad's top middle
+    pad = LEVER_PIVOT + [0.0, -LEVER_LEN, PAD[2]] + PAD_AIM  # the pad's top middle (aimed off for the arm's lag)
     over = pad + [0.0, 0.0, 0.04]
     out = _lead_in("right", over, G_PAD, "over the lever's pad, fingers closed", FINGER_CLOSED)
     out += [_w(1.0, pad + [0.0, 0.0, 0.002], FINGER_CLOSED, "down onto the pad", G_PAD),
