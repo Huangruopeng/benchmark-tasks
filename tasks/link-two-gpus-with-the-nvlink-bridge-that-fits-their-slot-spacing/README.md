@@ -9,7 +9,7 @@ one and the 3-slot one. The job is the real one: pick the bridge whose spacing m
 cards' NVLink connectors until both sockets are seated, and leave the other bridge where it is. The task is one task
 file, [`link_two_gpus_with_the_nvlink_bridge_that_fits_their_slot_spacing.py`](link_two_gpus_with_the_nvlink_bridge_that_fits_their_slot_spacing.py),
 for the `yam_arena` embodiment (scene, scoring and the scripted demo), plus [`bodykit.py`](bodykit.py), which it imports
-from the same folder.
+from the same folder, and [`cad/`](cad), the STL of the printed 2-slot bridge replica used in real trials.
 
 The instruction gives the goal and its constraints only ("Link the two GPUs with the NVLink bridge that fits them, and
 leave the other bridge on the mat. Finish with both arms back where they started."). It names neither bridge size: the
@@ -116,39 +116,79 @@ has fallen onto the motherboard. Otherwise judged at the end of the trial, on li
 
 The 2-slot bridge can't score: its sockets can't reach both cards. In a real trial: seated means no gap between either
 socket and its card's connector (a close photo at each end) and both ends at the same height above the cards (calipers,
-within 0.5 mm). Powering the bench and running `nvidia-smi nvlink -s` (the links should read active) is an optional
-extra check, not needed for the score, so unpowered or non-working cards can be used. Pried means a side
+within 0.5 mm). The cards carry no GPU and are never powered, so the photo and the calipers decide. Pried means a side
 video shows one end 4 mm or more lower than the other while the bridge is on the fingers. The 2-slot bridge must not
 have been moved; the arms are checked against marks at their start.
 
 ## Real trial: parts and cost
 
-The trial needs no power and no working GPUs: only two cards with intact NVLink fingers at the right pitch, the two
-bridges, a board to hold the cards and the bench. Any two Ampere-generation cards with the same NVLink connector work:
-RTX A6000, A5500, A5000 or A4500, or GeForce RTX 3090 / 3090 Ti. Puget Systems: the RTX A6000/A5000 and RTX 3090 bridges
-"appear to be functionally identical. We've tested both types of cards with both styles of bridges, and they worked
-interchangeably"; they ran the A-series 2-slot bridge on Gigabyte RTX 3090 TURBO blower cards. (Turing cards and
-bridges, RTX 20-series and Quadro RTX, use a different connector and don't fit.)
+The trial needs no power and no working GPU. It needs the parts the task acts on: the 3-slot bridge, two cards'
+NVLink fingers held at the slot pitch, and a 2-slot bridge to leave alone. Every part that carries the task's mechanics
+is the real part; the rest is cheap.
+
+- **3-slot bridge (the one fitted): the real NVIDIA part,** 900-53669 (sold as PNY RTXA6000NVLINK3S-KIT). Its two
+  sockets are the connectors the task is about.
+- **Cards: two identical no-core GeForce RTX 3090 cards.** Recyclers take the GPU chip and memory off RTX 3090 boards
+  (for reuse) and sell the rest for parts: the board with its cooler, shroud, bracket and NVLink fingers. The fingers
+  are NVIDIA's Ampere NVLink connector itself, the one the A-series bridges are made for. Puget Systems tested the RTX
+  A6000/A5000 and RTX 3090 bridges on both kinds of card: they "appear to be functionally identical ... they worked
+  interchangeably". The cards carry no GPU and are never powered. A card at most 2.75 slots thick keeps an air gap at
+  three-slot spacing, e.g. the Gigabyte RTX 3090 Eagle (320 x 128 x 56 mm, 2-way NVLink; maker's spec). Both cards
+  are the same model, so their fingers line up.
+- **Why real fingers, not a fabricated finger board:** NVIDIA publishes no drawing of the NVLink edge. Its product
+  briefs (A40 PB-09976, A100 PB-10577) show the keep-out area and the clearances (2.5 mm above the north edge, 2.67 mm
+  behind the board) and refer partners to its Form Factor 5.0 specification. Salvaged NVIDIA fingers are the connector
+  itself: pitch, contact plating, board thickness and bevel.
+- **2-slot bridge (the one left): a printed replica,**
+  [`cad/nvlink_2slot_bridge_replica.stl`](cad/nvlink_2slot_bridge_replica.stl), the simulation's 2-slot bridge:
+  48 x 47.64 x 11.2 mm, a 3.2 mm cover (black PLA) over two socket housings (grey PLA) 7 x 44 x 8 mm with their
+  centres 40.64 mm apart, each with a 2.0 mm slot 6 mm deep that fits over a card's fingers. Printed cover-down, 100%
+  infill, 0.2 mm layers, no supports: pause at 2.6 mm to drop four US 5-cent coins (5.000 g, 21.21 x 1.95 mm, US Mint
+  spec) into the pockets, change to grey at 3.2 mm. It weighs 30 g (computed: 10.2 g PLA and 20.0 g coins; the real
+  one 29 g, listed). It is the bridge the robot must not fit, and it scores as the real one would: moved 3 cm or lifted
+  2 cm, no full score; on a card's fingers and cocked 4 degrees, pried (0.0). The real 2-slot bridge (900-53651,
+  [SabrePC, US$239.13](https://www.sabrepc.com/900-53651-0000-000-NVIDIA-S157939310)) takes its place unchanged.
+- **Board and bench:** a motherboard sold for parts, with two x16-size slots three positions apart, on its M3
+  standoffs on a 12 mm plywood plate (360 x 270 mm) in place of the BC1 V2. The slots are 20.32 mm apart (PCI Express
+  standard), so the fingers stand 60.96 mm apart, the 3-slot bridge's socket spacing. The cards' brackets screw to a
+  20 x 20 x 2 mm aluminium angle (200 mm) across the board's rear edge. Spacers under the plate set the fingers' top
+  edges 13.8 cm above the table (ruler), as in the scene. The scene's CPU cooler, memory and power supply stand clear
+  of the cards: a stock cooler, any memory sticks and a dead ATX power supply (or a 15 x 14 x 8.6 cm box) take their
+  places.
+
+What the trial keeps, part for part:
+
+- **The bridge's two connectors:** the fitted bridge's sockets are NVIDIA's, and so are the fingers they go over. The
+  2-slot replica keeps the 2-slot bridge's socket spacing (40.64 mm), so it falls 20.32 mm short of linking the cards,
+  as the real one does.
+- **The insertion force:** the real socket going over real fingers, so each end takes the connector's own push. The
+  simulation's 18 N per end is a design value (a firm thumb press; NVIDIA lists no insertion force for the bridge).
+- **The difficulty of seating both ends at once:** both sets of fingers are fixed 60.96 mm apart in real slots, the
+  cards screwed down at their brackets, and the bridge is one rigid board, exactly as in a workstation: an end pushed
+  ahead cocks the bridge and levers the other end's contacts.
 
 | Part | What | Price (listed, Nov 2026) |
 |---|---|---|
-| 2 cards | Non-working "for parts" GeForce RTX 3090 boards with their NVLink fingers and shroud intact, e.g. [EVGA RTX 3090 FTW3, for parts](https://www.ebay.com/itm/156736453104), [RTX 3090 Founders Edition, for parts](https://ebay.com/itm/176802172967) | US$120-350 each |
-| or 2 cards | Used RTX A4500 (dual-slot, matches the scene's look), e.g. [eBay RTX A4500 listings](https://www.ebay.com/shop/rtx-a4500) | US$1,000-1,300 each |
-| 3-slot bridge | NVIDIA RTX A-series NVLink bridge, 3-slot, 900-53669-2500-000 (also sold as PNY RTXA6000NVLINK3S-KIT), e.g. [techforgood](https://techforgood.com.au/products/nvidia-nvlink-bridge-3-slot-for-the-latest-ampere-rtxa6000-rtxa5500-rtxa5000-and-rtxa4500-900-53669) | AUD 293 incl. GST (about US$190) new |
-| 2-slot bridge | NVIDIA RTX A-series NVLink bridge, 2-slot, 900-53651-2500-000 or 900-53651-0000-000 (also sold as PNY RTXA6000NVLINK-KIT), e.g. [SabrePC](https://www.sabrepc.com/900-53651-0000-000-NVIDIA-S157939310) | US$239 new |
-| Board | Any ATX board with x16-size slots in positions 1 and 4, used or dead | US$30-100 |
-| Bench | [Streacom BC1 V2 open benchtable](https://quietpc.com/st-bc1-v2) | GBP 129 |
-| Mat | Antistatic bench mat, about 50 x 60 cm | US$20-40 |
+| 3-slot bridge | NVIDIA RTX A-series NVLink bridge, 3-slot, 900-53669 (PNY RTXA6000NVLINK3S-KIT), new, e.g. [SabrePC](https://www.sabrepc.com/RTXA6000NVLINK3S-KIT-PNY-S127576720) | US$227.19 |
+| 2 cards | Two identical no-core GeForce RTX 3090 cards, for parts (GPU and memory removed; cooler, shroud, bracket and NVLink fingers intact), e.g. [Gigabyte RTX 3090 Eagle, no core and VRAM](https://www.ebay.com/itm/266687084504) | US$119 each |
+| 2-slot bridge | Printed replica, `cad/nvlink_2slot_bridge_replica.stl` (10 g PLA, four US 5-cent coins) | about US$1 |
+| Board | ATX motherboard sold for parts, two x16-size slots three positions apart | US$20-40 |
+| Bench | 12 mm plywood 360 x 270 mm, M3 standoffs, 20 x 20 x 2 mm aluminium angle, M3 screws and nuts | about US$20 |
+| Mat | Antistatic bench mat, 50 x 60 cm | US$25-40 |
+| Dressing | Stock CPU cooler, memory sticks, dead ATX power supply (or a box of its size), from a parts bin | US$0-20 |
 
-With for-parts RTX 3090s the whole set costs about US$900-1,400 (cards US$240-700, bridges about US$430, bench about
-US$165, board and mat US$50-140); used bridges bring it down. Everything in it is reusable for every trial. Most RTX
-3090s are about three slots thick, so at this spacing they touch instead of leaving the scene's 24 mm gap (the bridge
-still fits the same way); dual-slot cards (the A-series, or the 3090 TURBO blower) keep the gap.
+The whole set costs about US$530-590 (it was US$900-1,400), and every part is reused for every trial.
+
+## Real-trial safety and rig protection
+
+Nothing is powered: the cards have no GPU and no power supply is connected. The grippers touch only the bridges'
+plastic covers and the cards' shrouds, and nothing in the set is sharp, greasy or wet. Reset by pulling the fitted
+bridge straight up off both cards at once, so its sockets leave the fingers level.
 
 ## Assets and licences
 
-None from third parties. Every object is built from boxes and cylinders in the task file; `bodykit.py` is our own
-helper. No NVIDIA SimReady model matches these parts (see "How it is modelled").
+None from third parties. Every object is built from boxes and cylinders in the task file; `bodykit.py` and the STL
+in `cad/` are our own. No NVIDIA SimReady model matches these parts (see "How it is modelled").
 
 ## Run and score a trial
 
@@ -203,3 +243,44 @@ On one RTX 5090: about 5 minutes for a Dream-1 trial of 900 steps (323 s on the 
 ## Seeds
 
 None needed: with `-E object_jitter=0` the layout is fixed, and the scripted demo follows fixed waypoints.
+
+## Changes in this revision
+
+This is a revision of TK-VZKPHR. Its review said:
+
+> **Not accepted** (TK-VZKPHR).
+>
+> Feasibility (not met): The listed real-trial equipment costs $900–$1,400 and lacks a specified low-cost alternative.
+>
+> What to change: Please provide a repeatable, substantially cheaper real-trial setup: the listed parts total about $900–$1,400. Specify sources or reproducible files for any substitutes, and show that they preserve the bridge’s two connector geometries, insertion forces and simultaneous seating difficulty.
+
+That was the task's first review. What changed in response:
+
+- **A repeatable, substantially cheaper set (Feasibility):** the parts now cost about US$530-590 (it was US$900-1,400),
+  and every part is reused for every trial. The cards are two identical no-core RTX 3090 cards (US$119 each, in place
+  of for-parts cards at US$120-350 or A4500s at US$1,000-1,300); the Streacom BC1 V2 (GBP 129) is replaced by a
+  plywood plate, standoffs and an aluminium-angle bracket rail (about US$20); the board is any for-parts ATX board
+  (US$20-40); the 2-slot bridge (US$239) is a printed replica (about US$1). The fitted 3-slot bridge stays the real
+  NVIDIA part (US$227.19). Where: README "Real trial: parts and cost" (cost table with links); task.json setup.
+- **Sources and reproducible files for the substitutes:** each bought part has a listing and its price; the replica is
+  [`cad/nvlink_2slot_bridge_replica.stl`](cad/nvlink_2slot_bridge_replica.stl) with its sizes, print settings and
+  ballast (four US 5-cent coins, 30 g in all, computed); the bench has its sizes and parts. Where: README "Real trial:
+  parts and cost"; task.json setup.
+- **The bridge's two connector geometries kept:** the fitted bridge is the real 3-slot part and the cards' fingers are
+  NVIDIA's own Ampere NVLink fingers (Puget Systems: the A-series and RTX 3090 bridges work interchangeably on both
+  kinds of card), held 60.96 mm apart by real slots at the 20.32 mm PCI Express pitch. NVIDIA publishes no drawing of
+  the NVLink edge, so the set uses the real fingers rather than a fabricated copy. The replica keeps the 2-slot
+  bridge's 40.64 mm socket spacing, outline and mass. Where: README "Real trial: parts and cost", "What the trial
+  keeps".
+- **Insertion force kept:** the real socket goes over real fingers, so each end takes the connector's own push; the
+  simulation's 18 N per end is labelled a design value (NVIDIA lists none). Where: README "What the trial keeps",
+  "Real-world basis".
+- **Simultaneous seating difficulty kept:** both cards are fixed in real slots and screwed down at their brackets, and
+  the bridge is one rigid board, as in a workstation. Where: README "What the trial keeps".
+- **Scene, scorer and demo unchanged:** the real-trial parts keep the modelled geometry (20.32 mm pitch, 60.96 and
+  40.64 mm socket spacings, the bridges' sizes, the fingers 13.8 cm above the table) and the force rule, so the
+  simulation stays as it was. Check: the scripted demo on this version scored 1.0 in 479 of 900 steps, as before; the Dream-1 run (0.0)
+  is of the same scene.
+- **Real-trial scoring with unpowered cards:** the optional `nvidia-smi` check is gone, since the no-core cards are
+  never powered; seating is read from a close photo at each end and calipers, as before. Where: task.json scoring;
+  README "Scoring". A short "Real-trial safety and rig protection" section is added.
