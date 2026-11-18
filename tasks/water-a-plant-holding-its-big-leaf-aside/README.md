@@ -15,8 +15,8 @@ into a target without spilling it on what is around it; putting everything back.
 
 Why two hands: the big leaf springs back over the soil as soon as nothing holds it, and the soil it covers is the only
 soil not under a leaf, so water poured with the leaf in place lands on the leaf. With one hand (the left pouring as in
-the demo, the right never moving) the demo scored 0: all 12 beads landed on the big leaf, which lay over the
-soil, and ran off it.
+the demo, the right never moving) the demo scores 0: the jug touches the big leaf, which lies over the soil, and all
+12 beads land on it.
 
 ## How it is modelled
 
@@ -24,18 +24,22 @@ soil, and ran off it.
 `bodykit.py`.
 
 - The pot, its soil, the stem and the crown's three leaves are one fixed body. Each leaf is a thin rigid blade (seven
-  boxes giving its oval outline) 15 cm long.
+  boxes giving its oval outline) 15 cm long. The crown's leaves point straight back, back-left (60 degrees round from
+  straight back) and right (78 degrees round the other way).
 - The big front leaf is a loose rigid blade joined to the stem by a hinge about the vertical (`Hinge` from
   `bodykit.py`), its spring (0.0016 N m per degree) holding it over the front of the soil; pushed round 85 degrees it
   pushes back with 0.14 N m.
-- The water is 12 rigid beads in the jug, which is a cup built from a floor and 16 wall panels.
-- After every physics step (240 a second, not only after each 50 ms control step), the task file checks each bead.
-  A bead that touches any leaf's blade, or comes within 4 mm of it (a margin for the splash and spread a rigid bead
-  lacks), has made liquid contact with that leaf for good, even if it runs off straight away, and the trial scores 0.
-  A real trial records the same event chemically (see "A real trial"). A bead counts as watering the soil only if it
-  ends lying on the soil inside the pot's wall (its centre within 7.25 cm of the pot's axis and between 3 mm below and
-  15 mm above the soil's surface) and never touched a leaf. The saucer is drawn only: a bead that misses the pot or
-  bounces out of it lands on the table under the saucer and never counts.
+- The water is 12 rigid beads in the jug, which is a cup built from a floor and 16 wall panels; its pouring lip and
+  handle are drawn only.
+- After every physics step (240 a second, not only after each 50 ms control step), the task file checks each bead and
+  the jug against every leaf. A bead that touches any leaf's blade, or comes within 4 mm of it (a margin for the
+  splash and spread a rigid bead lacks), has made liquid contact with that leaf for good, even if it runs off straight
+  away. Any part of the jug as drawn (body, rim, floor, pouring lip and handle: 1,609 points at most 4 mm apart)
+  within 4 mm of a leaf's blade is jug contact. Either scores 0. A real trial records the same two events, on
+  water-sensitive cards on the leaves and on the side video (see "A real trial"). A bead counts as watering the soil
+  only if it ends lying on the soil inside the pot's wall (its centre within 7.25 cm of the pot's axis and between
+  3 mm below and 15 mm above the soil's surface) and never touched a leaf. The saucer is drawn only: a bead that misses
+  the pot or bounces out of it lands on the table under the saucer and never counts.
 
 Importing `bodykit.py` hooks `yam_arena.scene` when the simulator starts, without changing yam_arena, gives `score()`
 each body's own pose, and lets the task file act on the simulation after every control step.
@@ -78,8 +82,9 @@ for log in ~/yam-eval/plant-dream/*.json; do inspect-robots video "$log"; done
 ```
 
 Set `PLANT_DEBUG=1` to print what the score is built from twice a second: how far round the big leaf is, how many
-beads lie on the soil and how many have touched a leaf, how many are still in the jug, where the jug is and how far
-it is tipped, whether the jug and the leaf are back, whether both hands are clear, and where each TCP is.
+beads lie on the soil and how many have touched a leaf, whether the jug has touched a leaf and how close it has come,
+how many beads are still in the jug, where the jug is and how far it is tipped, whether the jug and the leaf are back,
+whether both hands are clear, and where each TCP is.
 
 ## A real trial
 
@@ -88,110 +93,112 @@ which take up no water. Its leaves are 15 cm long and up to 13 cm wide, set as i
 over the back and sides of the pot, and the big lower leaf on a sprung wire stalk lying over the front of the soil,
 which springs back when let go. Each leaf is fixed to its wire stalk with a small clip, so it can be unclipped for the
 weighings and photographs. The plant stands in real potting soil, just moist, in a 17 cm glazed terracotta pot on a
-saucer, its drainage hole plugged with a rubber bung for the trial. A 150 ml watering jug holding 120 ml of liquid B
-(below), at room temperature, stands on a 6 cm stool beside it. Two cameras film the trial at 60 frames a second,
-overhead and from the side level with the leaves. The videos are supporting evidence only: no score is taken from
-them.
+saucer, its drainage hole plugged with a rubber bung for the trial. A 150 ml watering jug holding 120 ml of plain tap
+water at room temperature stands on a 6 cm stool beside it. Two cameras film the trial at 60 frames a second:
+overhead, and from the side level with the leaves.
 
-### Two liquids: a colour record of leaf contact
+### The leaf-contact instrument: water-sensitive paper
 
-| Liquid | Recipe | Use |
-|---|---|---|
-| A, butterfly pea flower extract | 2 g of dried butterfly pea flowers steeped for about 10 minutes in 100 ml of water just off the boil, cooled, then filtered through a paper coffee filter | sprayed onto the plastic leaves before the trial and left to dry |
-| B, dilute white vinegar | 1 part ordinary 5% white vinegar to 9 parts water (10 ml + 90 ml; 12 ml + 108 ml fills the jug with 120 ml): about 0.5% acetic acid, pH about 2.9 | in the robot's jug, as the water |
+Leaf contact is read with water-sensitive paper, the standard collector agriculture uses to check where a spray lands:
+TeeJet part 20301-1N, 3 x 1 in (76 x 26 mm) cards, 50 to a pack, $54.44 a pack
+([Westech Equipment](https://westechequipment.com/product/203011n-3-in.-x-1-in.-water-sensitive-paper)). Its maker's
+data sheet (Spraying Systems Co. Data Sheet 20301,
+[PDF](https://www.teejet.com/en/-/media/dam/agricultural/usa/technical-documentation/product-data-sheet/20301_tj.pdf))
+documents what the read-out relies on:
 
-The dried film of liquid A is blue. Wherever liquid B touches it, the film turns pink or purple, and the mark stays
-once it has dried. Liquid B is 99.5% water, so it pours like water and weighs as water does (1 g = 1 ml): the pot is
-weighed with it exactly as it was with plain water. The leaves are plastic, so the dilute vinegar harms nothing.
+- "Water-sensitive paper is a rigid paper with a specially coated, yellow surface which is stained dark blue by aqueous
+  droplets."
+- "The resulting stain is contrasty, permanent and ensures detection of droplets larger than 50 microns."
+- It is used "under conditions of atmospheric humidity up to 80% relative humidity (RH)".
+- For orchard sprayers: "Staple the cards to leaves in upper, center and lower parts of the tree."
+- "Gloves should be used (polyethylene or rubber) for handling the papers to avoid staining and contaminating the
+  water-sensitive papers. The collector support (natural or artificial) must be dry."
+- Storage: "under dry conditions in airtight boxes or bags", and "Water and oil sensitive paper sold by Spraying
+  Systems Co. is manufactured by Syngenta Crop Protection AG."
 
-The chemistry, with sources (listed at the end of this section):
+Syngenta's own page adds: "Once dry, the blue stains on WSP are irreversible"
+([Syngenta Canada](https://www.syngenta.ca/agronomy/water-sensitive-paper)).
 
-- The blue of butterfly pea flowers comes from anthocyanins (ternatins) whose colour changes with pH; the extract is
-  used as a pH indicator in colour-changing food-packaging films [2, 3, 4]. In solution it is red below pH 3.2, violet
-  to blue from pH 3.2 to 5.2 and light blue from pH 5.2 to 8.2; a gelatin film coloured with it is blue at pH 6 and
-  turns violet at pH 4 [1]. Gelatin and methylcellulose films with the extract go from blue to purple as the pH falls
-  from 6 to 2 [3].
-- Ordinary white vinegar is 5% acetic acid, 50 g per litre. Diluted 1 in 10 it holds 5 g per litre, 83 mM. With
-  acetic acid's pKa of 4.76 at 25 °C [5], its pH is ½(pKa − log₁₀ 0.083) = ½(4.76 + 1.08) = 2.92, between the
-  tabulated pH of 2.88 at 100 mM and 3.39 at 10 mM [6]. That is below pH 3.2, where the pigment in solution is red
-  [1], and films coloured with it are purple at pH 2 [3]; on the dried film a mark shows pink to purple.
+The liquid is therefore plain tap water, with nothing added, and the pot is weighed with the same water it receives.
+
+### Fitting the cards
+
+All four leaves are covered, in gloves, with the leaves unclipped and dry, in a room at no more than 80% RH (read on a
+room hygrometer):
+
+- **Upper face:** whole cards laid edge to edge across the blade, trimmed with scissors to the leaf's outline, each
+  held by its water-repellent back on thin double-sided tape. A blade is about 141 cm² (computed from its outline),
+  so about 10 trimmed cards cover it.
+- **Edges and underside margin:** cards cut lengthwise into 13 x 76 mm strips, folded in half along their length over
+  the leaf's edge (6.5 mm on the upper face, 6.5 mm on the underside), nicked every 2 cm so they follow the curve, and
+  taped the same way, all the way round each leaf.
+- **Where a hand holds the big leaf:** the hold zone, fixed in advance, is the big leaf's left edge from 6 to 14 cm out
+  from the stem, up to 3 cm in from the edge, both faces; the demo pushes there, 10 cm out. A hand may hold a leaf
+  anywhere. The hold zone and every other place a gripper touches are covered by cards like the rest, and nothing is
+  excluded: stains there count like anywhere else. The robot's fingers wear dry nitrile finger covers (rubber, as the
+  maker specifies for handling the cards), so a gripper's touch leaves no stain; a crease or scuff is not blue.
+- Every card is numbered on its back, as the data sheet suggests; a card that comes loose during a trial is found by
+  its number and read like the rest.
+
+Cards are kept in their sealed foil bag with its silica gel until fitted, and fitted leaves are stored in a sealed
+bag with silica gel between sessions.
 
 ### Procedure
 
-1. **Before the trial**, unclip the four leaves. Wipe each clean and dry. Spray both faces with liquid A from a
-   fine-mist spray bottle, in light coats, letting each coat dry (a hair dryer on its cool setting speeds this up),
-   until a uniform blue film forms. From here on, handle the leaves only by their clips, in clean dry gloves (skin is
-   mildly acidic).
-2. Photograph each leaf on both faces against a white card, in fixed light, with the leaf filling the frame of a
-   12-megapixel camera (more than 20 pixels per mm on a 15 cm leaf). These are the before photos.
-3. Lift the pot out of its saucer, with its soil, stem, wire stalks, clips and bung but without its leaves, and weigh
+1. Fit the cards (above). Photograph each leaf on both faces against a white card, with the camera on a fixed stand
+   and two fixed lamps. These are the before photos.
+2. Lift the pot out of its saucer, with its soil, stem, wire stalks, clips and bung but without its leaves, and weigh
    it, and the dry saucer, on a kitchen scale (1 g steps). Clip the leaves back on and lay the big leaf over the soil.
-4. Run the trial.
-5. **After the trial**, unclip each leaf by its clip, keeping it level, and lay it on a white card. Lift the pot out,
-   let it drip into the saucer, and weigh the pot and the saucer.
-6. Once the leaves are dry, photograph each on both faces exactly as in step 2. These are the after photos.
+3. Run the trial.
+4. Unclip each leaf in gloves, keeping it level, and lay it on a white card. Lift the pot out, let it drip into the
+   saucer, and weigh the pot and the saucer.
+5. Once the cards are dry, photograph each leaf on both faces exactly as in step 1. These are the after photos.
 
 **Liquid delivered to the soil** is the pot's gain (1 g = 1 ml). The pot is weighed in the same state both times, its
-four plastic leaves unclipped. With the drain plugged, and 1.3 cm of headroom above the soil (about 235 ml), none of
-it leaves the pot. The saucer's gain is spilled liquid and never counts as delivered.
+four leaves unclipped. With the drain plugged, and 1.3 cm of headroom above the soil (about 235 ml), none of it leaves
+the pot. The saucer's gain is spilled water and never counts as delivered.
 
-**Leaf contact** is read from the colour record. Each after photo is compared, at full size, with the before photo of
-the same face. Any pink or purple spot or streak, however small, that is not in the before photo is leaf contact: on
-any of the four leaves, on either face, edges included. A place where a gripper rubbed the film paler without turning
-it pink or purple is not contact.
+**Leaf contact** has two independent reads, and either one is leaf contact:
 
-**Why this catches brief or hidden contact.** The record is chemical, not a view. Liquid B changes the film's colour
-wherever it touches it, so:
+1. **The cards.** Each after photo is compared, at full size, with the before photo of the same face. Any blue stain
+   on any card, however small (a dot, a streak or a patch), that is not in the before photo means that leaf was
+   wetted: on any of the four leaves, either face, edges and hold zone included.
+2. **The side video.** The 60 fps side video is checked frame by frame for the jug, or the stream of water, touching
+   any leaf.
 
-- a touch lasting an instant, at a leaf's very edge, leaves a mark there;
-- a drop that lands and runs off leaves a streak along its path, though no liquid stays on the leaf;
-- contact out of both cameras' view, behind the jug or a gripper, marks the film just the same, and the photos are
-  taken afterwards, of every leaf, both faces, with nothing in the way.
-
-Nothing is weighed on the leaves, so the record does not depend on how much liquid touched a leaf or stayed on it.
+The cards record contact wherever it happens, seen or not. A touch lasting an instant stains the card at that point; a
+drop that lands and runs off leaves its track; a touch at a leaf's edge stains the folded edge strip; a touch behind
+the jug or a gripper stains the card just the same; and the photos are taken afterwards, with nothing in the way. The
+stain is permanent and dark blue on yellow, and droplets larger than 50 microns register (maker's data sheet).
 
 Any leaf contact scores 0.0, since it breaks the instruction's one constraint ("without wetting its leaves"). The
-simulation scores the same event, any liquid contact with a leaf: a bead that ever touches a leaf or comes within 4 mm
-of one.
+simulation scores the same event: a bead within 4 mm of a leaf, or any part of the jug within 4 mm of a leaf.
 
 | Score | Real trial | Simulation (10 ml per bead) |
 |---|---|---|
-| 0.0 | any leaf contact: a pink or purple mark on a leaf in the after photos that is not in the before photos | any bead ever touching a leaf or within 4 mm of one |
+| 0.0 | leaf contact: a new blue stain on a card, or the jug or stream touching a leaf in the side video | a bead or the jug ever within 4 mm of a leaf |
 | 1.0 | no leaf contact; pot gain at least 90 g; and the end state (marks on the stool and the pot's rim, ruler and protractor; the robot's joint log for the arms) | no leaf contact; at least 9 of the 12 beads on the soil; and the end state |
 | 0.5 | no leaf contact; pot gain at least 90 g | no leaf contact; at least 9 beads on the soil |
 | 0.25 | no leaf contact; pot gain at least 40 g | no leaf contact; at least 4 beads on the soil |
 
-Liquid in the saucer, on the table or left in the jug never counts. To reset, pull the bung and let the pot drain,
-then plug it again; it is weighed afresh, leaves unclipped, before each trial. Empty, rinse and dry the saucer. Rinse
-the film off the leaves, dry them, coat and photograph them afresh (steps 1 and 2) and clip them back on. Lay the big
-leaf back over the soil, refill the jug with 120 ml of liquid B and dry its outside.
+Water in the saucer, on the table or left in the jug never counts. To reset, pull the bung and let the pot drain, then
+plug it again; it is weighed afresh, leaves unclipped, before each trial. Empty and dry the saucer. Replace every
+stained card and photograph the leaves afresh (step 1). Wipe the finger covers and the jug's outside dry, refill the
+jug with 120 ml of tap water and lay the big leaf back over the soil.
 
-Sources:
+Fitting all four leaves takes about 56 cards (computed: about 10 for each upper face and 4 cut into edge strips), so
+two packs ($108.88). A clean trial stains none, and only stained cards are replaced.
 
-1. G. C. Vidana Gamage, Y. Y. Lim, W. S. Choo (2021). Anthocyanins from *Clitoria ternatea* flower: biosynthesis,
-   extraction, stability, antioxidant activity, and applications. *Frontiers in Plant Science* 12, 792303.
-   <https://doi.org/10.3389/fpls.2021.792303> (colour of the anthocyanins by pH; the gelatin indicator film at pH 6
-   and 4).
-2. N. N. Hasanah, E. M. Azman, A. Rozzamri, N. H. Zainal Abedin, M. R. Ismail-Fitry (2023). A systematic review of
-   butterfly pea flower (*Clitoria ternatea* L.): extraction and application as a food freshness pH-indicator for
-   polymer-based intelligent packaging. *Polymers* 15(11), 2541. <https://doi.org/10.3390/polym15112541> (red
-   flavylium form in strong acid, purple quinoidal base, blue near neutral).
-3. S. Sai-Ut, P. Suthiluk, W. Tongdeesoontorn, S. Rawdkuen, P. Kaewprachu, T. Karbowiak, F. Debeaufort, P. Degraeve
-   (2021). Using anthocyanin extracts from butterfly pea as pH indicator for intelligent gelatin film and
-   methylcellulose film. *Current Applied Science and Technology* 21(4), 652–661.
-   <https://li01.tci-thaijo.org/index.php/cast/article/view/249347> (films purple to blue over pH 2 to 6).
-4. S. Rawdkuen, A. Faseha, S. Benjakul, P. Kaewprachu (2020). Application of anthocyanin as a color indicator in
-   gelatin films. *Food Bioscience* 36, 100603. <https://doi.org/10.1016/j.fbio.2020.100603> (of the plant
-   anthocyanins compared, butterfly pea's had the highest pH sensitivity).
-5. PubChem, acetic acid (CID 176), dissociation constants: pKa 4.76 at 25 °C.
-   <https://pubchem.ncbi.nlm.nih.gov/compound/176#section=Dissociation-Constants>
-6. aqion, pH of common acids and bases (acetic acid: pH 2.88 at 100 mM, 3.39 at 10 mM).
-   <https://www.aqion.de/site/ph-of-common-acids>
+**Rig protection.** The only liquid is plain tap water. The finger covers keep the grippers' pads dry and come off
+after the session; the jug's outside is dried before each trial.
 
+## Third-party assets
+
+None. Every body is built from boxes, cylinders and spheres in the task file and `bodykit.py`.
 
 ## Runtime per trial
 
-On one RTX 5090: about 3 minutes for a Dream-1 trial of 1,200 steps (197 s on the clock, with Dream answering in 0.81 s on average), and about 3 minutes for the scripted demo (607 steps, 30.4 s of simulated time, 190 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 9 minutes for a Dream-1 trial of 1,200 steps (563 s on the clock, with Dream answering in 1.04 s on average), and about 7 minutes for the scripted demo (607 steps, 30.4 s of simulated time, 416 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
@@ -199,58 +206,70 @@ None needed: with `-E object_jitter=0` the layout is fixed, and the scripted dem
 
 ## Changes in this revision
 
-This is a revision of TK-CHR9EE. Its review said:
+This is a revision of TK-7FFS8K. Its review said:
 
-> **Not accepted** (TK-CHR9EE).
+> Scoring (not met): The proposed indicator film has not been tested to show that brief edge contact and runoff leave a
+> detectable lasting mark.
 >
-> Scoring (not met): The replacement video-and-photo method has not been validated for brief or obscured leaf-edge
-> contact and subsequent runoff.
->
-> What to change: The matched pot and saucer weighings address the earlier soil-scoring concern, and removing the 10
-> ml leaf allowance makes tests of that threshold unnecessary. The replacement contact-detection method still needs
-> validation: perform and report fast-pour tests with contact near leaf edges and water running off, including contact
-> potentially obscured by the jug or gripper. Show that the two-camera and photo procedure detects these contacts
-> reliably, and adjust camera coverage or the scoring method if it does not.
+> What to change: The matched pot and saucer weighings and the real-trial setup address the earlier points. The
+> requested validation of leaf-contact detection remains open: please perform and report fast-pour tests using the
+> proposed indicator-coated leaves and dilute vinegar, including brief contact at leaf edges, runoff, and contact
+> obscured by the jug or gripper. Include areas where the gripper has touched the film, and show that the dried marks
+> remain detectable in the before-and-after photos. If any contact is missed, adjust the method and repeat the tests.
 
 Earlier reviews:
 
-- TK-T4P2JA asked for the fast-pour tests of the leaf-water measurement to be run, at leaf edges and around the 10 ml
-  threshold. The 10 ml leaf allowance was then removed (any leaf contact scores 0.0), which the latest review
-  accepted; that is kept.
-- TK-EYKT6P asked for the pot to be weighed in the same leaf state before and after, and for a method that records
-  leaf contact even during a fast pour. The matched, leafless pot weighings are kept.
-- TK-A2TMY6 asked to tell water delivered to the soil from water in the saucer, and to record water that touched a leaf
-  even if it ran off. The separately weighed pot and saucer and the plugged drain are kept.
+- TK-CHR9EE asked for validation of the video-and-photo contact method; the read-out now rests on a commercial
+  instrument (below).
+- TK-T4P2JA asked for tests around a 10 ml leaf allowance; the allowance was removed (any leaf contact scores 0.0), and
+  that is kept.
+- TK-EYKT6P asked for the pot to be weighed in the same leaf state before and after; the matched, leafless weighings are
+  kept.
+- TK-A2TMY6 asked to tell water on the soil from water in the saucer; the separately weighed pot and saucer and the
+  plugged drain are kept.
 - TK-J457LS asked for a reproducible real plant, a real water volume with a reset procedure, and real-world thresholds
-  for every tier. All three are kept.
+  for every tier; all three are kept.
 
 What changed in response:
 
-- **Scoring (not met), brief or obscured leaf-edge contact and runoff:** leaf contact is no longer judged from what
-  the cameras see; it is a chemical record. Before each trial every leaf is sprayed on both faces with butterfly pea
-  flower extract (2 g of dried flowers steeped in 100 ml of hot water, filtered), dried to a uniform blue film and
-  photographed. The jug holds dilute white vinegar (1 part ordinary 5% vinegar to 9 parts water: about 0.5% acetic
-  acid, pH about 2.9) as the water. Wherever it touches the film, however briefly, at an edge, or as a drop that runs
-  off, the film turns pink or purple, and the mark stays once dry. After the trial every leaf is photographed again
-  on both faces against a white card. Any pink or purple spot or streak not in the before photo is leaf contact and
-  scores 0.0. The colour chemistry and the pH are sourced in "A real trial".
-- **Contact obscured by the jug or a gripper:** the record does not depend on a view at the moment of contact. The
-  film marks wherever the liquid touches it, seen or not, and the photos are taken afterwards, of every leaf, both
-  faces, with nothing in the way. The two 60 fps videos are kept as supporting evidence only; no score is taken from
-  them.
-- **Perform and report fast-pour tests at leaf edges, with runoff and hidden contact:** no tests on leaves were run.
-  Instead, as the review allows, the scoring method was changed so that detecting contact no longer depends on a
-  view of it: a brief touch, a touch at an edge, a drop that runs off and a touch hidden behind the jug or a gripper
-  all mark the film alike, as the cited sources on the pigment's pH response explain.
-- **Adjust camera coverage or the scoring method:** the scoring method was changed, as above, so detection no longer
-  depends on camera coverage.
-- **Pot and saucer weighings, kept as the review accepted them:** unchanged, now with the dilute vinegar, which is
-  99.5% water and weighs as water does (1 g = 1 ml). The thresholds are unchanged: with no leaf contact, a pot gain of
-  at least 90 g and the end state for 1.0, at least 90 g for 0.5 and at least 40 g for 0.25. The leaves are plastic,
-  so the vinegar harms nothing.
-- **The simulation scores the same event:** any liquid contact with a leaf scores 0.0 in both. In the simulation that
-  is a bead touching a leaf or coming within 4 mm of one, checked 240 times a second; this scorer is unchanged. The
-  setup, scoring, reset notes and fidelity note now describe the real-trial method.
-- **Text only:** the scene, scorer, demo and instruction are unchanged (in the task file only a docstring was
-  reworded), so the existing runs still apply. The scripted demo scores 1.0 (607 steps; in a debug run 11 of the 12
-  beads ended on the soil and none came within 4 mm of a leaf), and Dream-1 scores 0.0.
+- **Scoring (not met), the indicator film:** the home-made film and the dilute vinegar are gone. The leaf-contact
+  read-out now uses a standardized commercial instrument, water-sensitive paper (TeeJet 20301-1N, 26 x 76 mm cards,
+  made by Syngenta Crop Protection AG), whose staining is documented by its maker: "stained dark blue by aqueous
+  droplets", the stain "contrasty, permanent", detecting "droplets larger than 50 microns". No home-made indicator
+  needs validation. The jug holds plain tap water. Where: setup, scoring, reset_notes, fidelity, "A real trial".
+- **Brief contact at leaf edges:** every leaf's edge is wrapped all round in 13 mm card strips folded over it (6.5 mm
+  on each face), so an edge touch stains a card. Where: setup, scoring, "Fitting the cards".
+- **Runoff:** the upper faces are covered edge to edge with cards and the underside margin by the folded strips; a drop
+  that runs off stains its track. Where: scoring, "A real trial".
+- **Contact obscured by the jug or a gripper:** the cards record contact wherever it happens, seen or not, and are
+  photographed afterwards with nothing in the way. A second, independent read is kept: the 60 fps side video, checked
+  frame by frame for the jug or the stream touching a leaf. Either read scores 0.0. Where: scoring.
+- **Areas the gripper touches:** the hold zone (the big leaf's left edge, 6 to 14 cm from the stem, up to 3 cm in, both
+  faces) is fixed in advance and carded like the rest; stains there count. The robot's fingers wear dry nitrile covers,
+  rubber being what the maker specifies for handling the cards, so a gripper's touch leaves no stain. Where: setup,
+  scoring.
+- **Dried marks detectable in the before-and-after photos:** the maker documents the stain as permanent ("Once dry,
+  the blue stains on WSP are irreversible", Syngenta). Each leaf is photographed on both faces before and after, camera
+  on a fixed stand under two fixed lamps; any new blue stain is leaf contact. Where: scoring, "Procedure".
+- **The simulation scores the same two events:** the leaf-wet rule already flagged any bead ever within 4 mm of any
+  leaf, checked 240 times a second, and is kept. It now also flags any part of the jug as drawn (body, rim, floor,
+  lip, handle) ever within 4 mm of a leaf, matching the side-video read. Either scores 0.0. Where: task file
+  (`_jug_gap`, `_points`), scoring, fidelity, "How it is modelled".
+- **Scene and demo, corrected by the new jug check:** at rest the jug stood 0.8 mm from the tip of the left crown leaf
+  (simulation), and the old pour path pressed the jug against the pot's rim. The left crown leaf now points 60 degrees
+  round from straight back (it was 78), 1.9 cm clear of the jug; the demo takes the jug 8 mm higher on its body and
+  pours from a lip 2 cm higher (7.5 cm above the soil). Where: task file, setup.
+- **Adversarial checks (simulation, scripted variants of the demo):**
+  - the stream grazing the held leaf's edge (the jug's lip moved 3.5 cm toward it): 4 beads touch the leaf's edge,
+    8 reach the soil, and the jug stays 8.7 mm clear; score 0.0 (the leaf-dry credit is lost; without that rule the 8
+    beads would earn 0.25);
+  - a clean pour, then the jug set back on its stool 2.1 cm from where it started, against the left crown leaf
+    (inside the 3 cm limit for "back on its stool"): 10 beads on the soil, none on a leaf, every end-state check met;
+    score 0.0;
+  - one hand pouring, the big leaf left in place: the jug touches the big leaf and all 12 beads land on it; score 0.0.
+- **Kept, as the review accepted them:** the matched pot and saucer weighings and the real-trial setup, with the same
+  thresholds (no leaf contact; pot gain at least 90 g and the end state for 1.0, at least 90 g for 0.5, at least 40 g
+  for 0.25).
+- **Runs:** the scripted demo scores 1.0 (607 steps; in a debug run of the same demo 10 of the 12 beads end on the
+  soil, none comes within 4 mm of a leaf, and the jug stays at least 17.8 mm from every leaf), and Dream-1 scores 0.0
+  (1,200 steps).

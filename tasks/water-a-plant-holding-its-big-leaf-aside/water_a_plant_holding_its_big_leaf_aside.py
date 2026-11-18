@@ -7,8 +7,8 @@ Task: water the plant at its roots, onto the soil, without wetting its leaves; t
 leave the leaves as they were and take both arms home. Water poured from above lands on the leaves, so the scripted
 demo pushes the big front leaf aside on its stalk with one hand and holds it there (let go, it springs back over the
 soil) while the other pours the jug onto the soil underneath. The 12 water beads stand for 120 ml of water (10 ml
-each); a real trial weighs the pot and its saucer separately and records any leaf contact as a pink mark on a
-pH-indicator film on the leaves (see task.json).
+each); a real trial weighs the pot and its saucer separately and records any leaf contact as a blue stain on the
+water-sensitive spray cards that cover the leaves (see task.json).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=water_a_plant_holding_its_big_leaf_aside.py \\
            --instruction "..." --scorer task_score ...
@@ -63,7 +63,7 @@ LEAF_T = 0.003
 OUTLINE = ((0.015, 0.030, 0.070), (0.030, 0.050, 0.104), (0.050, 0.070, 0.127), (0.070, 0.090, 0.129),
            (0.090, 0.110, 0.123), (0.110, 0.130, 0.104), (0.130, 0.150, 0.065))
 # the crown's fixed leaves over the back and sides of the pot: (pointing, height above the table)
-CROWN = ((0.0, 0.118), (78.0, 0.112), (-78.0, 0.124))
+CROWN = ((0.0, 0.118), (60.0, 0.112), (-78.0, 0.124))
 
 # -- the big front leaf on its springy stalk: it joins the stem 10 cm above the table and lies pointing at the arms ---
 HINGE_Z = TOP + 0.100
@@ -74,7 +74,7 @@ ASIDE = 70.0  # pushed at least this far round on its stalk, the leaf is aside (
 LEAF_BACK = 12.0  # within this of its rest, the leaf is back over the soil
 
 # -- the watering jug and its water, on a stool beside the pot ---------------------------------------------------------
-JUG_AT = np.array([0.262, 0.130])
+JUG_AT = np.array([0.262, 0.130])  # 1.9 cm clear of the left crown leaf's edge
 STOOL_H = 0.060
 CUP_R_I, CUP_WALL, CUP_H, CUP_FLOOR = 0.024, 0.003, 0.085, 0.006
 JUG_MASS = 0.07
@@ -86,6 +86,7 @@ TERRACOTTA, RIM_C, SOIL, STEM, LEAF_C, LEAF_DARK, VEIN, JUG_C, WATER, STOOL_C = 
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
 WET = 0.004  # a bead within this of a leaf has wetted it
+JUG_NEAR = 0.004  # the jug (any part of it as drawn) within this of a leaf has touched it
 SOAKED_FULL, SOAKED_SOME = 9, 4  # beads on the soil (10 ml each): 90 ml for the higher scores, 40 ml for 0.25
 LEAVES_WET_MAX = 0  # beads that may touch a leaf: none (any leaf contact scores 0.0)
 BACK_WITHIN, UPRIGHT = 0.03, 15.0
@@ -213,7 +214,8 @@ hinge(name="leaf_stalk", body0="plant_pot", body1="big_leaf", anchor=(float(P[0]
 # -- followed after every control step --------------------------------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"wet": set(), "soil": set(), "tcps": None, "s": {}, "aside_max": 0.0, "wet_ctrl": set(), "substeps": 0}
+    return {"wet": set(), "soil": set(), "tcps": None, "s": {}, "aside_max": 0.0, "wet_ctrl": set(), "substeps": 0,
+            "jug_touch": False, "jug_gap": 1.0}
 
 
 _EP = _fresh()
@@ -252,6 +254,48 @@ def _on_leaf(local) -> bool:
     return any(r0 - BEAD_R - WET <= x <= r1 + BEAD_R + WET and abs(y) <= w / 2 + BEAD_R + WET for r0, r1, w in OUTLINE)
 
 
+def _box_grid(centre, size, step: float = 0.004) -> list[tuple[float, float, float]]:
+    axes = [np.linspace(c - d / 2, c + d / 2, max(2, int(math.ceil(d / step)) + 1)) for c, d in zip(centre, size)]
+    return [(float(x), float(y), float(z)) for x in axes[0] for y in axes[1] for z in axes[2]]
+
+
+def _jug_points() -> np.ndarray:
+    """Points over the whole jug as drawn (its body, rim, floor, pouring lip and handle), in its own frame, at most 4 mm
+    apart, for the jug-touches-a-leaf check."""
+    ro = CUP_R_I + CUP_WALL
+    pts = [(0.0, 0.0, 0.0)]
+    for k in range(48):
+        a = 2 * math.pi * k / 48
+        c, s = math.cos(a), math.sin(a)
+        pts += [(ro * c, ro * s, float(z)) for z in np.linspace(0.0, CUP_H, 23)]
+        pts += [(CUP_R_I * c, CUP_R_I * s, CUP_H), (0.009 * c, 0.009 * s, 0.0), (0.018 * c, 0.018 * s, 0.0)]
+    pts += _box_grid((CUP_R_I + 0.008, 0.0, CUP_H - 0.004), (0.018, 0.020, 0.003))  # the pouring lip
+    pts += _box_grid((-(CUP_R_I + 0.016), 0.0, CUP_H * 0.55), (0.006, 0.012, 0.050))  # the handle
+    for zz in (CUP_H * 0.85, CUP_H * 0.25):
+        pts += _box_grid((-(CUP_R_I + 0.010), 0.0, zz), (0.014, 0.012, 0.006))
+    return np.array(pts)
+
+
+JUG_POINTS = _jug_points()
+_OUTLINE = np.array(OUTLINE)
+
+
+def _leaf_gap(local: np.ndarray) -> float:
+    """The smallest distance from any of these points (rows, in a leaf's own frame) to that leaf's blade."""
+    x, y, z = local[:, 0:1], local[:, 1:2], local[:, 2]
+    dx = np.maximum(np.maximum(_OUTLINE[None, :, 0] - x, x - _OUTLINE[None, :, 1]), 0.0)
+    dy = np.maximum(np.abs(y) - _OUTLINE[None, :, 2] / 2, 0.0)
+    dxy = np.sqrt(dx ** 2 + dy ** 2).min(axis=1)
+    dz = np.maximum(np.abs(z) - LEAF_T / 2, 0.0)
+    return float(np.sqrt(dxy ** 2 + dz ** 2).min())
+
+
+def _jug_gap(j_pos, j_rot, frames) -> float:
+    """How close the jug comes to any leaf's blade (m)."""
+    world = j_pos + JUG_POINTS @ np.asarray(j_rot).T
+    return min(_leaf_gap((world - o) @ r) for o, r in frames)
+
+
 def _leaf_frames(l_pos, l_rot) -> list[tuple[np.ndarray, np.ndarray]]:
     """Every leaf's frame (origin, rotation whose x points out along the leaf)."""
     pot0 = np.array([float(P[0]), float(P[1]), TOP])
@@ -272,16 +316,27 @@ def _on_soil(p) -> bool:
 
 def _watch_leaves(base) -> None:
     """After every physics step (240 a second, not only after each 50 ms control step): every bead that comes within
-    WET of any leaf's blade has wetted a leaf, even if it runs off the leaf straight away."""
+    WET of any leaf's blade has wetted a leaf, even if it runs off the leaf straight away; and the jug coming within
+    JUG_NEAR of any leaf's blade has touched it."""
     import torch
 
-    names = ("big_leaf", *BEAD_NAMES)
+    names = ("big_leaf", "jug", *BEAD_NAMES)
     poses = torch.cat([getattr(base.scene[n].data.root_link_pose_w, "torch", base.scene[n].data.root_link_pose_w)[:1]
                        for n in names]).detach().cpu().numpy().astype(np.float64)
     origin = _WATCH["origin"]
     frames = _leaf_frames(poses[0, :3] - origin, rotation(poses[0, 3:7]))
     _EP["substeps"] += 1
-    for name, row in zip(BEAD_NAMES, poses[1:]):
+    gap = _jug_gap(poses[1, :3] - origin, rotation(poses[1, 3:7]), frames)
+    _EP["jug_gap"] = min(_EP["jug_gap"], gap)
+    if gap <= JUG_NEAR:
+        if not _EP["jug_touch"] and _DEBUG["on"]:
+            jp, jr = poses[1, :3] - origin, rotation(poses[1, 3:7])
+            each = [_leaf_gap((jp + JUG_POINTS @ jr.T - o) @ r) for o, r in frames]
+            print(f"[plant] first jug touch at {_EP['substeps'] / 240:.2f} s: leaf {int(np.argmin(each))} "
+                  f"(0 back, 1 left, 2 right, 3 big), jug at {np.round(jp * 1000).astype(int).tolist()}",
+                  file=sys.stderr, flush=True)
+        _EP["jug_touch"] = True
+    for name, row in zip(BEAD_NAMES, poses[2:]):
         if name in _EP["wet"] or name in _EP["soil"]:
             continue
         p = row[:3] - origin
@@ -335,8 +390,11 @@ def _follow(env) -> None:
     jug_mid = j_pos + j_rot @ np.array([0.0, 0.0, CUP_H / 2])
     leaf_mid = l_pos + l_rot @ (_u(LEAF_REST) * 0.10)
     clear = all(float(np.linalg.norm(t - q)) >= LET_GO for t in _EP["tcps"] for q in (jug_mid, leaf_mid))
-    _EP["s"] = {"soaked": soaked, "wet": len(_EP["wet"]), "jug_back": jug_back, "leaf_back": leaf_back,
-                "clear": clear, "turn": turn}
+    gap_now = _jug_gap(j_pos, j_rot, frames)
+    if gap_now <= JUG_NEAR:
+        _EP["jug_touch"] = True
+    _EP["s"] = {"soaked": soaked, "wet": len(_EP["wet"]), "jug_touch": _EP["jug_touch"], "jug_back": jug_back,
+                "leaf_back": leaf_back, "clear": clear, "turn": turn}
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 10 == 0:
@@ -344,7 +402,8 @@ def _follow(env) -> None:
             in_jug = sum(1 for p in beads if float(np.linalg.norm(p[:2] - j_pos[:2])) < CUP_R_I + 0.012
                          and p[2] > j_pos[2] - 0.01)
             print(f"[plant] t={_DEBUG['steps'] / 20:5.1f}s leaf_turn={turn:6.1f} soaked={soaked} wet={len(_EP['wet'])} "
-                  f"wet_ctrl_only={len(_EP['wet_ctrl'])} substeps={_EP['substeps']} "
+                  f"wet_ctrl_only={len(_EP['wet_ctrl'])} substeps={_EP['substeps']} jug_touch={_EP['jug_touch']} "
+                  f"jug_gap_mm={gap_now * 1000:.1f} jug_gap_min_mm={_EP['jug_gap'] * 1000:.1f} "
                   f"in_jug={in_jug} jug={np.round(j_pos * 1000).astype(int).tolist()} jug_back={jug_back} "
                   f"jug_tilt={math.degrees(math.acos(max(-1.0, min(1.0, float(j_rot[2, 2]))))):5.1f} "
                   f"jug_from_L={np.round((j_pos - tl) * 1000).astype(int).tolist()} leaf_back={leaf_back} "
@@ -373,12 +432,13 @@ def _arms_home() -> bool:
 
 def _status() -> dict:
     s = _EP["s"]
-    return {"soaked": int(s.get("soaked", 0)), "wet": int(s.get("wet", 0)), "jug_back": bool(s.get("jug_back")),
+    return {"soaked": int(s.get("soaked", 0)), "wet": int(s.get("wet", 0)), "jug_touch": bool(s.get("jug_touch")),
+            "jug_back": bool(s.get("jug_back")),
             "leaf_back": bool(s.get("leaf_back")), "clear": bool(s.get("clear")), "home": _arms_home()}
 
 
 def _points(s) -> float:
-    if s["wet"] > LEAVES_WET_MAX:  # water touched a leaf: the instruction's constraint is broken, whatever else
+    if s["wet"] > LEAVES_WET_MAX or s["jug_touch"]:  # water or the jug touched a leaf: the constraint is broken
         return 0.0
     if s["soaked"] >= SOAKED_FULL and s["jug_back"] and s["leaf_back"] and s["clear"] and s["home"]:
         return 1.0
@@ -388,9 +448,10 @@ def _points(s) -> float:
 
 
 def score(objects) -> float:
-    """A water bead touches a leaf if it ever comes within 4 mm of one (checked after every physics step); it waters
-    the soil if it ends on the soil inside the pot's wall without having touched a leaf (the saucer is drawn only, so a
-    bead outside the pot never counts). Judged at the end: 0.0 if any bead ever touched a leaf. Otherwise 1.0 with at
+    """A water bead touches a leaf if it ever comes within 4 mm of one, and the jug touches a leaf if any part of it
+    ever comes within 4 mm of one (both checked after every physics step); a bead waters the soil if it ends on the
+    soil inside the pot's wall without having touched a leaf (the saucer is drawn only, so a bead outside the pot never
+    counts). Judged at the end: 0.0 if any bead or the jug ever touched a leaf. Otherwise 1.0 with at
     least 9 of the 12 beads (90 of 120 ml) on the soil, the jug back on its stool (within 3 cm, upright within 15
     degrees), the big leaf back over the soil (within 12 degrees of where it lay), both hands let go (each TCP at least
     4 cm from the jug and the leaf) and both arms back where they started (each TCP within 5 cm); 0.5 with at least 9
@@ -419,9 +480,9 @@ PUSH_STEP, PUSH_S = 5.0, 0.30
 JUG_GRIP = _rx(-90.0) @ grip_rotation(-math.pi / 2)  # left: from the side (pointing -y), fingers closing across (x)
 PUSH_ROT = grip_rotation(0.0)  # right: straight down, fingers closed
 LEAD_S, LEAD_STEPS = 3.0, 15
-GRIP_FROM_AXIS = np.array([0.0, 0.0, 0.036])  # low on the jug's body (the fingers stop on the stool), below the rim
-HELD_AT = np.array([0.019, 0.001, 0.036])  # where the TCP ends up in the jug's frame once it has taken the jug
-MOUTH_AT = np.array([P[0] - 0.066, P[1] + 0.022, SOIL_Z + 0.055])  # the lip, over the front left of the soil
+GRIP_FROM_AXIS = np.array([0.0, 0.0, 0.044])  # low on the jug's body, below the rim
+HELD_AT = np.array([0.023, 0.0, 0.042])  # where the TCP ends up in the jug's frame once it has taken the jug
+MOUTH_AT = np.array([P[0] - 0.066, P[1] + 0.022, SOIL_Z + 0.075])  # the lip, over the front left of the soil
 POUR_DEG, SWEEP = 115.0, 0.006
 START_OFF = np.array([-0.06, 0.0, 0.04])  # the jug comes in upright from behind and above where it will pour
 
