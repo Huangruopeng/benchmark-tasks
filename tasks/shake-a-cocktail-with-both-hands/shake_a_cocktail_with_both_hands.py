@@ -1,14 +1,16 @@
-"""On the station table, a two-piece Boston shaker stands upright in front of the arms on the centre line: a 28 oz
-stainless steel shaker tin holding the drink (24 beads, each standing for 5 ml of a 120 ml drink) and four 2.5 cm ice
-cubes, with the 18 oz tin set straight into its mouth, mouth down, not yet sealed. Both tins are real catalogue items
-at their listed sizes. Set straight in, the small tin's rim (87.3 mm across) meets the large tin's tapered wall all
-round 23.4 mm below the mouth, where the large tin is 87.3 mm across inside; pressed 1.0 mm further in, the rim jams
-0.16 mm tight in the taper (a friction press fit) and seals.
+"""On the station table, a two-piece Boston shaker stands upright in front of the arms on the centre line: the large
+tin of a measured shaker tin pair holding the drink (24 beads, each standing for 5 ml of a 120 ml drink) and four
+2.5 cm ice cubes, with the small tin set straight into its mouth, mouth down, not yet sealed. Every size, mass, depth
+and force of the pair (a Barfly M37009CP set) is in the FIT SPECIFICATION block below, measured on the real pair. Set
+straight in, the small tin's rim (88.90 mm across) rests 33.78 mm below the mouth; pressed in with 14.9 N it seats
+8.38 mm deeper, at 42.16 mm, a friction press fit that a 15.69 N pull parts.
 
 Task: seal the shaker, shake the drink with its ice, then open the shaker, leaving the drink in the large tin standing
-on the table, without spilling any. Shaking chills the air sealed inside, and the partial vacuum adds to the press fit's
-hold until a strike at the seam lets air in; even then the fit holds more than the whole shaker weighs, so opening it
-needs the large tin held down while the small one is pulled off.
+on the table, without spilling any. Only shaking with the shaker sealed earns credit: a stroke or an ice pass counts
+only while the seal is engaged and the small tin sits at its sealed depth, at any tilt, and moving the open drink
+scores 0. Shaking chills the air sealed inside, and the partial vacuum adds to the press fit's hold until a strike at
+the seam lets air in; even then the fit holds more than the whole shaker weighs, so opening it needs the large tin held
+down while the small one is pulled off.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=shake_a_cocktail_with_both_hands.py \\
            --instruction "..." --scorer task_score ...
@@ -39,53 +41,83 @@ SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 IN, LB = 0.0254, 0.45359237
 
-# -- the tins: a catalogue pair sold to work together, at their listed sizes (outside diameters) ----------------------
-# Large: a 28 oz full-size stainless steel shaker tin, listed 7 in tall, 3 5/8 in across the top, 2 1/2 in across the
-# bottom, shipping weight 0.41 lb. Origin at the centre of its underside, axis up.
-TIN_H, TIN_D_MOUTH, TIN_D_BASE, TIN_MASS = 7.0 * IN, 3.625 * IN, 2.5 * IN, round(0.41 * LB, 3)
-# Small: the matching 18 oz half-size tin, listed 5 1/4 in tall, 3 7/16 in across the top (its rim), 2 3/8 in across the
-# bottom, shipping weight 0.32 lb. Built mouth down: origin at the centre of its rim, +z toward its base.
-SM_H, SM_D_RIM, SM_D_BASE, SM_MASS = 5.25 * IN, 3.4375 * IN, 2.375 * IN, round(0.32 * LB, 3)
-T_STEEL, RHO_STEEL = 0.0005, 7930.0  # wall thickness (not listed: the listed weights and the 28 oz capacity give 0.5 mm)
-# Simulated walls and floors are thicker than the real 0.5 mm steel (thin walls let fast ice through). The large tin's
-# wall is thickened outward and the small tin's inward, so the surfaces that meet at the seal are at their real size.
+# ==== FIT SPECIFICATION: every number of the real tin pair that the scene, the fit, the scorer and the text use =======
+# Source: FIT_SOURCE. To use another pair, replace the values in this block only; everything below follows from them.
+FIT_SOURCE = "measured"  # on the real pair: digital caliper, digital kitchen scale, digital luggage scale
+TIN_BRAND = "Barfly M37009CP copper-plated Boston shaker set"  # the measured pair
+# Large tin, measured: 178 mm tall, 91.44 mm (3.60 in) across the mouth and 68.07 mm (2.68 in) across the bottom
+# (outside), 228 g. Origin at the centre of its underside, axis up.
+TIN_H, TIN_D_MOUTH, TIN_D_BASE, TIN_MASS = 0.178, 0.09144, 0.06807, 0.228
+# Small tin, measured: 127 mm tall, 88.90 mm (3.50 in) across its rim and 67.82 mm (2.67 in) across its bottom
+# (outside), 192 g. Built mouth down: origin at the centre of its rim, +z toward its base.
+SM_H, SM_D_RIM, SM_D_BASE, SM_MASS = 0.127, 0.08890, 0.06782, 0.192
+LOOSE_DEPTH = 0.03378  # m, measured: the rim below the large tin's mouth, set straight in, not pressed
+SEALED_DEPTH = 0.04216  # m, measured (1.66 in): the rim below the mouth after pressing the small tin in
+F_SEAT = 14.90  # N, measured: the net press that seats it (kitchen scale, the tins' own weight excluded)
+F_RELEASE = 15.69  # N, measured: the axial pull that parts the sealed, unshaken pair (luggage scale)
+F_VENT = 10.0  # N, design value: a side tap where the tins meet (the large tin's top 25 mm) that lets the air in
+PSI = 6894.757
+DP_VAC = 1.37 * PSI  # 9.45 kPa: the published vacuum after a 15 s shake on ice (Cooking Issues, 2009)
+SEAL_ZONE = 0.050  # design value: the large tin's gently tapered upper band, mouth to 50 mm deep, where the tins seal
+HOLD_GIVE = 0.0005  # design value: the seated tin gives 0.5 mm under the 15.69 N release pull before it lets go
+SEAT_TOL = 0.002  # sealed, for the count: the rim within 2.0 mm of its sealed depth (the seal line at most 2 mm up)
+MU = 0.3  # used only without a measured release force: wet stainless steel on stainless steel
+# ==== end of the fit specification ====================================================================================
+
+RHO_STEEL = 7930.0
+_SIDE_L = math.pi * (TIN_D_MOUTH + TIN_D_BASE) / 2 * math.hypot(TIN_H, (TIN_D_MOUTH - TIN_D_BASE) / 2)
+T_STEEL = TIN_MASS / (RHO_STEEL * (_SIDE_L + math.pi * TIN_D_BASE ** 2 / 4))  # wall, computed from the large tin's mass
+# Simulated walls and floors are thicker than the real steel (thin walls let fast ice through). The large tin's wall is
+# thickened outward and the small tin's inward, so the surfaces that meet at the seal are at their real size.
 WALL, FLOOR, SIDES = 0.002, 0.005, 32
 
 # -- the fit (straight in, coaxial) ---------------------------------------------------------------------------------
-TAPER = (TIN_D_MOUTH - TIN_D_BASE) / TIN_H  # the large tin loses 0.1607 mm of diameter per mm of depth
-ALPHA = math.atan(TAPER / 2)  # its wall leans 4.6 deg off its axis
+# The large tin's inside: a gently tapered seal zone from the mouth down to SEAL_ZONE, whose taper (computed) makes it
+# exactly as wide as the small tin's rim at the measured loose depth; below it a cone down to the measured bottom.
+D_MOUTH_IN, D_BASE_IN = TIN_D_MOUTH - 2 * T_STEEL, TIN_D_BASE - 2 * T_STEEL
+if LOOSE_DEPTH is None:  # one straight cone, the rim resting where it meets it
+    TAPER_SEAL, ZONE = (TIN_D_MOUTH - TIN_D_BASE) / TIN_H, TIN_H
+    REST = (D_MOUTH_IN - SM_D_RIM) / TAPER_SEAL
+else:
+    REST, ZONE = LOOSE_DEPTH, SEAL_ZONE
+    TAPER_SEAL = (D_MOUTH_IN - SM_D_RIM) / REST  # mm of diameter lost per mm of depth through the seal zone
+D_KNEE = D_MOUTH_IN - TAPER_SEAL * ZONE  # the inside diameter where the seal zone ends
+TAPER_LOW = (D_KNEE - D_BASE_IN) / (TIN_H - ZONE) if ZONE < TIN_H else TAPER_SEAL  # below it, down to the bottom
+TAPER = TAPER_SEAL
+ALPHA = math.atan(TAPER_SEAL / 2)  # the seal zone's wall lean
 
 
 def d_large_in(depth: float) -> float:
     """The large tin's inside diameter at this depth below its mouth (m)."""
-    return TIN_D_MOUTH - 2 * T_STEEL - TAPER * depth
+    if depth <= ZONE:
+        return D_MOUTH_IN - TAPER_SEAL * depth
+    return D_KNEE - TAPER_LOW * (depth - ZONE)
 
 
-REST = (TIN_D_MOUTH - 2 * T_STEEL - SM_D_RIM) / TAPER  # 23.4 mm: set straight in, the rim meets the wall all round
-PRESS_IN = 0.001  # pressed 1.0 mm further in ...
-SEAT = REST + PRESS_IN  # ... to 24.4 mm, the rim is 0.16 mm tight in the taper: sealed
-INTERFERENCE = TAPER * PRESS_IN
+PRESS_IN = 0.001 if SEALED_DEPTH is None else SEALED_DEPTH - REST  # 8.38 mm from loose to sealed
+SEAT = REST + PRESS_IN  # pressed home: sealed
+INTERFERENCE = TAPER_SEAL * PRESS_IN  # the rim this much (across) tight in the taper
 
 # -- the seal's forces ----------------------------------------------------------------------------------------------
-MU = 0.3  # wet stainless steel on stainless steel
-F_SEAT = 15.0  # N: the press that drives the rim the 1.0 mm home
 WEDGE = (MU * math.cos(ALPHA) - math.sin(ALPHA)) / (MU * math.cos(ALPHA) + math.sin(ALPHA))  # pull-out / push-in
-F_FRIC = F_SEAT * WEDGE  # 8.7 N: the press fit alone (self-locking: tan 4.6 deg = 0.080 < MU)
-P_AIR, T_ROOM, T_COLD = 101325.0, 293.15, 273.15  # the air sealed in at 20 C, chilled by the ice to 0 C
-DP_VAC = P_AIR * (1.0 - T_COLD / T_ROOM)  # 6.9 kPa (1.0 psi) of partial vacuum
-D_SEAL = d_large_in(SEAT)  # 87.15 mm: the circle the vacuum pulls on
-F_VAC = DP_VAC * math.pi / 4 * D_SEAL ** 2  # 41 N
-K_SEAL = F_SEAT / PRESS_IN  # 15 N per mm: the joint's spring for the elastic interference
-D_SEAL_DAMP, K_FREE, D_FREE, F_MAX = 40.0, 1.0, 1.0, 60.0
-TOUCH = 0.00005  # the rim counts as on the wall within 0.05 mm of first contact (0.75 N)
+F_FRIC = F_SEAT * WEDGE if F_RELEASE is None else F_RELEASE  # the press fit alone, unshaken: 15.69 N
+P_AIR, T_ROOM, T_COLD = 101325.0, 293.15, 273.15  # for comparison only: the gas law for air sealed at 20 C, chilled
+DP_GAS = P_AIR * (1.0 - T_COLD / T_ROOM)  # to 0 C, gives 6.9 kPa (1.0 psi)
+D_SEAL = d_large_in(SEAT)  # the circle the vacuum pulls on
+F_VAC = DP_VAC * math.pi / 4 * D_SEAL ** 2  # the vacuum's pull
+K_SEAL = F_SEAT / PRESS_IN  # N/m: pressing in past first contact (F_SEAT over the loose-to-sealed travel)
+K_HOLD = K_SEAL if F_RELEASE is None else F_RELEASE / HOLD_GIVE  # N/m: the seated tin held at its seat
+D_SEAL_DAMP, K_FREE, D_FREE, F_MAX = 40.0, 1.0, 1.0, 100.0
+TOUCH = 0.00005  # the rim counts as on the wall within 0.05 mm of first contact
 POP_STEPS = 3  # a seal lets go once drawn out past its hold for 3 control steps (0.15 s)
-F_VENT, VENT_BAND, VENT_STEPS = 10.0, 0.025, 2  # a side push of 10 N for 0.1 s on the large tin's top 25 mm (mouth to seal) vents it
+VENT_BAND, VENT_STEPS = 0.025, 2  # F_VENT across the axis for 0.1 s on the large tin's top 25 mm (mouth to seal) vents it
 OFF_DEPTH = -0.005  # the rim this far above the mouth: the tins are apart
 CATCH_R, CATCH_DEG = 0.01, 15.0  # a small tin set back in the mouth this near square is caught again
 
 TIN_XY = (0.22, 0.0)
 
 # -- the drink and the ice ------------------------------------------------------------------------------------------
+MAX_SPEED = 4.0  # m/s: the most the ice and the beads may move (solver stability)
 BEAD_R, BEAD_MASS, N_BEADS, ML_PER_BEAD = 0.004, 0.0053, 24, 5  # 24 x 5 ml = 120 ml (127 g) of drink
 ICE, ICE_MASS, N_ICE = 0.025, 0.014, 4  # 2.5 cm cubes of ice, 14 g each
 
@@ -94,12 +126,15 @@ DRINK_C, ICE_C = (0.30, 0.45, 0.85), (0.86, 0.93, 0.97)
 
 # -- scoring --------------------------------------------------------------------------------------------------------
 TIP_SEALED = math.radians(30)  # the large tin tipped past this while not sealed: the seal was open while tipped
-SHAKE_TIP = math.radians(45)  # strokes count while sealed and tipped past this ...
-TURNS, LEG = 6, 0.025  # ... at least TURNS changes of direction along the axis, each after a leg of LEG or more
-SHAKER_L = TIN_H + SM_H - SEAT  # 28.7 cm sealed
+OPEN_MOVE, OPEN_STEP = 0.03, 0.005  # while not sealed, the large tin's mouth moving this far in all (summed in steps
+#                                     of this): the open drink was swirled, rocked, slid, lifted or shaken
+SEATED = SEAT - SEAT_TOL  # strokes and ice passes count only while sealed with the rim this deep or deeper (within
+#                          2.0 mm of its sealed depth), at any tilt
+TURNS, LEG = 6, 0.025  # at least TURNS changes of direction along the axis, each after a leg of LEG or more
+SHAKER_L = TIN_H + SM_H - SEAT  # 26.3 cm sealed
 MID = SHAKER_L / 2  # the sealed shaker's middle, this far up the large tin's axis
 END_ZONE = 0.09  # an ice cube is at an end once its centre is within this of that end's floor and it touches that tin
-PASSES = 8  # the ice must reach alternate ends at least this many times in all, while sealed and tipped
+PASSES = 8  # the ice must reach alternate ends at least this many times in all, while sealed and seated
 LOST_FULL, LOST_HALF = 1, 3  # beads (5 ml each) allowed out: 1.0 and 0.25 / 0.5
 UPRIGHT = math.radians(10)
 APART = 0.03  # opened: the small tin's rim centre at least this far from the large tin's mouth centre
@@ -109,7 +144,7 @@ SUCCESS_HOLD_S = 1.0
 
 def _r_in(h: float) -> float:
     """The large tin's real inside radius at height h above its underside (the simulated wall's inner face)."""
-    return (TIN_D_BASE - 2 * T_STEEL) / 2 + TAPER / 2 * h
+    return d_large_in(TIN_H - h) / 2
 
 
 def _r_small(s: float) -> float:
@@ -132,11 +167,11 @@ def _capacity(d_lo: float, d_hi: float, h: float) -> float:
     return math.pi * h / 12 * (d_lo ** 2 + d_lo * d_hi + d_hi ** 2)
 
 
-_AREA_L, _ZC_L = _sheet(TIN_D_BASE, TIN_D_MOUTH, TIN_H)
+_AREA_L, _ZC_L = _sheet(TIN_D_BASE, TIN_D_MOUTH, TIN_H)  # the outside: the seal zone's bend moves this < 1 mm
 _AREA_S, _ZC_S = _sheet(SM_D_BASE, SM_D_RIM, SM_H)
 COM_TIN = _ZC_L  # above the large tin's underside
 COM_SM = SM_H - _ZC_S  # from the small tin's rim
-SEAL_GAP = _r_in(TIN_H - SEAT) - _r_small(0.0)  # -0.08 mm: seated, the simulated rim overlaps the wall by the interference
+SEAL_GAP = _r_in(TIN_H - SEAT) - _r_small(0.0)  # seated, the simulated rim overlaps the wall by half the interference
 assert abs(_r_in(TIN_H - REST) - _r_small(0.0)) < 1e-9
 
 
@@ -150,31 +185,42 @@ def numbers() -> dict:
         "large: mouth ID, base ID (mm)": ((TIN_D_MOUTH - 2 * T_STEEL) * 1e3, (TIN_D_BASE - 2 * T_STEEL) * 1e3),
         "small: H, rim OD, base OD (mm)": (SM_H * 1e3, SM_D_RIM * 1e3, SM_D_BASE * 1e3),
         "masses large, small (g)": (TIN_MASS * 1e3, SM_MASS * 1e3),
-        "0.5 mm sheet mass large, small (g)": (_AREA_L * T_STEEL * RHO_STEEL * 1e3, _AREA_S * T_STEEL * RHO_STEEL * 1e3),
+        "wall (mm, from the large tin's mass); small tin's mass at that wall (g)": (T_STEEL * 1e3,
+                                                                                   _AREA_S * T_STEEL * RHO_STEEL * 1e3),
         "brim capacity large, small (ml)": (
             _capacity(TIN_D_BASE - 2 * T_STEEL, TIN_D_MOUTH - 2 * T_STEEL, TIN_H - T_STEEL) * 1e6,
             _capacity(SM_D_BASE - 2 * T_STEEL, SM_D_RIM - 2 * T_STEEL, SM_H - T_STEEL) * 1e6),
         "28 oz, 18 oz (ml)": (28 * 29.5735, 18 * 29.5735),
-        "taper (mm dia per mm), wall angle (deg)": (TAPER, math.degrees(ALPHA)),
-        "rest depth, seat depth (mm)": (REST * 1e3, SEAT * 1e3),
+        "seal-zone taper (mm dia per mm), wall angle (deg), zone depth (mm), lower taper": (
+            TAPER_SEAL, math.degrees(ALPHA), ZONE * 1e3, TAPER_LOW),
+        "large ID at mouth, at the zone's end, at bottom (mm)": (D_MOUTH_IN * 1e3, D_KNEE * 1e3, D_BASE_IN * 1e3),
+        "fit source": FIT_SOURCE,
+        "rest depth, seat depth, press-in (mm)": (REST * 1e3, SEAT * 1e3, PRESS_IN * 1e3),
+        "F_seat, F_release (hold unshaken), F_vent (N)": (F_SEAT, F_FRIC, F_VENT),
+        "K press, K hold (N/mm)": (K_SEAL / 1e3, K_HOLD / 1e3),
         "large ID at rest, at seat (mm)": (d_large_in(REST) * 1e3, d_large_in(SEAT) * 1e3),
         "interference (mm, diametral)": INTERFERENCE * 1e3,
-        "sim radial gap at rest, at seat (mm)": (0.0, SEAL_GAP * 1e3),
+        "sim radial gap at rest, at seat (mm)": ((_r_in(TIN_H - REST) - _r_small(0.0)) * 1e3, SEAL_GAP * 1e3),
         "wedge ratio, F_seat, F_fric (N)": (WEDGE, F_SEAT, F_FRIC),
         "tan(alpha) vs mu": (math.tan(ALPHA), MU),
-        "dP (kPa, psi)": (DP_VAC / 1e3, DP_VAC / 6894.757),
-        "seal circle (mm), F_vac (N), total hold (N)": (D_SEAL * 1e3, F_VAC, F_FRIC + F_VAC),
-        "K (N/mm), give fric, give full (mm)": (K_SEAL / 1e3, F_FRIC / K_SEAL * 1e3, (F_FRIC + F_VAC) / K_SEAL * 1e3),
-        "small tin weight, loose wedge pull-off extra (N)": (SM_MASS * 9.81, SM_MASS * 9.81 / (
-            MU * math.cos(ALPHA) + math.sin(ALPHA)) * (MU * math.cos(ALPHA) - math.sin(ALPHA))),
+        "dP published (kPa, psi), dP gas law 20->0 C (kPa, psi)": (DP_VAC / 1e3, DP_VAC / PSI, DP_GAS / 1e3,
+                                                                   DP_GAS / PSI),
+        "seal circle (mm), area (mm2), F_vac (N), total hold (N)": (D_SEAL * 1e3, math.pi / 4 * D_SEAL ** 2 * 1e6,
+                                                                    F_VAC, F_FRIC + F_VAC),
+        "F_vac and total hold with the gas-law vacuum (N)": (DP_GAS * math.pi / 4 * D_SEAL ** 2,
+                                                             F_FRIC + DP_GAS * math.pi / 4 * D_SEAL ** 2),
+        "seated (counting) depth (mm)": SEATED * 1e3,
+        "open-drink limit: path (mm), counted in steps of (mm)": (OPEN_MOVE * 1e3, OPEN_STEP * 1e3),
+        "give before letting go: unshaken, shaken (mm)": (F_FRIC / K_HOLD * 1e3, (F_FRIC + F_VAC) / K_HOLD * 1e3),
+        "small tin weight, resting lift-off extra (N)": (SM_MASS * 9.81, TOUCH * K_SEAL),
         "drink (g), full shaker (kg), weight (N)": (m_drink * 1e3, full, full * 9.81),
         "large tin + contents hanging (kg, N)": (TIN_MASS + m_drink + N_ICE * ICE_MASS,
                                                  (TIN_MASS + m_drink + N_ICE * ICE_MASS) * 9.81),
         "sealed length (mm), middle (mm)": (SHAKER_L * 1e3, MID * 1e3),
         "end-zone gap (mm)": zone_gap * 1e3,
         "COM large (mm above base), small (mm from rim)": (COM_TIN * 1e3, COM_SM * 1e3),
-        "small tin OD at right grip (mm), large OD at left grip (mm)": (_r_small(0.066) * 2e3,
-                                                                        (TIN_D_BASE + TAPER * 0.055) * 1e3),
+        "small tin OD at right grip (mm), large OD at left grip (mm)": (_r_small(SM_GRIP) * 2e3,
+                                                                        (_r_in(0.055) + T_STEEL) * 2e3),
         "vent band (mm below mouth), seal ring (mm above base)": (VENT_BAND * 1e3, (TIN_H - SEAT) * 1e3),
         "tipping push at 165 mm (N)": full * 9.81 * TIN_D_BASE / 2 / 0.165,
     }
@@ -183,7 +229,7 @@ def numbers() -> dict:
 def print_numbers() -> None:
     for k, v in numbers().items():
         vals = v if isinstance(v, tuple) else (v,)
-        print(f"{k}: " + ", ".join(f"{x:.4f}" for x in vals))
+        print(f"{k}: " + ", ".join(x if isinstance(x, str) else f"{x:.4f}" for x in vals))
 
 
 def _cone(n: int, z0: float, z1: float, r0: float, r1: float, color, collide: bool = True, t: float = WALL) -> list:
@@ -201,7 +247,10 @@ def _cone(n: int, z0: float, z1: float, r0: float, r1: float, color, collide: bo
 
 def _tin() -> Body:
     shapes = [CylShape((0.0, 0.0, FLOOR / 2), _r_in(0.0) + WALL - 0.0005, FLOOR, STEEL)]
-    shapes += _cone(SIDES, 0.0, TIN_H, _r_in(0.0) + WALL, _r_in(TIN_H) + WALL, STEEL)  # inner face at the real size
+    z_knee = TIN_H - ZONE  # the seal zone's lower end
+    if z_knee > 0.0:
+        shapes += _cone(SIDES, 0.0, z_knee, _r_in(0.0) + WALL, _r_in(z_knee) + WALL, STEEL)  # inner face at real size
+    shapes += _cone(SIDES, max(z_knee, 0.0), TIN_H, _r_in(max(z_knee, 0.0)) + WALL, _r_in(TIN_H) + WALL, STEEL)
     return Body.build("tin", pos=(*TIN_XY, TOP + 0.0005), mass=TIN_MASS, shapes=shapes, friction=(0.35, 0.3), color=STEEL,
                       solver_iterations=64, com=(0.0, 0.0, COM_TIN))
 
@@ -272,8 +321,12 @@ def _author_threads(stage, prim_path: str, spec) -> None:
 
         PhysxSchema.PhysxContactReportAPI.Apply(stage.GetPrimAtPath(f"{prim_path}/body")).CreateThresholdAttr(0.0)
     if spec.name in CONTENTS:
-        from pxr import UsdPhysics
+        from pxr import PhysxSchema, UsdPhysics
         from yam_arena.robot import asset_link_paths
+
+        # solver stability: the ice and the beads never move faster than MAX_SPEED (they reach about 1.5 m/s when
+        # shaken), so a rare solver blow-out at an impact cannot fling one out through a wall
+        PhysxSchema.PhysxRigidBodyAPI(stage.GetPrimAtPath(f"{prim_path}/body")).CreateMaxLinearVelocityAttr(MAX_SPEED)
 
         env = prim_path.rsplit("/", 1)[0]
         pairs = UsdPhysics.FilteredPairsAPI.Apply(stage.GetPrimAtPath(f"{prim_path}/body")).CreateFilteredPairsRel()
@@ -381,11 +434,17 @@ def _side_blow(origin, t_pos, t_rot) -> float:
 
 # -- followed after every control step ------------------------------------------------------------------------------
 
+def _stroke_state() -> dict:
+    return {"turns": 0, "last": None, "s": 0.0, "ext": 0.0, "lo": 0.0, "hi": 0.0, "dir": 0,
+            "ice_end": [None] * N_ICE, "passes": 0}
+
+
 def _fresh() -> dict:
     return {"on": True, "mode": "touch", "sealed": False, "pull": 0, "pops": 0, "ever_sealed": False,
-            "open_tipped": False, "turns": 0, "last": None, "s": 0.0, "ext": 0.0, "lo": 0.0, "hi": 0.0, "dir": 0,
-            "ice_end": [None] * N_ICE, "passes": 0, "max_tip": 0.0, "depth": REST, "max_give": 0.0, "tcps": None,
-            "vac_base": 0, "vents": 0, "blow": 0, "max_blow": 0.0, "max_press": 0.0}
+            "open_tipped": False, "turns": 0, "passes": 0, "st": _stroke_state(), "any": _stroke_state(),
+            "max_tip": 0.0, "depth": REST, "max_give": 0.0, "tcps": None, "seated_steps": 0,
+            "vac_base": 0, "vents": 0, "blow": 0, "max_blow": 0.0, "max_press": 0.0,
+            "open_path": 0.0, "open_anchor": None, "open_moved": False}
 
 
 _EP = _fresh()
@@ -410,18 +469,14 @@ def _pose(base, origin, name):
     return p[:3] - origin, rotation(p[3:7])
 
 
-def _restart_stroke() -> None:
-    _EP.update(s=0.0, ext=0.0, lo=0.0, hi=0.0, dir=0)
-
-
-def _track_stroke(centre, axis, counting: bool) -> None:
-    """Count the turns of the shaker's middle along its own axis while it is sealed and tipped past SHAKE_TIP: s
-    integrates the middle's motion along the axis (turning the shaker about its middle hardly moves s), and a turn
-    counts once s has come back LEG or more from its last extreme."""
-    e = _EP
+def _track_stroke(e: dict, centre, axis, counting: bool) -> None:
+    """Count the turns of the shaker's middle along its own axis while counting (for the score: sealed, with the rim at
+    SEATED or deeper, at any tilt): s integrates the middle's motion along the axis (turning the shaker about its middle
+    hardly moves s), and a turn counts once s has come back LEG or more from its last extreme. Any step not counting
+    ends the stroke under way, so only strokes made wholly while sealed count."""
     last, e["last"] = e["last"], centre
     if not counting or last is None:
-        _restart_stroke()
+        e.update(s=0.0, ext=0.0, lo=0.0, hi=0.0, dir=0)
         return
     e["s"] += float(np.dot(centre - last, axis))
     s = e["s"]
@@ -434,6 +489,38 @@ def _track_stroke(centre, axis, counting: bool) -> None:
     elif abs(s - e["ext"]) >= LEG:
         e["turns"] += 1
         e["dir"], e["ext"] = -e["dir"], s
+
+
+def _track_open(mouth, sealed: bool) -> None:
+    """While the shaker is not sealed, add up how far the large tin's mouth moves, in steps of OPEN_STEP (so standing
+    still never adds up): at OPEN_MOVE in all the open drink was moved (swirled, rocked, slid, lifted or shaken),
+    whatever the angle, and no tier scores."""
+    e = _EP
+    if sealed:
+        e["open_anchor"] = None
+        return
+    if e["open_anchor"] is None:
+        e["open_anchor"] = mouth
+        return
+    d = float(np.linalg.norm(mouth - e["open_anchor"]))
+    if d >= OPEN_STEP:
+        e["open_path"] += d
+        e["open_anchor"] = mouth
+        if e["open_path"] >= OPEN_MOVE:
+            e["open_moved"] = True
+
+
+def _track_ice(e: dict, ends: list, counting: bool) -> None:
+    """Count the ice passes: a cube reaching the other end (ends[i]: 'large', 'small' or None) from the one it last
+    reached, while counting. Not counting forgets where each cube was."""
+    for i, end in enumerate(ends):
+        if not counting:
+            e["ice_end"][i] = None
+            continue
+        if end is not None:
+            if e["ice_end"][i] is not None and e["ice_end"][i] != end:
+                e["passes"] += 1
+            e["ice_end"][i] = end
 
 
 def vacuum_share() -> float:
@@ -451,12 +538,13 @@ def hold_force() -> float:
 
 def _set_mode(mode: str) -> None:
     """The seal joint's slide drive: 'touch' (the rim on the wall: pushing further in meets the interference spring,
-    15 N per mm), 'sealed' (held at the seat by the same spring) or 'free' (the rim off the wall: it slides freely)."""
+    F_SEAT over the loose-to-sealed travel), 'sealed' (held at the seat by a stiffer spring, K_HOLD, so it gives
+    HOLD_GIVE under the release pull) or 'free' (the rim off the wall: it slides freely)."""
     _EP["mode"] = mode
     if mode == "touch":
         _seal_drive(K_SEAL, D_SEAL_DAMP, REST)
     elif mode == "sealed":
-        _seal_drive(K_SEAL, D_SEAL_DAMP, SEAT)
+        _seal_drive(K_HOLD, D_SEAL_DAMP, SEAT)
     else:
         _seal_drive(K_FREE, D_FREE, REST)
 
@@ -480,7 +568,7 @@ def _seal_step(depth: float, off: float, angle: float, blow: float) -> None:
         e["blow"] = e["blow"] + 1 if blow >= F_VENT else 0
         if e["blow"] == VENT_STEPS:  # a blow at the seam lets the air in: the vacuum is gone
             e["vac_base"], e["vents"] = e["turns"], e["vents"] + 1
-        if depth < SEAT - hold_force() / K_SEAL:  # drawn out past its hold: held 0.15 s, the seal lets go
+        if depth < SEAT - hold_force() / K_HOLD:  # drawn out past its hold: held 0.15 s, the seal lets go
             e["pull"] += 1
             if e["pull"] >= POP_STEPS:
                 e.update(sealed=False, pull=0, pops=e["pops"] + 1)
@@ -519,16 +607,18 @@ def _follow(env) -> None:
     sealed = e["sealed"]
     if tip > TIP_SEALED and not sealed:
         e["open_tipped"] = True  # in a real trial the drink pours out: no credit
+    _track_open(t_pos + t_rot[:, 2] * TIN_H, sealed)
     if sealed:
         e["max_tip"] = max(e["max_tip"], tip)
-    _track_stroke(t_pos + t_rot[:, 2] * MID, t_rot[:, 2], sealed and tip >= SHAKE_TIP)
+    # the seal gate: the fit's joint live, the seal engaged and the rim at its sealed depth (at any tilt)
+    seated = e["on"] and sealed and depth >= SEATED
+    e["seated_steps"] += int(seated)
+    middle, axis = t_pos + t_rot[:, 2] * MID, t_rot[:, 2]
+    _track_stroke(e["st"], middle, axis, seated)
+    _track_stroke(e["any"], middle, axis, True)  # for the checks only: every stroke, sealed or not
     touches = _ice_touches()
+    ends = []
     for i, name in enumerate(ICE_NAMES):
-        if not sealed:
-            e["ice_end"][i] = None
-            continue
-        if tip < SHAKE_TIP:  # passes count while sealed and tipped past SHAKE_TIP, as the strokes do
-            continue
         p = _pose(base, origin, name)[0]
         zb = float((t_rot.T @ (p - t_pos))[2])
         zs = float((s_rot.T @ (p - s_pos))[2])
@@ -537,10 +627,10 @@ def _follow(env) -> None:
             end = "large"
         elif zs >= SM_H - FLOOR - END_ZONE and (touches is None or touches[i, 1]):
             end = "small"
-        if end is not None:
-            if e["ice_end"][i] is not None and e["ice_end"][i] != end:
-                e["passes"] += 1
-            e["ice_end"][i] = end
+        ends.append(end)
+    _track_ice(e["st"], ends, seated)
+    _track_ice(e["any"], ends, True)
+    e["turns"], e["passes"] = e["st"]["turns"], e["st"]["passes"]
     tcps = []
     for arm in ("left_robot", "right_robot"):
         robot = base.scene[arm]
@@ -556,7 +646,9 @@ def _follow(env) -> None:
               f"give={e['max_give'] * 1000:4.2f}mm press={e['max_press']:4.1f}N vac={vacuum_share():4.2f} "
               f"hold={hold_force():4.1f}N blow={blow:5.1f}N maxblow={e['max_blow']:5.1f} vents={e['vents']} "
               f"blowz={_CT.get('blow_z')} blow_all={_CT.get('blow_all', 0.0):5.1f} "
-              f"tip={math.degrees(tip):5.1f} turns={e['turns']} passes={e['passes']} ends={e['ice_end']} "
+              f"tip={math.degrees(tip):5.1f} seated={seated} turns={e['turns']} passes={e['passes']} "
+              f"any_turns={e['any']['turns']} any_passes={e['any']['passes']} ends={e['st']['ice_end']} "
+              f"open_path={e['open_path'] * 1000:5.1f}mm open_moved={e['open_moved']} "
               f"tin_at={np.round((t_pos - [TIN_XY[0], TIN_XY[1], TOP]) * 1000, 1).tolist()} "
               f"left_in_tin={np.round(lt * 1000, 1).tolist()} right_in_small={np.round(rt * 1000, 1).tolist()} "
               f"rtcp={np.round(tcps[1] * 1000, 1).tolist()} "
@@ -602,12 +694,17 @@ def _tally(objects) -> dict:
     mouth = t_pos + t_rot[:, 2] * TIN_H
     opened = not _EP["on"] and float(np.linalg.norm(s_pos - mouth)) >= APART
     return {"lost": lost, "ice_lost": ice_lost, "opened": opened, "open_tipped": _EP["open_tipped"],
-            "shaken": _EP["turns"] >= TURNS and _EP["passes"] >= PASSES,
+            "open_moved": _EP["open_moved"], "shaken": _EP["turns"] >= TURNS and _EP["passes"] >= PASSES,
+            "shaken_any": _EP["any"]["turns"] >= TURNS and _EP["any"]["passes"] >= PASSES,
             "upright_on_table": tip < UPRIGHT and abs(float(t_pos[2]) - TOP) < 0.01}
 
 
-def _points(t) -> float:
-    if t["open_tipped"] or not t["upright_on_table"] or t["ice_lost"] > 0 or not t["shaken"]:
+def _points(t, open_rule: bool = True, seal_gate: bool = True) -> float:
+    """The score; for the checks only, open_rule=False drops the two open-drink rules and seal_gate=False counts every
+    stroke and ice pass, sealed or not."""
+    if open_rule and (t["open_tipped"] or t["open_moved"]):
+        return 0.0
+    if not t["upright_on_table"] or t["ice_lost"] > 0 or not t["shaken" if seal_gate else "shaken_any"]:
         return 0.0
     if t["opened"]:
         if t["lost"] <= LOST_FULL:
@@ -617,18 +714,25 @@ def _points(t) -> float:
 
 
 def score(objects) -> float:
-    """0 if the large tin was ever tipped past 30 degrees while the shaker was not sealed (pressed home), if any ice
-    cube is out of the tins, unless the large tin ends standing upright on the table, or unless the shaker was shaken:
-    while sealed and tipped past 45 degrees, at least 6 changes of direction along its axis, each after a leg of 2.5 cm
-    or more, and the ice cubes reaching alternate ends (within 9 cm of that end's floor, touching that tin) at least 8
-    times in all. Otherwise 1.0 if the shaker is open (the small tin off: its rim at least 3 cm from the large tin's
-    mouth) with at most 1 of the 24 drink beads (5 ml each) out of the tins; 0.5 if open with at most 3 out; 0.25 if not
-    opened, with at most 1 out; else 0."""
+    """0 if the drink was ever moved while the shaker was not sealed (pressed home): the large tin tipped past 30
+    degrees, or its mouth moved 3 cm or more in all (swirled, rocked, slid, lifted or shaken, at any angle). 0 also if
+    any ice cube is out of the tins, unless the large tin ends standing upright on the table, or unless the shaker was
+    shaken sealed: at least 6 changes of direction along its axis, each after a leg of 2.5 cm or more, and the ice
+    cubes reaching alternate ends (within 9 cm of that end's floor, touching that tin) at least 8 times in all, each
+    stroke and pass made wholly while the seal is engaged with the small tin's rim 40.16 mm deep or more (within
+    2.0 mm of its 42.16 mm sealed depth), at any tilt. Strokes, swirls and ice passes with
+    the shaker unsealed count for nothing. Otherwise 1.0 if the shaker is open (the small tin off: its rim at least 3 cm from the large
+    tin's mouth) with at most 1 of the 24 drink beads (5 ml each) out of the tins; 0.5 if open with at most 3 out; 0.25
+    if not opened, with at most 1 out; else 0."""
     t = _tally(objects)
     if _DEBUG["on"] and _DEBUG["steps"] % 20 == 0:
         print(f"[shake-score] lost={t['lost']} ice_lost={t['ice_lost']} opened={t['opened']} "
-              f"open_tipped={t['open_tipped']} shaken={t['shaken']} upright={t['upright_on_table']} "
-              f"score={_points(t)}", file=sys.stderr, flush=True)
+              f"open_tipped={t['open_tipped']} open_moved={t['open_moved']} shaken={t['shaken']} "
+              f"upright={t['upright_on_table']} score={_points(t)} without_open_rule={_points(t, False)} "
+              f"without_any_gate={_points(t, False, False)} turns={_EP['turns']} passes={_EP['passes']} "
+              f"any_turns={_EP['any']['turns']} any_passes={_EP['any']['passes']} "
+              f"seated_s={_EP['seated_steps'] / 20:.1f} open_path={_EP['open_path'] * 1000:.1f}mm",
+              file=sys.stderr, flush=True)
     return _points(t)
 
 
@@ -665,16 +769,16 @@ LEFT_DOWN = math.radians(20)  # the left grip points 20 deg down: a level side g
 LEFT_LEAN, RIGHT_LEAN = math.radians(-6.0), math.radians(4.5)  # the pads aren't parallel: counter-turn each grip
 GRIP = {"left": _ry(LEFT_LEAN) @ _rx(LEFT_DOWN) @ SIDE_GRIP["left"], "right": _ry(RIGHT_LEAN) @ SIDE_GRIP["right"]}
 H_LEFT = 0.055  # the left grip on the large tin, above its underside
-SM_GRIP = 0.066  # the right grip on the small tin, above its rim
+SM_GRIP = 0.085  # the right grip on the small tin, above its rim (43 mm above the large tin's mouth once sealed)
 H_RIGHT = TIN_H - SEAT + SM_GRIP  # ... above the large tin's underside once sealed
 OUT = 0.07
-PRESS = 0.05  # the right aims this far below the seated grip to press the small tin home
+PRESS = 0.075  # the right aims this far below the seated grip to press the small tin home
 SQUEEZE = 0.005  # while the shaker is off the table each hand aims this far toward the other along its axis
 LIFT, PIVOT = 0.03, 0.15  # lift the shaker 3 cm, tip it about its middle
 SHAKE_AT, ROCK = math.radians(86), math.radians(21)  # shake between 65 and 107 deg (the wrist roll allows ~115)
 STROKE, LEGS, LEG_S, DWELL = 0.03, 12, 0.7, 0.3  # ... 3 cm along the axis each way, 12 legs, a pause at each end
 TIP_STEP = math.radians(15)
-HOLD_DOWN, PULL = 0.05, 0.10  # opening: the left presses 5 cm into the table, the right pulls 10 cm straight up
+HOLD_DOWN, PULL = 0.065, 0.10  # opening: the left presses 6.5 cm into the table, the right pulls 10 cm straight up
 STRIKE_H = 0.165  # the right's closed fingertips strike the large tin's wall about this high up (in its top 25 mm)
 TIP_REACH = 0.0128  # the closed fingertips reach this far past the grip point
 STRIKE_IN = 0.045  # ... aimed this far into the wall, toward the left hand that holds the tin
@@ -763,7 +867,9 @@ LEFT_IN = [1.5, 0.8]  # then the left: slide in round the large tin, grip it
 PRESSING = [1.0, 0.6, 0.8]  # then the right presses the small tin home, holds, eases off
 STRIKING = [0.5, 0.8, 1.2, 0.6, 0.6, 0.5, 1.2, 1.2, 0.8]  # let go, out, down beside the seam, strike, hold, back,
 #                                                           up beside the small tin, in round it, grip it
-OPENING = [0.8, 1.5, 0.6, 1.5, 0.8, 1.2, 2.0]  # hold, pull off, pause, up, left lets go, left out, hold still
+OPENING = [0.8, 1.5, 0.6, 1.5, 2.0]  # hold, pull off, pause, up, hold still. The left keeps holding the open large tin
+#                                      on the table to the end: letting go drags it (the soft arm springs back), and the
+#                                      open drink must not be moved
 
 
 def _strike_y() -> float:
@@ -830,10 +936,8 @@ def _left() -> list[Waypoint]:
     out += [_w(STRIKING[0], pos, FINGER_CLOSED, "hold the large tin", r0),
             _w(STRIKING[1], down, FINGER_CLOSED, "hold the large tin down, upright", r),
             _w(sum(STRIKING[2:]) + OPENING[0], down, FINGER_CLOSED, "keep holding it down", r),
-            _w(sum(OPENING[1:4]), down, FINGER_CLOSED, "keep holding it down", r),
-            _w(OPENING[4], pos, FINGER_OPEN, "let go of the large tin", r),
-            _w(OPENING[5], pos + side, FINGER_OPEN, "slide out", r),
-            _w(OPENING[6], pos + side + [0.0, 0.0, 0.05], FINGER_OPEN, "up and away", r)]
+            _w(sum(OPENING[1:4]), down, FINGER_CLOSED, "keep holding it down while the small tin comes off", r),
+            _w(sum(OPENING[4:]), down, FINGER_CLOSED, "keep holding the open large tin on the table", r)]
     return out
 
 
