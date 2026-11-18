@@ -7,7 +7,8 @@ large tin's taper), shakes it so the ice crashes from end to end, sets it down, 
 lets in air, as bartenders do, and the tins are pulled apart) and lifts the small tin off, leaving the drink in the
 large tin standing on the table without spilling any. Only shaking with the shaker sealed earns credit: a stroke counts
 only while the small tin is seated at its sealed depth, at any tilt, and every nonzero score needs at least 6 such
-strokes. Strokes, swirls or rocking with the shaker unsealed count for nothing, and moving the open drink scores 0. In
+strokes. Strokes with the shaker unsealed count for nothing, and mixing the drink unsealed (a fast stroke, a swirl or
+rocking of a tin holding it) scores 0, while sliding, lifting or tilting it to move it is allowed. In
 a real trial the drink is water with a layer of dyed syrup under it, and the score measures that it was mixed
 (refractometer readings of the top and the bottom), that nothing was spilled (kitchen scale), and, frame by frame in
 two side videos, that it was mixed only by shaking with the shaker sealed. The task is one task file,
@@ -113,13 +114,24 @@ The simulated fit uses the measured numbers: resting at 33.78 mm, sealed at 42.1
     or more, a gap opens at the seam, or drink escapes there.
   - **A sealed stroke:** a movement of the shaker along its own axis of at least 2.5 cm that ends in a change of
     direction, at any tilt, with the shaker sealed in every frame of it and no drink escaping at the seam. Only sealed
-    strokes are counted. A stroke with the shaker unsealed in any of its frames, a swirl or rock of the open tin, or
-    shaking with the small tin resting adds nothing. **At least 6 sealed strokes** are needed for any score; fewer
-    (none at all, or a single tilt) scores 0.
-  - **The open drink stays still:** while the shaker is not sealed (before the robot's press, and after the tins
-    part), the large tin's mouth must move less than 3 cm in all (adding up every movement of 0.5 cm or more, frame by
-    frame) and never tip more than 30 degrees. Moving the open tin more than that, at any angle (including within
-    30 degrees of upright), scores 0 at every tier, whatever the refractometer reads.
+    strokes are counted. A stroke with the shaker unsealed in any of its frames, or with the small tin resting, adds
+    nothing. **At least 6 sealed strokes** are needed for any score; fewer (none at all, or a single tilt) scores 0.
+  - **No mixing unsealed:** while the shaker is not sealed (before the robot's press, and after the tins part), the
+    mouth of each tin holding 10 ml or more of the drink (the large tin from the start; the small tin only if drink is
+    poured into it) is tracked frame by frame in both side views with free video-analysis software (Kinovea or
+    Tracker; the views synchronised by a hand clap at the start, the 92.1 mm mouth as the scale), giving its path in
+    3-D. Over the whole trial, any of these scores 0 at every tier, whatever the refractometer reads:
+    - an **unsealed stroke**: the mouth changes direction after a leg of 1 cm or more, with an acceleration of 0.5 g
+      or more at the turn or on the way back (from each three successive frames: at 30 frames per second, 0.5 g is a
+      second difference of 5.5 mm, about 44 pixels). Pushed sideways at half of gravity, the drink's surface tilts
+      27 degrees and runs up the wall: it sloshes;
+    - a **swirl**: the mouth's level path turns a full circle one way within 1 s (1 rev/s or faster), moving 3 cm/s
+      (1 mm per frame) or faster all the way round;
+    - **rocking**: 6 changes of direction after legs of 1 cm or more, in all, at any speed (the count a sealed shake
+      needs), so slow back-and-forth motion adds up like fast.
+
+    Moving the drink to place it is allowed at any angle and distance: a slide, a lift, a move to a work spot, a tilt
+    to pour or to set it down. Any drink spilled counts in the tiers.
   - **Opened:** at the end the small tin is off (its rim at least 3 cm from the large tin's mouth) and the large tin
     stands upright on the table (tilted less than 10 degrees).
 - **No spill:** both tins with the drink and the ice are weighed on a kitchen scale (1 g) before the trial; after it,
@@ -134,8 +146,8 @@ The simulated fit uses the measured numbers: resting at 33.78 mm, sealed at 42.1
 ## How the simulation measures the same
 
 No liquid is simulated, so the simulation cannot measure mixing; it scores what the robot controls, which is what
-mixes the drink in a real trial: strokes made with the shaker sealed that send the ice from end to end, and no movement
-of the drink while the shaker is open.
+mixes the drink in a real trial: strokes made with the shaker sealed that send the ice from end to end, and no mixing
+motion of the drink while the shaker is open.
 
 - **The seal gate:** a stroke or an ice pass counts only while the fit's joint is engaged, the small tin has been
   pressed to its 42.16 mm sealed depth and not since pulled out past its hold, and its rim is still 40.16 mm deep or
@@ -145,9 +157,13 @@ of the drink while the shaker is open.
   more, and the ice cubes reaching alternate ends at least 8 times in all, all inside the seal gate. A cube is at an
   end when its centre is within 9 cm of that end's floor and it touches that tin (a PhysX contact force), so each pass
   is a cube carried at least 9.7 cm along the shaker into the other tin.
-- **The open drink stays still:** while the shaker is not sealed, the large tin's mouth (the centre of its opening)
-  is followed every control step, and each time it is 5 mm or more from where it was last counted, that distance is
-  added. At 3 cm in all the trial scores 0, as does tipping the large tin past 30 degrees while not sealed.
+- **No mixing unsealed:** outside the seal gate, the mouth (the centre of the opening) of each tin with 2 or more beads
+  (10 ml) inside is followed every control step (20 Hz), over the whole trial, with the real trial's definitions. A
+  change of direction: the mouth's leg from its last turn to its farthest point from there is 1 cm or more, and the
+  mouth has come back 1 cm or more from that point. It is an unsealed stroke if the acceleration (from three successive
+  positions) reached 0.5 g at the turn or on the way back; 6 of them in all, at any speed, are rocking. A swirl: the
+  heading of the mouth's level velocity turns 360 degrees one way within 1 s, at 3 cm/s or faster. Positions are
+  integrated step by step, so slow motion adds up like fast motion. Any of the three scores 0.
 - **Spill:** the drink is 24 rigid beads, 8 mm and 5.3 g each (127 g, the drink's mass), each standing for 5 ml. A
   bead or a cube whose centre is outside both tins is spilled.
 - **Open:** the small tin off, its rim at least 3 cm from the large tin's mouth, with the large tin standing upright
@@ -158,12 +174,12 @@ wall and would push what is inside out through it.
 
 ## Scoring, real trial and simulation
 
-Judged at the end of the trial, except the sealed-stroke count and the two open-drink rules, which cover the whole
+Judged at the end of the trial, except the sealed-stroke count and the unsealed-mixing rule, which cover the whole
 trial.
 
 - **0 at every tier** unless the shaker was shaken sealed: at least 6 sealed strokes (real trial: counted frame by
-  frame in the side videos; simulation: inside the seal gate, plus 8 ice passes). Also 0 if the drink was moved while
-  the shaker was not sealed (the mouth moving 3 cm or more in all, or the large tin tipped past 30 degrees), if any
+  frame in the side videos; simulation: inside the seal gate, plus 8 ice passes). Also 0 if the drink was mixed while
+  the shaker was not sealed (an unsealed stroke, a swirl or rocking of a tin holding it), if any
   ice cube ends outside the tins, or if the large tin does not end standing upright on the table (tilted less than
   10 degrees).
 - **1.0:** shaken sealed, mixed, at most 5 ml spilled, and the shaker opened. Real trial: the refractometer's top and
@@ -178,25 +194,39 @@ The trial ends at the run limit, or once the full score has held with everything
 ## Checks of the scoring rules
 
 Each is a copy of the scripted demo with one part changed, run in simulation and scored by the task's scorer
-(`SHAKE_DEBUG=1` also prints what each gate counted, and the score without the gates):
+(`SHAKE_DEBUG=1` also prints what each rule counted, and the score with the unsealed-mixing rule off and with every
+gate off):
 
-- **(a) Swirl the open tin upright.** The right lifts the resting small tin off (never sealed) and holds it aside;
-  the left lifts the open large tin, with the drink and ice in it, 1.5 cm, swirls it through three laps of a 1.5 cm
-  circle, rocks it 20 degrees each way and sets it down (at most 12.9 degrees from upright). It ends opened, upright,
-  with nothing spilled. **Score 0.0**: 0 sealed strokes and 0 sealed ice passes (the open-drink rule also tripped;
-  with that rule off it still scores 0.0).
-- **(b) Seal, then one slow tilt.** The demo's press seals the shaker (seated 27.1 s); both hands lift it and tip it
-  slowly to 95.6 degrees and back over 13 s, set it down, and the demo's strike and pull open it, upright, with
-  nothing spilled. **Score 0.0**: 0 sealed strokes and 0 sealed ice passes, short of the 6 and 8 needed.
+- **(a) Swirl the open tin.** The right lifts the resting small tin off (never sealed) and holds it aside; the left
+  lifts the open large tin, with the drink and ice in it, 1.5 cm, swirls it through three laps of a 1.5 cm circle at
+  1.25 rev/s, rocks it 20 degrees each way and sets it down (at most 17.8 degrees from upright). It ends opened,
+  upright, with nothing spilled. **Score 0.0**: a swirl at 12.7 s (3 in all, plus 11 unsealed changes of direction),
+  and 0 sealed strokes.
+- **(a2) The same, swirled at 0.625 rev/s** (never a full circle within 1 s). **Score 0.0**: rocking at 17.1 s (11
+  changes of direction in all, at most 0.17 g), and 0 sealed strokes.
+- **(b) Seal, then one slow tilt.** The demo's press seals the shaker; both hands lift it and tip it slowly past 100
+  degrees and back over 13 s, set it down, and the demo's strike and pull open it, upright, with nothing spilled.
+  **Score 0.0**: 0 sealed strokes and 0 sealed ice passes (sealed and seated for 27.1 s), short of the 6 and 8 needed;
+  no unsealed mixing, so the sealed-shaking requirement alone gives the 0.
 - **(c) Shake without sealing.** The right never presses and holds the small tin 10 mm above its resting depth,
   neither hand squeezes, and both hands make the demo's whole shake (12 legs of 3 cm), then the strike and pull.
   Sealing is switched off in the check's copy of the task file (the sealed depth made unreachable), so the whole
-  shake is made unsealed: 12 strokes and 28 ice passes, opened, nothing spilled. **Score 0.0**: 0 sealed strokes; the
-  seal gate alone gives 0.0, and with every gate off the run would score 1.0.
-- **(d) Swirl the open shaker first, then the full sealed demo.** Before the press, both hands lift the unsealed
-  shaker 2 cm and swirl, shake and rock it upright (at most 14.8 degrees from upright); the full demo follows (13
-  sealed strokes, 36 sealed ice passes, opened, nothing spilled). **Score 0.0**: the open-drink rule tripped at 9.5 s
-  (37.2 mm of mouth travel); with that rule off the run would score 1.0.
+  shake is made unsealed: 12 strokes and 28 ice passes, opened, nothing spilled. **Score 0.0**: 0 sealed strokes, and rocking at 20.1 s (14 unsealed changes of
+  direction); the seal gate alone gives 0.0, and with every gate off the run would score 1.0.
+- **(d) Shake the unsealed shaker, then the full sealed demo.** Before the press, both hands lift the shaker (the
+  small tin resting) 2 cm and shake it upright, 8 legs of 4 cm at 0.1 s each; the full demo follows (12 sealed
+  strokes, 38 sealed ice passes, opened, nothing spilled). **Score 0.0**: rocking at 9.4 s (7 changes of direction,
+  at most 0.49 g); with that rule off the run scores 1.0.
+- **(d2) A few hard strokes of the unsealed shaker, then the full sealed demo.** Before the press, both hands lift
+  the shaker (the small tin resting) 4 cm and shake it upright, 3 legs of 6 cm at 0.1 s each (3 changes of
+  direction, short of rocking); the full demo follows (13 sealed strokes, 36 sealed ice passes, opened, nothing spilled). **Score 0.0**:
+  an unsealed stroke at 8.9 s (2 in all, at most 0.69 g); with that rule off the run scores 1.0.
+- **(e) Move and tilt the unsealed shaker, then the full sealed demo.** Before the press, both hands slide the
+  shaker, the drink and ice in it, 5 cm toward the robot along the table, lift it 2 cm, tilt it slowly to 35.9
+  degrees and back, lower it and slide it back (it stops 9 mm short of its spot); 10.8 s in all. Nothing spills
+  (all 24 beads stay in the large tin); 3 unsealed changes of direction, no stroke (at most 0.21 g), no swirl. The
+  full demo follows: 13 sealed strokes, 40 sealed ice passes, vented, opened. **Score 1.0** (1,159 steps; one bead, 5 ml,
+  carried up in the small tin, dropped back and bounced out at 54 s, within the 1.0 tier's 5 ml).
 
 ## Why two hands
 
@@ -233,8 +263,7 @@ from one end to the other and hits it. They stand it up and set it down. The lef
 the right lets go and strikes the large tin's seam from the side with its closed fingertips, about 15 mm below the
 mouth, pushing toward the left hand, which lets the air in. It grips the small tin again and pulls it 10 cm straight
 up, breaking the seal, and holds it up over the open large tin (anything wedged in the small tin can only drop back
-in), while the left keeps holding the open large tin on the table (letting go drags it as the soft arm springs back,
-and the open drink must not be moved). In a debug run (`SHAKE_DEBUG=1`) the press reached 15.5 N at the seat; the shake gave 13 sealed strokes and 42 ice passes, every one inside the seal gate (the small tin seated for 31.4 s, the seal giving at most 0.25 mm of the 2.0 mm the gate allows); the strike vented the seal at 13.5 N and peaked at 19.9 N; the pull drew the seal 0.62 mm (its unshaken hold, the measured 15.69 N, lets go at 0.5 mm) and it let go; the open drink moved 6.8 mm in all, under the 3 cm limit; nothing was spilled (0 beads, 0 ice cubes), and the run ended at full score after 943 steps. The YAM fingers' collision shapes are not quite parallel, so a gripped
+in), while the left keeps holding the open large tin on the table (letting go drags it as the soft arm springs back). In a debug run (`SHAKE_DEBUG=1`) the press reached 15.5 N at the seat; the shake gave 13 sealed strokes and 42 ice passes, every one inside the seal gate (the small tin seated for 31.4 s, the seal giving at most 0.25 mm of the 2.0 mm the gate allows); the strike vented the seal at 13.5 N and peaked at 19.9 N; the pull drew the seal 0.62 mm (its unshaken hold, the measured 15.69 N, lets go at 0.5 mm) and it let go; unsealed (15.7 s in all) the large tin's mouth made no change of direction of 1 cm or more, no swirl, and peaked at 0.11 g; nothing was spilled (0 beads, 0 ice cubes), and the run ended at full score after 943 steps. The YAM fingers' collision shapes are not quite parallel, so a gripped
 tin leans a few degrees in the hand; the demo turns each wrist to match:
 
 ```bash
@@ -258,12 +287,12 @@ python -c "import shake_a_cocktail_with_both_hands as m; m.print_numbers()"
 
 Set `SHAKE_DEBUG=1` to print what the score is built from twice a second (the small tin's depth in the mouth, whether
 it is sealed and seated, the vacuum's share and the hold, any blow on the seam, how far the shaker is tipped, the
-sealed strokes and ice passes so far and those made at all, how far the open drink has moved, and anything outside the
-tins).
+sealed strokes and ice passes so far and those made at all, the unsealed turns, strokes and swirls with the peak
+acceleration, and anything outside the tins).
 
 ## Runtime per trial
 
-On one RTX 5090: about 9 minutes for a Dream-1 trial of 1,200 steps (516 s on the clock, with Dream answering in 0.67 s on average), and about 8 minutes for the scripted demo (943 steps, 47.1 s of simulated time, 450 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 8 minutes for a Dream-1 trial of 1,200 steps (480 s on the clock, with Dream answering in 0.56 s on average), and about 7 minutes for the scripted demo (943 steps, 47.1 s of simulated time, 398 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
@@ -272,51 +301,36 @@ the jitter at 0: it shifts each free object on its own, and the two tins start o
 
 ## Changes in this revision
 
-This is a revision of TK-ELFLBH. Its review said:
+This is a revision of TK-J49V4S. Its review said:
 
-> Flags: Real tin fit and seal forces are calculated from assumed dimensions and material behavior, not reported measurements.
+> Scoring (not met): The open-tin movement veto gives zero for a harmless 3 cm translation or 30-degree tilt, even if the drink is mixed sealed and never spilled.
 >
-> Construct validity (not met): A robot could mix the drink by swirling the open tin upright and receive credit without sealing the shaker.
->
-> Scoring (not met): The real-trial tiers test mixture and spillage but do not require a seal during mixing when the tin stays within 30 degrees of upright.
->
-> What to change: Measure and report the loose and sealed depths and the seating and release behavior of the specified real tin pair; update the simulated fit and release behavior to match those measurements and provide a full-score demo for any corrected setup. Also revise the real-trial scoring so every nonzero score requires mixing by shaking with the shaker sealed, including when the tin stays within 30 degrees of upright; define how the video verifies this.
+> What to change: The measured fit, revised seal checks and reported demo address the previous feedback. A new scoring issue, not raised before: moving the open tin 3 cm in total or tilting it beyond 30 degrees gives zero even when the movement is harmless and the robot completes the task without a spill. Replace those blanket vetoes in both real-trial and simulation scoring with a check that prevents unsealed mixing, while allowing ordinary repositioning; retain the sealed-shaking and no-spill requirements.
 
-Earlier reviews, each done and kept: TK-PXNFCR (a real tin pair and a starting alignment that give the stated loose and
-sealed positions, a simulation matched to it, a full-score demo); TK-JE4KUU (a realistic shaker with water and ice, a
-measurable mixing and no-spill outcome, a full-score demo, the simulation approximations in the fidelity note);
-TK-CCNDMT (the shaker closed during the tipping and shaking for every nonzero score, a demonstrated full score, the
-Societal relatability category).
+Earlier reviews, each done and kept: TK-ELFLBH (depths, seating and release force measured on the named pair, with
+photos; the simulated fit matched to them; a full-score demo; every nonzero score needing sealed shaking at any tilt,
+verified frame by frame on video); TK-PXNFCR (a real tin pair giving the stated loose and sealed positions, the
+simulation matched to it); TK-JE4KUU (water and ice, measurable mixing and spill, the fidelity note); TK-CCNDMT (the
+shaker closed while shaken for every nonzero score, a full-score demo, the Societal relatability category).
 
 What changed in response:
 
-- **Flag and request: the loose and sealed depths, seating and release of the real pair, measured and reported.**
-  Where: "Measured on the real pair" above (readings, instruments and photos), `setup`, and the task file's FIT
-  SPECIFICATION block. The task now names the pair it measured, a Barfly M37009CP copper-plated Boston shaker set:
-  heights 178 and 127 mm, masses 228 and 192 g, mouth and bottom 91.44 and 68.07 mm, rim and bottom 88.90 and
-  67.82 mm (digital caliper, digital kitchen scale); loose depth 33.78 mm and sealed depth 42.16 mm (caliper, from a
-  band at the mouth to the rim); seating force 14.90 N (tared kitchen scale); release force 15.69 N (luggage scale,
-  axial pull). A one-time setup check with a caliper depth rod confirms each pair before use.
-- **Simulated fit and release matched to the measurements; full-score demo.** Where: the FIT SPECIFICATION block,
-  `fidelity`, "What the simulation uses". The slide joint rests at 33.78 mm, seats at 42.16 mm under 14.9 N, and
-  holds the measured 15.69 N unshaken (74 N with the published shaken vacuum, until a 10 N tap at the seam vents it).
-  The large tin's inside profile is computed from these readings (a 0.0400 mm per mm seal zone meeting the 88.90 mm
-  rim at 33.78 mm, 0.335 mm interference at 42.16 mm). Check: the demo scores 1.0 (943 steps), 13 sealed strokes and 42 sealed ice passes; vented, opened, nothing spilled.
-- **Construct validity: swirling the open tin upright.** Where: `scoring`, `score()` and the seal gate in `_follow()`.
-  Credit accrues only through sealed shaking: a stroke or an ice pass counts only while the fit's joint is engaged,
-  the small tin has been pressed to its 42.16 mm sealed depth and its rim is still within 2.0 mm of it, at any tilt;
-  any step outside the gate ends the stroke under way. Every nonzero tier needs at least 6 sealed strokes and 8
-  sealed ice passes; moving the open drink 3 cm in all, or tipping it past 30 degrees, scores 0. Checks: (a) the open
-  large tin swirled and rocked upright with the drink and ice in it, 0.0; (d) the open shaker swirled, shaken and
-  rocked upright before the full sealed demo, 0.0 (1.0 without the open-drink rule).
-- **Scoring: a seal during mixing, including within 30 degrees of upright.** Where: `scoring`, "Scoring, real trial
-  and simulation" and "The real trial". The earlier 45-degree condition on strokes is gone: sealed strokes count at
-  any tilt, and strokes, swirls or rocking with the shaker unsealed count for nothing at any tilt. Fewer than 6 sealed
-  strokes scores 0 at every tier, in the real trial and in simulation. Checks: (b) sealed, then one slow tilt and
-  back, 0.0; (c) the demo's whole shake with the shaker never sealed, 0.0 (1.0 with every gate off).
-- **How the video verifies it.** Where: `scoring` and "The real trial". Two fixed 4K phone cameras at right angles,
-  1 mm about 8 pixels, judged frame by frame: sealed in a frame means the rim inside the large tin, no gap at the
-  seam, and the seal line at most 2.0 mm above the mouth edge (resting unsealed it is 8.4 mm above, the measured
-  loose-to-sealed travel); a stroke counts only if the shaker is sealed in every frame of it and no drink escapes at
-  the seam; 0 to 5 sealed strokes scores 0.
-- **Two hands, re-checked on this version:** one hand sealed and shook the shaker but could not open it (its strike shoved the unheld shaker aside, and its pull lifted the whole sealed shaker): 0.0; with the strike stopped 2 cm short, the vacuum held through the 10 cm pull: 0.25, shaken sealed but not opened.
+- **The blanket vetoes are gone, in both scorings.** Where: `scoring`, "The real trial", "How the simulation measures
+  the same", "Scoring, real trial and simulation"; in the task file the 3 cm travel and 30-degree tilt constants and
+  their tracker are removed. No distance moved and no tilt angle scores 0 on its own. Check (e), below: 1.0.
+- **Replaced by a check on unsealed mixing.** Where: the same sections, `_track_open()` and its constants
+  (`OPEN_LEG`, `OPEN_G`, `ROCKS`, `SWIRL_S`, `SWIRL_V`, `DRINK_IN`). While the shaker is not sealed, the mouth of each
+  tin holding 10 ml or more of the drink is followed over the whole trial (real trial: tracked frame by frame in both
+  side videos; simulation: every control step); an unsealed stroke (1 cm leg, 0.5 g at the turn), a swirl (a full
+  circle within 1 s) or rocking (6 changes of direction at any speed) scores 0. Positions are integrated step by step
+  and the counts kept for the whole trial, so slow motion adds up like fast. Checks: (a) the open tin swirled at
+  1.25 rev/s, 0.0 (a swirl); (a2) swirled at 0.625 rev/s, 0.0 (rocking); (d) the unsealed shaker shaken before the
+  full sealed demo, 0.0 (rocking; 1.0 with that rule off); (d2) three hard unsealed strokes before it, 0.0 (a stroke; 1.0 with that rule off).
+- **Ordinary repositioning allowed.** Where: `scoring` ("moving the drink to place it ... is allowed"), "The real
+  trial". Check (e): the unsealed shaker, the drink and ice in it, slid 5 cm toward the robot, lifted 2 cm, tilted
+  slowly to 35.9 degrees and back, and slid back, then the full sealed demo: 1.0 (1,159 steps; all 24 beads stayed in
+  through the moves; 3 unsealed changes of direction, at most 0.21 g, no swirl).
+- **Sealed shaking and no spill kept, unchanged:** 6 sealed strokes (simulation: also 8 sealed ice passes) for any
+  score; at most 5 ml (1.0) or 15 ml (0.5) spilled. Re-run on this version: the demo 1.0 (943 steps); (b) sealed, then one
+  slow tilt, 0.0; (c) the whole shake never sealed, 0.0; one hand, 0.0; the strike stopped short, 0.25 (shaken
+  sealed, not opened).

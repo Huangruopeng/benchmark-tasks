@@ -7,8 +7,9 @@ straight in, the small tin's rim (88.90 mm across) rests 33.78 mm below the mout
 
 Task: seal the shaker, shake the drink with its ice, then open the shaker, leaving the drink in the large tin standing
 on the table, without spilling any. Only shaking with the shaker sealed earns credit: a stroke or an ice pass counts
-only while the seal is engaged and the small tin sits at its sealed depth, at any tilt, and moving the open drink
-scores 0. Shaking chills the air sealed inside, and the partial vacuum adds to the press fit's hold until a strike at
+only while the seal is engaged and the small tin sits at its sealed depth, at any tilt. Mixing the drink unsealed (a
+fast stroke, a swirl or rocking of a tin holding it) scores 0; sliding, lifting or tilting it to move it does not.
+Shaking chills the air sealed inside, and the partial vacuum adds to the press fit's hold until a strike at
 the seam lets air in; even then the fit holds more than the whole shaker weighs, so opening it needs the large tin held
 down while the small one is pulled off.
 
@@ -125,9 +126,15 @@ STEEL, STEEL_S = (0.74, 0.75, 0.77), (0.66, 0.67, 0.70)
 DRINK_C, ICE_C = (0.30, 0.45, 0.85), (0.86, 0.93, 0.97)
 
 # -- scoring --------------------------------------------------------------------------------------------------------
-TIP_SEALED = math.radians(30)  # the large tin tipped past this while not sealed: the seal was open while tipped
-OPEN_MOVE, OPEN_STEP = 0.03, 0.005  # while not sealed, the large tin's mouth moving this far in all (summed in steps
-#                                     of this): the open drink was swirled, rocked, slid, lifted or shaken
+# Unsealed mixing: while the shaker is not sealed (outside the seal gate below), the mouth of each tin holding the drink
+# is followed every control step, over the whole trial; any of these three is mixing and scores 0 at every tier:
+G = 9.81
+OPEN_LEG = 0.01  # a change of direction of the mouth (along any line) after a leg of this or more ...
+OPEN_G = 0.5  # ... reached with an acceleration of this many g or more at the turn or on the way back: a stroke
+ROCKS = 6  # ... or this many changes of direction in all, at any speed (the sealed shake's own count): rocking
+SWIRL_S, SWIRL_V = 1.0, 0.03  # a swirl: the mouth's level path turning a full circle in one sense within this many
+#                               seconds (1 rev/s or faster), moving this fast (m/s) or faster all the way round
+DRINK_IN = 2  # a tin holds the drink with this many beads (10 ml) or more inside it
 SEATED = SEAT - SEAT_TOL  # strokes and ice passes count only while sealed with the rim this deep or deeper (within
 #                          2.0 mm of its sealed depth), at any tilt
 TURNS, LEG = 6, 0.025  # at least TURNS changes of direction along the axis, each after a leg of LEG or more
@@ -210,7 +217,10 @@ def numbers() -> dict:
         "F_vac and total hold with the gas-law vacuum (N)": (DP_GAS * math.pi / 4 * D_SEAL ** 2,
                                                              F_FRIC + DP_GAS * math.pi / 4 * D_SEAL ** 2),
         "seated (counting) depth (mm)": SEATED * 1e3,
-        "open-drink limit: path (mm), counted in steps of (mm)": (OPEN_MOVE * 1e3, OPEN_STEP * 1e3),
+        "unsealed: leg (mm), stroke peak (g, m/s2), rocking turns, swirl (s per rev, mm/s), drink in a tin (ml)": (
+            OPEN_LEG * 1e3, OPEN_G, OPEN_G * G, ROCKS, SWIRL_S, SWIRL_V * 1e3, DRINK_IN * ML_PER_BEAD),
+        "the stroke peak as a second difference: per 1/30 s frame (mm, px at 8/mm), per 1/20 s step (mm)": (
+            OPEN_G * G / 900 * 1e3, OPEN_G * G / 900 * 8e3, OPEN_G * G / 400 * 1e3),
         "give before letting go: unshaken, shaken (mm)": (F_FRIC / K_HOLD * 1e3, (F_FRIC + F_VAC) / K_HOLD * 1e3),
         "small tin weight, resting lift-off extra (N)": (SM_MASS * 9.81, TOUCH * K_SEAL),
         "drink (g), full shaker (kg), weight (N)": (m_drink * 1e3, full, full * 9.81),
@@ -439,12 +449,20 @@ def _stroke_state() -> dict:
             "ice_end": [None] * N_ICE, "passes": 0}
 
 
+def _open_state() -> dict:
+    """One tin's unsealed-mixing tracker: the last two mouth positions, the leg's start (a) and farthest point (f), the
+    peak acceleration since f, the level heading's turning, and the counts, kept for the whole trial."""
+    return {"p1": None, "p2": None, "a": None, "f": None, "peak_f": 0.0, "v": None, "cum": 0.0, "hist": [],
+            "turns": 0, "strokes": 0, "swirls": 0, "max_g": 0.0, "max_rev": 0.0}
+
+
 def _fresh() -> dict:
     return {"on": True, "mode": "touch", "sealed": False, "pull": 0, "pops": 0, "ever_sealed": False,
-            "open_tipped": False, "turns": 0, "passes": 0, "st": _stroke_state(), "any": _stroke_state(),
+            "turns": 0, "passes": 0, "st": _stroke_state(), "any": _stroke_state(),
             "max_tip": 0.0, "depth": REST, "max_give": 0.0, "tcps": None, "seated_steps": 0,
             "vac_base": 0, "vents": 0, "blow": 0, "max_blow": 0.0, "max_press": 0.0,
-            "open_path": 0.0, "open_anchor": None, "open_moved": False}
+            "open": {"tin": _open_state(), "small_tin": _open_state()}, "mixed_open": "", "open_max_tip": 0.0,
+            "open_steps": 0, "step": 0}
 
 
 _EP = _fresh()
@@ -491,23 +509,67 @@ def _track_stroke(e: dict, centre, axis, counting: bool) -> None:
         e["dir"], e["ext"] = -e["dir"], s
 
 
-def _track_open(mouth, sealed: bool) -> None:
-    """While the shaker is not sealed, add up how far the large tin's mouth moves, in steps of OPEN_STEP (so standing
-    still never adds up): at OPEN_MOVE in all the open drink was moved (swirled, rocked, slid, lifted or shaken),
-    whatever the angle, and no tier scores."""
-    e = _EP
-    if sealed:
-        e["open_anchor"] = None
-        return
-    if e["open_anchor"] is None:
-        e["open_anchor"] = mouth
-        return
-    d = float(np.linalg.norm(mouth - e["open_anchor"]))
-    if d >= OPEN_STEP:
-        e["open_path"] += d
-        e["open_anchor"] = mouth
-        if e["open_path"] >= OPEN_MOVE:
-            e["open_moved"] = True
+def _track_open(o: dict, mouth, counting: bool, dt: float, step: int) -> str:
+    """Follow one tin's mouth while it holds the drink and the shaker is not sealed (counting); returns what mixing it
+    found this step ('' if none). Strokes and rocking: the mouth's leg from its last turn (a) to its farthest point
+    from there (f); once it is OPEN_LEG or more and the mouth has come back OPEN_LEG or more from f, that is a change of
+    direction (a turn), and a stroke if the acceleration reached OPEN_G at the turn or on the way back. Swirls: the
+    level heading of the mouth's velocity, turned through a full circle in one sense within SWIRL_S, at SWIRL_V or
+    faster. Positions are integrated over the steps, so slow motion adds up like fast motion; the counts are kept for
+    the whole trial, and a step not counting only forgets the positions."""
+    if not counting:
+        o.update(p1=None, p2=None, a=None, f=None, peak_f=0.0, v=None, hist=[])
+        return ""
+    p = np.asarray(mouth, float)
+    acc = 0.0
+    if o["p1"] is not None and o["p2"] is not None:
+        acc = float(np.linalg.norm(p - 2 * o["p1"] + o["p2"])) / dt ** 2 / G  # g, from three successive positions
+        o["max_g"] = max(o["max_g"], acc)
+    found = ""
+    if o["a"] is None:
+        o.update(a=p, f=p, peak_f=0.0)
+    else:
+        o["peak_f"] = max(o["peak_f"], acc)
+        reach, back = float(np.linalg.norm(o["f"] - o["a"])), float(np.linalg.norm(p - o["f"]))
+        if float(np.linalg.norm(p - o["a"])) > reach:
+            o.update(f=p, peak_f=acc)
+        elif reach >= OPEN_LEG and back >= OPEN_LEG and float(np.dot(p - o["f"], o["f"] - o["a"])) < 0.0:
+            o["turns"] += 1
+            if o["peak_f"] >= OPEN_G:
+                o["strokes"] += 1
+                found = "stroke"
+            elif o["turns"] >= ROCKS:
+                found = "rocking"
+            o.update(a=o["f"], f=p, peak_f=acc)
+    if o["p1"] is not None:
+        v = (p - o["p1"])[:2] / dt
+        if float(np.linalg.norm(v)) >= SWIRL_V:
+            if o["v"] is None:
+                o["hist"] = [(step, o["cum"])]
+            else:
+                o["cum"] += math.atan2(float(o["v"][0] * v[1] - o["v"][1] * v[0]), float(o["v"] @ v))
+                o["hist"] = [(k, c) for k, c in o["hist"] if (step - k) * dt <= SWIRL_S + 1e-9] + [(step, o["cum"])]
+                turned = max(abs(o["cum"] - c) for _, c in o["hist"])
+                o["max_rev"] = max(o["max_rev"], turned / (2 * math.pi))  # the most turns within SWIRL_S, for the log
+                if turned >= 2 * math.pi:
+                    o["swirls"] += 1
+                    found = found or "swirl"
+                    o["hist"] = [(step, o["cum"])]
+            o["v"] = v
+        else:
+            o.update(v=None, hist=[])
+    o["p2"], o["p1"] = o["p1"], p
+    return found
+
+
+def _beads_in(base, origin, t_pos, t_rot, s_pos, s_rot) -> tuple[int, int]:
+    """How many drink beads are inside the large tin, the small tin, now."""
+    n_t = n_s = 0
+    for name in BEAD_NAMES:
+        p = _pose(base, origin, name)[0]
+        n_t += _inside_tin(t_pos, t_rot, p)
+        n_s += _inside_small(s_pos, s_rot, p)
+    return n_t, n_s
 
 
 def _track_ice(e: dict, ends: list, counting: bool) -> None:
@@ -605,13 +667,22 @@ def _follow(env) -> None:
     _seal_step(depth, off, angle, blow)
     tip = math.acos(max(-1.0, min(1.0, float(t_rot[2, 2]))))
     sealed = e["sealed"]
-    if tip > TIP_SEALED and not sealed:
-        e["open_tipped"] = True  # in a real trial the drink pours out: no credit
-    _track_open(t_pos + t_rot[:, 2] * TIN_H, sealed)
     if sealed:
         e["max_tip"] = max(e["max_tip"], tip)
     # the seal gate: the fit's joint live, the seal engaged and the rim at its sealed depth (at any tilt)
     seated = e["on"] and sealed and depth >= SEATED
+    # unsealed mixing: outside the seal gate, each tin holding the drink has its mouth followed
+    e["step"] += 1
+    dt = float(getattr(base, "step_dt", 0.05) or 0.05)
+    n_t, n_s = _beads_in(base, origin, t_pos, t_rot, s_pos, s_rot)
+    for name, mouth, n in (("tin", t_pos + t_rot[:, 2] * TIN_H, n_t), ("small_tin", s_pos, n_s)):
+        counting = not seated and n >= DRINK_IN
+        if counting and name == "tin":
+            e["open_steps"] += 1
+            e["open_max_tip"] = max(e["open_max_tip"], tip)
+        found = _track_open(e["open"][name], mouth, counting, dt, e["step"])
+        if found and not e["mixed_open"]:
+            e["mixed_open"] = f"{found} of the {name} at {e['step'] * dt:.2f} s"
     e["seated_steps"] += int(seated)
     middle, axis = t_pos + t_rot[:, 2] * MID, t_rot[:, 2]
     _track_stroke(e["st"], middle, axis, seated)
@@ -648,7 +719,12 @@ def _follow(env) -> None:
               f"blowz={_CT.get('blow_z')} blow_all={_CT.get('blow_all', 0.0):5.1f} "
               f"tip={math.degrees(tip):5.1f} seated={seated} turns={e['turns']} passes={e['passes']} "
               f"any_turns={e['any']['turns']} any_passes={e['any']['passes']} ends={e['st']['ice_end']} "
-              f"open_path={e['open_path'] * 1000:5.1f}mm open_moved={e['open_moved']} "
+              f"open_turns={e['open']['tin']['turns']}/{e['open']['small_tin']['turns']} "
+              f"open_strokes={e['open']['tin']['strokes']}/{e['open']['small_tin']['strokes']} "
+              f"open_swirls={e['open']['tin']['swirls']}/{e['open']['small_tin']['swirls']} "
+              f"open_max_g={e['open']['tin']['max_g']:4.2f} open_max_rev={e['open']['tin']['max_rev']:4.2f} "
+              f"open_tip={math.degrees(e['open_max_tip']):4.1f} beads_in={n_t}/{n_s} dt={dt:.3f} "
+              f"mixed_open='{e['mixed_open']}' "
               f"tin_at={np.round((t_pos - [TIN_XY[0], TIN_XY[1], TOP]) * 1000, 1).tolist()} "
               f"left_in_tin={np.round(lt * 1000, 1).tolist()} right_in_small={np.round(rt * 1000, 1).tolist()} "
               f"rtcp={np.round(tcps[1] * 1000, 1).tolist()} "
@@ -693,16 +769,16 @@ def _tally(objects) -> dict:
     tip = math.acos(max(-1.0, min(1.0, float(t_rot[2, 2]))))
     mouth = t_pos + t_rot[:, 2] * TIN_H
     opened = not _EP["on"] and float(np.linalg.norm(s_pos - mouth)) >= APART
-    return {"lost": lost, "ice_lost": ice_lost, "opened": opened, "open_tipped": _EP["open_tipped"],
-            "open_moved": _EP["open_moved"], "shaken": _EP["turns"] >= TURNS and _EP["passes"] >= PASSES,
+    return {"lost": lost, "ice_lost": ice_lost, "opened": opened, "mixed_open": bool(_EP["mixed_open"]),
+            "shaken": _EP["turns"] >= TURNS and _EP["passes"] >= PASSES,
             "shaken_any": _EP["any"]["turns"] >= TURNS and _EP["any"]["passes"] >= PASSES,
             "upright_on_table": tip < UPRIGHT and abs(float(t_pos[2]) - TOP) < 0.01}
 
 
 def _points(t, open_rule: bool = True, seal_gate: bool = True) -> float:
-    """The score; for the checks only, open_rule=False drops the two open-drink rules and seal_gate=False counts every
+    """The score; for the checks only, open_rule=False drops the unsealed-mixing rule and seal_gate=False counts every
     stroke and ice pass, sealed or not."""
-    if open_rule and (t["open_tipped"] or t["open_moved"]):
+    if open_rule and t["mixed_open"]:
         return 0.0
     if not t["upright_on_table"] or t["ice_lost"] > 0 or not t["shaken" if seal_gate else "shaken_any"]:
         return 0.0
@@ -714,9 +790,11 @@ def _points(t, open_rule: bool = True, seal_gate: bool = True) -> float:
 
 
 def score(objects) -> float:
-    """0 if the drink was ever moved while the shaker was not sealed (pressed home): the large tin tipped past 30
-    degrees, or its mouth moved 3 cm or more in all (swirled, rocked, slid, lifted or shaken, at any angle). 0 also if
-    any ice cube is out of the tins, unless the large tin ends standing upright on the table, or unless the shaker was
+    """0 if the drink was ever mixed while the shaker was not sealed (outside the seal gate): the mouth of a tin holding
+    2 or more beads (10 ml) made a stroke (a change of direction after a leg of 1 cm or more, with 0.5 g or more at the
+    turn or on the way back), a swirl (its level path turned a full circle in one sense within 1 s, at 3 cm/s or
+    faster) or 6 changes of direction in all at any speed (rocking). Slides, lifts and tilts that move it do not. 0 also
+    if any ice cube is out of the tins, unless the large tin ends standing upright on the table, or unless the shaker was
     shaken sealed: at least 6 changes of direction along its axis, each after a leg of 2.5 cm or more, and the ice
     cubes reaching alternate ends (within 9 cm of that end's floor, touching that tin) at least 8 times in all, each
     stroke and pass made wholly while the seal is engaged with the small tin's rim 40.16 mm deep or more (within
@@ -727,11 +805,14 @@ def score(objects) -> float:
     t = _tally(objects)
     if _DEBUG["on"] and _DEBUG["steps"] % 20 == 0:
         print(f"[shake-score] lost={t['lost']} ice_lost={t['ice_lost']} opened={t['opened']} "
-              f"open_tipped={t['open_tipped']} open_moved={t['open_moved']} shaken={t['shaken']} "
+              f"mixed_open='{_EP['mixed_open']}' shaken={t['shaken']} "
               f"upright={t['upright_on_table']} score={_points(t)} without_open_rule={_points(t, False)} "
               f"without_any_gate={_points(t, False, False)} turns={_EP['turns']} passes={_EP['passes']} "
               f"any_turns={_EP['any']['turns']} any_passes={_EP['any']['passes']} "
-              f"seated_s={_EP['seated_steps'] / 20:.1f} open_path={_EP['open_path'] * 1000:.1f}mm",
+              f"seated_s={_EP['seated_steps'] / 20:.1f} open_s={_EP['open_steps'] / 20:.1f} "
+              f"open_turns={_EP['open']['tin']['turns']} open_strokes={_EP['open']['tin']['strokes']} "
+              f"open_swirls={_EP['open']['tin']['swirls']} open_max_g={_EP['open']['tin']['max_g']:.2f} "
+              f"open_max_rev={_EP['open']['tin']['max_rev']:.2f} open_tip={math.degrees(_EP['open_max_tip']):.1f}",
               file=sys.stderr, flush=True)
     return _points(t)
 
@@ -868,8 +949,7 @@ PRESSING = [1.0, 0.6, 0.8]  # then the right presses the small tin home, holds, 
 STRIKING = [0.5, 0.8, 1.2, 0.6, 0.6, 0.5, 1.2, 1.2, 0.8]  # let go, out, down beside the seam, strike, hold, back,
 #                                                           up beside the small tin, in round it, grip it
 OPENING = [0.8, 1.5, 0.6, 1.5, 2.0]  # hold, pull off, pause, up, hold still. The left keeps holding the open large tin
-#                                      on the table to the end: letting go drags it (the soft arm springs back), and the
-#                                      open drink must not be moved
+#                                      on the table to the end: letting go drags it (the soft arm springs back)
 
 
 def _strike_y() -> float:
