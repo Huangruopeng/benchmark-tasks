@@ -1,8 +1,8 @@
 """A fast-food fry station. On a stainless work counter stands a countertop fry dump station: a stainless base
 holding a full-size food pan 2 in deep, a back panel and a heat hood over the pan (two calrod heaters and a lamp). A
 heap of fries lies against the pan's back wall; the station's fry scoop lies empty in the pan's front:
-a stainless flat-bottomed scoop that narrows to a funnel end, its black cool-touch handle on the right. An empty small
-paper fry carton (red) stands on the counter in front of the station. The fries are the real trial's clean replica
+a stainless flat-bottomed scoop that narrows to a straight spout at its funnel end, its black cool-touch handle on
+the right. An empty small paper fry carton (red) stands on the counter in front of the station. The fries are the real trial's clean replica
 fries: hard-maple sticks of a 3/8 in straight-cut fry's size, every edge bevelled 2 mm.
 
 Task (the instruction gives the goal and its constraints only): with the scoop, fill the carton with a portion of fries,
@@ -75,8 +75,10 @@ PAN_FLOOR = CT + ST_BASE - PAN_DEPTH  # the pan's floor (top face)
 HOOD_X0, HOOD_Z0, HOOD_Z1 = X0 + 0.210, CT + 0.430, CT + ST_H  # the heat hood: front edge, underside, top
 BACK_T = 0.012
 
-# -- the fry scoop (flat bottom, funnel end; 9 in long, 8 in wide at the open end, 3 3/4 in at the funnel end) ----------
+# -- the fry scoop (flat bottom; 9 in long, 8 in wide at the open end, 3 3/4 in at the funnel end, where a straight,
+# parallel-sided spout 5 cm long runs out from the flared body) --------------------------------------------------------
 SC_L, SC_W0, SC_W1, SC_H = 0.229, 0.095, 0.203, 0.057
+SC_SPOUT = 0.050  # the straight spout at the funnel end
 SC_T = float(os.environ.get("FRIES_SC_T", "0.001"))  # the sheet: its lip thin enough to slide under a fry's bevel
 SC_WALL_T = float(os.environ.get("FRIES_SC_WALL_T", "0.001"))  # the side walls' sheet (rolled top edges drawn)
 SC_MASS = 0.20
@@ -186,7 +188,10 @@ def _station() -> Body:
 
 
 def _sc_width(x: float) -> float:
-    return SC_W0 + (SC_W1 - SC_W0) * x / SC_L
+    """The scoop's width inside at ``x`` from its funnel end: the straight spout, then the flare to the open end."""
+    w = SC_W0 + (SC_W1 - SC_W0) * (np.asarray(x, float) - SC_SPOUT) / (SC_L - SC_SPOUT)
+    w = np.where(np.asarray(x, float) <= SC_SPOUT, SC_W0, w)
+    return float(w) if w.ndim == 0 else w
 
 
 def _scoop_shapes() -> tuple[list, int]:
@@ -198,13 +203,14 @@ def _scoop_shapes() -> tuple[list, int]:
         xa, xb = SC_L * i / n, SC_L * (i + 1) / n
         shapes.append(BoxShape(((xa + xb) / 2, 0.0, SC_T / 2), (xb - xa + 0.0004, _sc_width((xa + xb) / 2) - 0.001,
                                                                  SC_T), SC_STEEL))
-    for s in (-1.0, 1.0):  # the side walls, along the funnel's taper
-        p1 = (0.0, s * (SC_W0 / 2), SC_H / 2)
-        p2 = (SC_L, s * (SC_W1 / 2), SC_H / 2)
-        shapes.append(plate(p1, p2, SC_H, SC_WALL_T, (0.0, s, 0.0), SC_STEEL))
-        q1 = (0.0, s * (SC_W0 / 2 + 0.001), SC_H - 0.0015)
-        q2 = (SC_L, s * (SC_W1 / 2 + 0.001), SC_H - 0.0015)
-        shapes.append(plate(q1, q2, 0.004, 0.004, (0.0, s, 0.0), SC_EDGE, collide=False))  # rolled top edge
+    for s in (-1.0, 1.0):  # the side walls: straight along the spout, then along the flare
+        for xa, xb in ((0.0, SC_SPOUT), (SC_SPOUT, SC_L)):
+            p1 = (xa, s * (_sc_width(xa) / 2), SC_H / 2)
+            p2 = (xb, s * (_sc_width(xb) / 2), SC_H / 2)
+            shapes.append(plate(p1, p2, SC_H, SC_WALL_T, (0.0, s, 0.0), SC_STEEL))
+            q1 = (xa, s * (_sc_width(xa) / 2 + 0.001), SC_H - 0.0015)
+            q2 = (xb, s * (_sc_width(xb) / 2 + 0.001), SC_H - 0.0015)
+            shapes.append(plate(q1, q2, 0.004, 0.004, (0.0, s, 0.0), SC_EDGE, collide=False))  # rolled top edge
     # the handle: a steel strap off the right wall, then the black cool-touch grip, rising toward its end
     y0 = -(_sc_width(H_ROOT_X) / 2)
     first_handle = len(shapes)
@@ -590,7 +596,8 @@ def _on_scoop(fp: np.ndarray, ps: np.ndarray, rs: np.ndarray) -> np.ndarray:
             & (q[:, 2] <= SC_H + 0.030))
 
 
-_SCOOP_PTS = np.array([[x, s * _sc_width(x) / 2, z] for x in np.linspace(0.0, SC_L, 8) for s in (-1.0, 1.0)
+_SC_XS = sorted({float(v) for v in np.linspace(0.0, SC_L, 8)} | {SC_SPOUT})
+_SCOOP_PTS = np.array([[x, s * _sc_width(x) / 2, z] for x in _SC_XS for s in (-1.0, 1.0)
                        for z in (0.0, SC_H / 2, SC_H)] + [[0.0, y, 0.0] for y in np.linspace(-SC_W0 / 2, SC_W0 / 2, 5)]
                       + [list(_handle_point(t)) for t in np.linspace(0.0, H_LEN, 5)])
 
@@ -762,9 +769,9 @@ CA_GRIP_Y, CA_GRIP_Z = 0.040, 0.045  # the carton grip: toward its left end, low
 CA_OPEN = -0.04695
 CA_CLOSE = float(os.environ.get("FRIES_CA_CLOSE", f"{-(0.017 + 0.0115 * (0.045 - 0.003) / 0.111 + 0.0015 - 0.003):.4f}"))
 CA_PRESS = 0.002
-DIG_DEG, PUSH, PRESS = float(os.environ.get("FRIES_DIG_DEG", "8")), float(os.environ.get("FRIES_PUSH", "0.22")), 0.003
+DIG_DEG, PUSH, PRESS = float(os.environ.get("FRIES_DIG_DEG", "8")), float(os.environ.get("FRIES_PUSH", "0.30")), 0.003
 PUSH_S = float(os.environ.get("FRIES_PUSH_S", "6.0"))  # how long the push into the heap takes
-LIFT_DEG = float(os.environ.get("FRIES_LIFT_DEG", "-15"))  # the lip raised through the heap, the funnel end down
+LIFT_DEG = float(os.environ.get("FRIES_LIFT_DEG", "-8"))  # the lip raised through the heap, the funnel end down
 SCOOP_ONLY = bool(os.environ.get("FRIES_SCOOP_ONLY"))  # test: stop after the first scoopful is lifted out
 PULL = float(os.environ.get("FRIES_PULL", "0.0"))  # drawn back this much while the lip comes up
 DRAG = float(os.environ.get("FRIES_DRAG", "0.08"))  # the full scoop drawn back along the floor, out of the heap
