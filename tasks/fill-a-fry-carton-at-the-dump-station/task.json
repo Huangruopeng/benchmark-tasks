@@ -20,5 +20,5 @@
   "reset_notes": "Tip the sticks from the carton, and any on the counter, the station's deck or the floor, back into the pan and count them (159). Heap them loosely by hand against the pan's back wall, reaching forward to about 2 cm behind the scoop's open end, about 6 to 7 cm high, as in the setup image. Lay the empty scoop flat in the pan's front (funnel end 4 mm from the front wall, centred, handle over the right rim) and stand an empty carton on its mark (a new one if it is creased, torn or damp). About 2 minutes.",
   "fidelity": "Rigid-body simulation (Isaac Sim 6.1, PhysX, 20 Hz). The fries are the real trial's replica fries: rigid hard-maple sticks (convex hulls with 2 mm bevels, 700 kg/m3); real fried fries also bend and carry oil. Friction 0.5 stick on stick, 0.55 on the pan, 0.5 on the scoop. Scoop sheet 1 mm (design value). Carton: 0.45 mm paperboard as rigid 3 mm walls at its real 7.7 g. Heat hood drawn only (station unplugged). Robot-fry touches: PhysX contact view. Cameras 1280x704 (Dream-1: 320x176).",
   "scores": "Dream-1 run: 0.0; demo: 1.0",
-  "media": "M-Q97UEG"
+  "media": "M-5CE72M"
 }
