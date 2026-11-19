@@ -16,23 +16,33 @@ both arms back where they started."). How to hold the carton, how to load the sc
 the fries off the counter are left to the policy.
 
 What it tests: loading a scoop from a heap of loose sticks (driving it in along the pan's floor so the sticks ride up
-onto it, then drawing the load out), carrying the load level on a side-handled tool, tipping it through the scoop's
-narrow funnel end into a small carton held steady by the other hand, portioning by amount, and putting the tool back.
+onto its blade, then raising the lip so they slide back into its funnel), carrying the load on a side-handled tool,
+tipping it so the sticks slide down its straight chute into a small carton held steady by the other hand, portioning
+by amount, and putting the tool back.
 
 Why two hands: the empty carton weighs 7.7 g and stands on a base 3.4 cm deep, while a single replica fry weighs about
-4.3 g (a fried fry 5 g). A scoopful landing on its inside back wall, or the scoop's funnel end brushing its low front,
-knocks a carton that stands alone over, and the scoop is a one-handed tool held by its side handle, so the other hand
-is free to hold the carton, as workers do. With one hand (the right doing exactly its part of the demo, the left never moving) the score was 0.25: as the pour began, the scoop's funnel end pushed the unheld carton 15 mm and tipped it 21 degrees, fries spilled, and the carton then caught on the funnel end, was lifted with the scoop and fell back onto the counter about 6 cm from its mark, landing upright by chance with 9 fries in it (that run's scoop also came out with only 9 fries). A run that fills the carton by dipping it into the pan (the carton used as a scoop, one hand, the other home) scored 0: the carton-in-the-pan rule latched at 11 s.
+4.3 g (a fried fry 5 g). A scoopful landing on its inside back wall, or the scoop's chute brushing its low front, knocks
+over a carton that stands alone, and the scoop is a one-handed tool held by its side handle, so the other hand is free
+to hold the carton, as workers do. With one hand (the right doing exactly its part of the demo, the left never moving)
+the score was 0: as the chute's end came over the mouth it pushed the unheld carton 12 mm aside, the pour then
+pushed it 3 cm further and tipped it to 27 degrees, and it fell onto its side with 14 fries in it. A run that fills
+the carton by dipping it into the pan (the carton used as a scoop, one hand, the other home) scored 0: the carton-in-the-pan rule latched at 12 s.
 
 ## Real-world basis
 
 - **Fry station:** the Avantco FFDS-1 countertop French fry warmer / dump station (WebstaurantStore item 177FFDS1,
   $146.99; 13 x 22.5 x 19.5 in, base 2 7/8 in tall, "a standard size 12" x 20" food pan up to 2" deep", two 500 W
   calrod elements and a halogen light in its overhead unit, 1,000 W). The counter is the robot's table.
-- **Scoop:** a flat-bottomed stainless right-handle French fry scoop, the Choice 407RFFSCP8 (WebstaurantStore,
-  $7.49: 9 in long, 8 in wide at its open end, 3 3/4 in at its funnel end, "Funneled end directs fries into serving
-  containers", cool-touch handle) with the TableCraft FFR8's 2 1/4 in walls; modelled at 0.20 kg. Like the real scoop,
-  its funnel end is a straight, parallel-sided spout (5 cm long, 9.5 cm across) beyond the flared body.
+- **Scoop:** the body of the Choice 407RFFSCP8 stainless right-handle French fry scoop
+  (https://www.webstaurantstore.com/choice-9-x-8-stainless-steel-right-handle-french-fry-scoop/407RFFSCP8.html, $7.49;
+  listed "Length: 9", Maximum Width: 8", Minimum Width: 3 3/4"", "Style: Flat Bottom", "Funneled end directs fries into
+  serving containers", matte black cool-touch grip). Its product photos show the shape the model follows: a flat front
+  blade 8 in wide with straight parallel sides and no walls, a funnel whose two wings close in to a straight,
+  parallel-sided chute 3 3/4 in wide at the serving end. Section lengths are scaled from those photos to the listed
+  9 in: blade 4.9 cm, funnel 8 cm, chute 10 cm. Walls 2 1/4 in (5.7 cm), the listed height of the same-pattern
+  TableCraft FFR8. The handle, as on the Choice, is fixed on the outside of the right wing beside the chute and
+  trails back toward the serving end; the model angles it 45 degrees out from the chute, further than the Choice's,
+  for the robot arm's reach. Modelled at 0.20 kg.
 - **Carton:** the FF1 small fry carton of Graphic Packaging International's fry packaging range (4.50 x 2.25 x 4.50
   in; 1,000 to a 17.0 lb case, so about 7.7 g each), with its low "front scoop" and tall back.
 - **Fries and portion:** USDA FNDDS 2021-2023 food code 71401030 "Potato, french fries, fast food" (FoodData Central
@@ -69,8 +79,8 @@ reusable stand-in that is built to the simulated fry's size, mass and shape.
 - **Reset, each trial (about 2 minutes).** Tip the sticks from the carton, and any on the counter, the station deck
   or the floor, back into the pan; count them (159). Push them toward the back wall with the flat of the scoop and
   loosen them by hand into a heap from the back wall to about 2 cm behind the scoop's open end, 6 to 7 cm high, as in
-  the setup image. Lay the empty scoop flat in the front of the pan (funnel end 4 mm from the front wall, centred,
-  handle over the right rim). Stand an empty carton on its mark (replace it if it is creased, torn or damp).
+  the setup image. Lay the empty scoop flat in the front of the pan (serving end 4 mm from the front wall, centred,
+  handle end over the right rim). Stand an empty carton on its mark (replace it if it is creased, torn or damp).
 
 ## Real-trial safety and rig protection
 
@@ -93,9 +103,13 @@ where they are put; the scoop, the carton and the 159 fries are loose rigid bodi
   2 mm at 45 degrees, 55 to 95 mm long, of density 700 kg/m3 (4.26 g at 75 mm). They are spawned lying flat at random
   angles in layers (none touching) behind the scoop and settle into a heap before the trial starts; the same heap every
   trial (fixed seed). Friction 0.5 between fries, 0.55 on the pan and 0.5 on the scoop's bowl.
-- **Scoop:** a flat bottom and two side walls of 1 mm sheet, open at both ends: a straight spout 5 cm long and 9.5 cm
-  across at the funnel end, then the flare to 20.3 cm at the open end; its handle
-  has its own material (friction 1.1, black phenolic). It starts empty.
+- **Scoop:** 1 mm sheet, open at both ends. From the serving end: a flat-bottomed chute 10 cm long and 9.5 cm wide
+  between straight parallel walls 5.7 cm tall; a funnel 8 cm long whose floor widens to 20.3 cm between two wings
+  (full height over their rear half, then a sloping front edge down to the floor); a flat blade 4.9 cm long and 20.3 cm
+  wide with straight sides and no walls. The handle (a steel strap from the outside of the right wing, 11.5 cm from
+  the serving end, then a 12 cm black grip, 22 x 15 mm, trailing back beside the chute toward the serving end, angled
+  45 degrees out from the long axis and rising 35 degrees) has its own material (friction 1.1, black phenolic). It
+  starts empty.
 - **Carton:** paperboard modelled as rigid 3 mm walls (real about 0.45 mm) at its real 7.7 g: a base, a sloping tall
   back, a sloping low front and two side gussets whose top edges rise from the front's height to the back's.
 - **Touches:** a PhysX rigid-contact view reports every contact between a fry and a link of either arm.
@@ -148,15 +162,17 @@ inspect-robots run --embodiment yam_arena --policy dream \
 The scripted demo, which reaches full score: the left hand pinches the carton low at its left end, across its front and
 back, its wrist leaned out to the left so it stays clear of the mouth, and holds it standing on the counter. The right
 takes the scoop's handle from its end, fingers above and below it and in line with it, tips the scoop 8 degrees
-lip-down onto the pan's floor and drives it along the floor into the heap with a 30 cm stroke of the hand: the heap
-packs against the pan's back wall and the fries ride up over the scoop's thin lip (28 fries on it once it is drawn back
-in the debug run). It levels the scoop, draws it back along the floor, raises the lip and lifts the scoopful clear of the
-rim (30 fries carried up), carried only 8 degrees lip-up: tipped further, the fries lined up with the straight spout
-slide out of the funnel end. It brings the funnel end over the carton's mouth, just above its low front and below its tall back, and tips the scoop up
-by turning the wrist about the handle (to 65 degrees, in steps, with three small shakes for the fries that jam across
-the funnel), lifts the funnel end straight up off the fries it rests on, levels the scoop and lays it back in the pan
-with what is left in it. The left lets go of the filled carton, slides its fingers off the carton's end and both arms
-go back to where they started (19 fries served in the carton and 4 spilled in the debug run: full score).
+lip-down onto the pan's floor and drives it along the floor into the heap with a 20 cm stroke of the hand: the heap
+packs against the pan's back wall and the fries ride up over the thin lip onto the open blade (46 fries on the
+scoop at the end of the push in the demo run). It levels the scoop and, as the blade has no walls, raises the lip in
+place rather than drawing the load back along the floor, so the fries slide back into the funnel, then lifts the
+scoopful clear of the rim (41 fries carried out of the pan), carried lip-up. It brings the chute's end over
+the carton's mouth, the scoop turned 20 degrees to the left, its end just above the low front and below the tall
+back, and tips the scoop up (to 65 degrees, in steps, with three small shakes for the fries that jam in the funnel), so
+the fries slide down the straight chute into the carton; it lifts the chute's end straight up off the fries it rests
+on, levels the scoop and lays it back in the pan with what is left in it. The left lets go of the filled carton, slides its fingers
+off the carton's end and both arms go back to where they started (24 fries served in the carton and
+3 spilled in the demo run: full score).
 
 ```bash
 inspect-robots run --embodiment yam_arena --policy yam_scripted \
@@ -181,7 +197,7 @@ the heap.
 
 ## Runtime per trial
 
-On one RTX 5090: about 29 minutes for a Dream-1 trial of 1,600 steps (1768 s on the clock, with Dream answering in 0.79 s on average), and about 14 minutes for the scripted demo (1,133 steps, 56.6 s of simulated time, 840 s on the clock). On one L40S the revised demo takes 1,130 steps (56.5 s of simulated time) and about 320 s of episode time at 1280 x 720. Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
+On one RTX 5090: about 8 minutes for a Dream-1 trial of 1,600 steps (457 s on the clock, with Dream answering in 0.93 s on average), and about 9 minutes for the scripted demo (1,123 steps, 56.1 s of simulated time, 525 s on the clock). Isaac Sim's first start on a new machine adds a few minutes while it compiles its shaders.
 
 ## Seeds
 
@@ -195,58 +211,32 @@ convex hulls; the robot is the `yam_arena` embodiment's own.
 
 ## Changes in this revision
 
-This is a revision of TK-99EZB6. Its review said:
+This is the second revision of TK-DBQWUG. The latest review said:
 
 > **Not accepted** (TK-99EZB6).
 > Simulated scoop should have a straight portion to replicate the real thing
 
 What changed in response:
 
-- **The scoop's straight portion.** Like the real scoop, the simulated one now ends in a straight, parallel-sided spout at
-  its funnel end, 5 cm long and 9.5 cm across, beyond the flared body. Its overall size is unchanged: 9 in long, 8 in
-  wide at the open end, 3 3/4 in at the funnel end. Everything built from the scoop's outline follows the spout: the
-  bottom, the side walls and their rolled edges, the scorer's test for a fry lying in the scoop, and the clearance
-  checks. The setup text and the README's object list and model notes describe it.
-- **Demo.** With the straight spout, fries lined up with it slide out of the funnel end if the scoop is carried tipped
-  well up at the lip, and the narrower spout holds fewer. So the demo now drives the scoop 30 cm into the heap (was 22)
-  and carries it only 8 degrees lip-up (was 15). It reaches full score again: 19 fries served and 4 spilled.
+- **The scoop now has the real scoop's straight portions** (task file: `_sc_width()`, `_wall_h()`, `_scoop_shapes()`;
+  task.json setup item 4; "Real-world basis" and "How it is modelled" above). It follows the body of the Choice
+  407RFFSCP8 (listed 9 in long, 8 in maximum width, 3 3/4 in minimum width, flat bottom; link above). From the serving
+  end: a straight chute 10 cm long and 9.5 cm wide between parallel walls 5.7 cm tall; a funnel 8 cm long whose wings
+  flare to 20.3 cm; a flat front blade 4.9 cm long and 20.3 cm wide with straight parallel sides and no walls. The
+  previous scoop tapered over its whole length with no straight part. Check: the setup screenshot and the demo video
+  show the chute, the funnel and the blade; the scorer's "in the scoop's bowl" test uses the same widths.
+- **The handle is placed as on the real scoop** (setup item 4; `_h_dir()`, `_h_root()`): fixed on the outside of the
+  right wing where the funnel meets the chute, it trails back beside the chute toward the serving end and rises, as on
+  the Choice (35 degrees in the model). It is angled 45 degrees out from the chute, further than the Choice's, for the arm's reach
+  (fidelity note). Before, it stood straight out sideways near the serving end.
+- **The demo works the real shape** ("Run and score a trial"): the blade has no walls, so the load is no longer drawn
+  back along the pan's floor; the lip is raised in place and the fries leave through the straight chute. Check: demo
+  1.0 (24 served, 3 spilled; the trial ended at step 1,123 of 1,600 once the
+  full score had held 1 s); Dream-1 run 0.0.
+- **Unchanged:** the scoop and the carton start empty, only fries the scoop carried out of the pan count, 18 to 28 fries,
+  the carton-in-the-pan latch, the maple stand-ins and the rig-safety section. Re-run with the new scoop: one hand only
+  0; the carton used as a scoop 0 (latched at 12 s).
 
-## Earlier revision
-
-This revised TK-DBQWUG. Its review said:
-
-> **Not accepted** (TK-DBQWUG).
-> Flags: The scoop starts with 141 g of fries, enough for full credit
-> Clarity and reproducibility (not met): The freshly fried, variable food lacks a specified source or repeatable
-> preparation, temperature and handling procedure for repeated trials.
-> Feasibility (not met): Freshly fried fries can transfer oil to the shared robot’s grippers, and the setup specifies
-> no protection or clean substitute.
-> What to change: Please specify a repeatable source and preparation for the fries, including their temperature,
-> handling and reset procedure. Use a clean stand-in with comparable size, mass and flow behavior, or specify protection
-> and cleaning that prevent oil from reaching the shared robot’s grippers.
-
-What changed in response:
-
-- **Flag: the scoop started with 141 g of fries.** The scoop now starts empty, lying in the front of the pan, and the
-  heap settles about 2 cm behind its open end; nothing is preloaded. The robot has to load the scoop itself by driving it
-  along the pan's floor into the heap, which packs against the pan's back wall so the fries ride up over the scoop's
-  lip, then drawing the load back and lifting it out. To make this honest in simulation, the fries were remodelled as
-  convex sticks with bevelled edges (the real stand-in's shape, below) and the scoop's sheet as 1 mm instead of 2 mm.
-  The scorer now serves only fries that the scoop carried up out of the pan during the trial; a fry in the scoop or the
-  carton at the start could never count. The portion is now counted, 18 to 28 fries (a small order of 110 g is 22
-  fries; previously 70 to 145 g). The new demo has 38 fries on the scoop at the end of its push, lifts 29 out of the pan and serves 26 into the carton with 3 spilled: a full score.
-- **Clarity and reproducibility: source, preparation, temperature, handling and reset of the fries.** The real trial
-  uses clean replica fries: hard-maple sticks cut from 3/8 in square dowel (Woodworking Shop SKU SQM380, $3.12 per 36
-  in length, ±1/64 in; 14 dowels, about $44 in all) to the simulation's 12 lengths from 55 to 95 mm,
-  every edge bevelled 2 mm, unfinished. At 705 kg/m3 (hard maple at 12% moisture) a 75 mm stick weighs about 4.3 g,
-  close to a 5 g fast-food fry. Preparation, room-temperature dry storage, inspection and a 2-minute per-trial reset
-  (count, re-heap, re-lay the scoop, fresh carton) are in "The fries in a real trial" above and in the reset notes.
-- **Feasibility: oil on the shared grippers.** The stand-in is dry, unfinished wood, so there is no oil. A new section,
-  "Real-trial safety and rig protection", covers it: the grippers only ever hold the scoop's phenolic handle and the
-  paperboard carton (a fry the robot touches is wasted by the scorer), the station is used cold and unplugged, the
-  sticks' edges are bevelled and sanded, and the pan, scoop and pads are wiped with a dry cloth after each session.
-- **What to change.** Every item is done as above: a repeatable source and preparation, a stated temperature (room
-  temperature, dry), handling and a per-trial reset, and a clean stand-in of comparable size (the same 3/8 in cut),
-  mass (4.3 g against 5 g for a 75 mm fry) and flow (rigid sticks, friction 0.5 stick on stick and 0.5 to 0.55 on
-  steel, as simulated). The scene, scorer and demo changed, so the demo, the one-hand check, the carton-as-scoop check
-  and the Dream-1 run were all re-run: demo 1.0 (full score held at 1,133 steps of the 1,600-step run limit), Dream-1 0, one hand only 0.25, carton used as a scoop 0.
+Earlier review TK-DBQWUG (the scoop started with 141 g of fries; no source, preparation or reset for fried fries; oil
+on the shared grippers): answered in the first revision and still in place: the robot loads the empty scoop itself,
+and the fries are dry hard-maple stand-ins with a stated source, preparation, handling and 2-minute reset.
