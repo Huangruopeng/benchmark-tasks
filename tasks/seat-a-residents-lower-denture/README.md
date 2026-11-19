@@ -13,6 +13,50 @@ for the `yam_arena` embodiment. It uses the helper [`bodykit.py`](bodykit.py), k
 - the denture, a horseshoe of boxes with a channel underneath;
 - the bedside table and the denture cup.
 
+## The real-trial head: a care-training manikin, or the low-cost printed rig
+
+A real trial can use a nursing-care training manikin with removable full dentures (a Kyoto Kagaku oral-care trainer,
+about $800), or the low-cost rig in [`fixture/`](fixture/), about $60 in materials. The rig's parts are written by
+[`fixture/make_fixture.py`](fixture/make_fixture.py) from the task file's own boxes, so the printed mouth, ridge,
+tongue and denture match the simulation exactly. Rerun it after any change to the task file's dimensions:
+
+```bash
+cd fixture && PYTHONPATH=<path to yam-isaac-lab-arena> python3 make_fixture.py
+```
+
+| File | Part | Print |
+|---|---|---|
+| `mouth_lower.stl` | The mouth's lower half, up to the mouth's top edge: chin, the pocket the lip sits in, the mouth's sides, floor, lower ridge, tongue, cheeks, throat. 130 x 150 x 108 mm. | PLA, 0.2 mm layers, 3 walls, 15% infill, as written (z up). |
+| `mouth_upper.stl` | The upper half: upper lip, upper denture, nose, face above. 144 x 150 x 127 mm. | PLA, as written; supports under the nose. |
+| `lower_denture.stl` | Her lower full denture: base, 13 mm channel, 2 mm inner and 4 mm outer flanges, teeth. 51 x 62 x 21 mm, 22.3 cm³. | Pink resin (26 g), or PLA at 100% infill (28 g); teeth up, supports under the channel. |
+| `lip_mould.stl` | An open-top mould for the lower lip: a 12.4 x 64.4 x 31 mm cavity. | PLA. |
+| `riser.stl` | A hollow block 115 mm tall that puts the mouth's centre 20 cm above the table. | PLA, 15% infill. |
+
+Frame of the mouth parts: origin at the mouth's centre on the lips' front face, x back into the mouth, y to her left,
+z up, in millimetres. The parts are unions of overlapping boxes, as in the simulation; slicers merge them (Cura's
+"Union Overlapping Volumes" is on by default, PrusaSlicer merges them as they are).
+
+Build:
+
+1. Print the five parts. Optionally paint the ridge and tongue gum-pink and the upper denture white.
+2. Glue the two halves together at their split face (z = 23 mm, the mouth's top edge), edges flush. Use CA glue or
+   epoxy.
+3. Cast the lower lip. Mix about 25 mL of Smooth-On Ecoflex 00-30 (1A:1B by volume; trial unit about $35) and pour it to
+   the mould's brim. Cure it for 4 hours at room temperature, then demould: a soft block 12 x 64 x 31 mm.
+4. Glue the lip's bottom 10 mm into the pocket in the chin with Smooth-On Sil-Poxy, its front flush with the lips'
+   front. Its free 21 mm stands up between the mouth's sides, its top 2.6 cm below the mouth's centre.
+5. Stand the head on the riser on the table, facing the arms on the centre line, its lips' front 35.5 cm forward of
+   the line between the arm bases.
+
+Check before the first trial:
+
+- **Mouth opening:** 66 mm wide and 49 mm high, by calliper.
+- **Lip:** a spring scale pressing 2 N on the lip's top edge pushes it down about 1 cm. If it is stiffer, shave its back
+  face thinner. If it is softer, recast it in Ecoflex 00-50.
+- **Denture fit:** set the denture on the ridge by hand. Its channel's ceiling rests on the crest, with about 2.5 mm of
+  side play either way, and it does not rock when its front teeth are pressed.
+- **Mass:** the denture weighs 25 to 28 g.
+
 ## Requirements
 
 - [yam-isaac-lab-arena](https://github.com/kairosiann/yam-isaac-lab-arena), tested at commit `0059d02`.
