@@ -1,14 +1,15 @@
-"""On the station table stands a terracotta pot with a leafy house plant. Its leaves spread low over the soil: three
-fixed in the crown over the back of the pot, and one big leaf in front, on a springy stalk, lying over the front of the
-soil and reaching out past the rim. Beside the pot, on a small wooden stool, stands a blue watering jug with water in
-it.
+"""On the station table stands a terracotta pot with a leafy house plant. Its leaves spread low over the soil, each on
+a springy stalk: three in the crown over the back and sides of the pot, and one big leaf in front, lying over the
+front of the soil and reaching out past the rim. Beside the pot, on a small wooden stool, stands a blue watering jug
+with water in it.
 
 Task: water the plant at its roots, onto the soil, without wetting its leaves; then put the jug back on its stool,
 leave the leaves as they were and take both arms home. Water poured from above lands on the leaves, so the scripted
 demo pushes the big front leaf aside on its stalk with one hand and holds it there (let go, it springs back over the
 soil) while the other pours the jug onto the soil underneath. The 12 water beads stand for 120 ml of water (10 ml
-each); a real trial weighs the pot and its saucer separately and records any leaf contact as a blue stain on the
-water-sensitive spray cards that cover the leaves (see task.json).
+each). Scored 0: water on a leaf, or a leaf disturbed (out of place at the end, or pressed harder than a leaf takes
+undamaged). A dry touch that leaves a leaf undamaged and in place is allowed. A real trial weighs the pot and its saucer
+separately and reads leaf wetting from two synchronized 60 fps cameras and grazing-light photos (see task.json).
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=water_a_plant_holding_its_big_leaf_aside.py \\
            --instruction "..." --scorer task_score ...
@@ -52,7 +53,7 @@ def _u(deg: float) -> np.ndarray:
     return np.array([math.cos(a), math.sin(a), 0.0])
 
 
-# -- the pot and the plant (fixed): a terracotta pot 17 cm across, the soil 1.3 cm below its rim -----------------------
+# -- the pot (fixed) and the plant: a terracotta pot 17 cm across, the soil 1.3 cm below its rim -----------------------
 P = np.array([0.30, -0.02])  # the pot's middle
 POT_R, POT_WALL, POT_H = 0.085, 0.009, 0.075
 SOIL_Z = TOP + 0.062
@@ -62,16 +63,18 @@ LEAF_T = 0.003
 # a leaf's outline, out from where it joins the stem: (from, to, width) in m
 OUTLINE = ((0.015, 0.030, 0.070), (0.030, 0.050, 0.104), (0.050, 0.070, 0.127), (0.070, 0.090, 0.129),
            (0.090, 0.110, 0.123), (0.110, 0.130, 0.104), (0.130, 0.150, 0.065))
-# the crown's fixed leaves over the back and sides of the pot: (pointing, height above the table)
+# the crown's leaves over the back and sides of the pot: (pointing, height above the table); each turns on its stalk
+# about the vertical against a spring, and springs back when let go
 CROWN = ((0.0, 0.118), (60.0, 0.112), (-78.0, 0.124))
+CROWN_SPRING = 0.004  # N m per degree (design value: shorter, stiffer stalks than the big leaf's)
+CROWN_LIMIT = 30.0  # degrees either way
+LEAF_LEN = OUTLINE[-1][1]  # 15 cm from the stem to the tip
 
 # -- the big front leaf on its springy stalk: it joins the stem 10 cm above the table and lies pointing at the arms ---
 HINGE_Z = TOP + 0.100
 LEAF_REST = 180.0  # pointing straight back toward the arms (-x)
 LEAF_SPRING = 0.0016  # N m per degree: pushed 85 degrees aside, it pushes back with 0.14 N m
 LEAF_MASS = 0.02
-ASIDE = 70.0  # pushed at least this far round on its stalk, the leaf is aside (the soil under it is clear)
-LEAF_BACK = 12.0  # within this of its rest, the leaf is back over the soil
 
 # -- the watering jug and its water, on a stool beside the pot ---------------------------------------------------------
 JUG_AT = np.array([0.262, 0.130])  # 1.9 cm clear of the left crown leaf's edge
@@ -85,10 +88,12 @@ TERRACOTTA, RIM_C, SOIL, STEM, LEAF_C, LEAF_DARK, VEIN, JUG_C, WATER, STOOL_C = 
     (0.15, 0.42, 0.16), (0.55, 0.75, 0.40), (0.20, 0.50, 0.85), (0.55, 0.80, 1.00), (0.72, 0.55, 0.36)
 
 # -- scoring ----------------------------------------------------------------------------------------------------------
-WET = 0.004  # a bead within this of a leaf has wetted it
-JUG_NEAR = 0.004  # the jug (any part of it as drawn) within this of a leaf has touched it
+WET = 0.004  # a bead, or the jug's wet lip and rim, within this of a leaf has wetted it
+WET_RIM = 0.010  # once water has left the jug, its lip and the top 1 cm of its rim are wet
 SOAKED_FULL, SOAKED_SOME = 9, 4  # beads on the soil (10 ml each): 90 ml for the higher scores, 40 ml for 0.25
-LEAVES_WET_MAX = 0  # beads that may touch a leaf: none (any leaf contact scores 0.0)
+TIP_WITHIN = 0.03  # a leaf is in place when its tip is within 3 cm of where it lay (the big leaf: an 11.5 degree turn)
+DAMAGE_N = 5.0  # a contact force above this on a leaf (from the jug or any part of either arm), averaged over a 50 ms
+# control step (12 physics steps, so a single-step solver spike does not count), damages it: design value
 BACK_WITHIN, UPRIGHT = 0.03, 15.0
 LET_GO = 0.04
 HOME_WITHIN = 0.05
@@ -115,7 +120,7 @@ def _leaf_shapes(origin, deg: float, z: float, colour, dark) -> list:
 
 
 def _pot() -> Body:
-    """The pot, its soil, the stem and the crown's fixed leaves: one fixed body, origin at the pot's middle, on the table."""
+    """The pot, its soil and the stem: one fixed body, origin at the pot's middle, on the table."""
     r = POT_R - POT_WALL / 2
     shapes = [CylShape((0.0, 0.0, (SOIL_Z - TOP) / 2), SOIL_R + 0.001, SOIL_Z - TOP, SOIL),  # soil, up to SOIL_Z
               CylShape((0.0, 0.0, 0.004), POT_R + 0.012, 0.008, RIM_C, collide=False)]  # its saucer (seen only)
@@ -126,8 +131,6 @@ def _pot() -> Body:
                             TERRACOTTA))
     shapes.append(CylShape((0.0, 0.0, POT_H - 0.006), POT_R + 0.004, 0.012, RIM_C, collide=False))  # the rim band
     shapes.append(CylShape((0.0, 0.0, (STEM_TOP + SOIL_Z) / 2 - TOP), STEM_R, STEM_TOP - SOIL_Z, STEM))
-    for deg, h in CROWN:
-        shapes += _leaf_shapes((0.0, 0.0), deg, h, LEAF_C, LEAF_DARK)
     for deg, h, tall in ((25.0, 0.13, 0.07), (-35.0, 0.13, 0.06), (110.0, 0.12, 0.05)):  # upright young leaves (seen)
         at = _u(deg) * 0.02
         shapes.append(BoxShape((float(at[0]), float(at[1]), h - 0.0 + tall / 2 - (TOP - TOP)),
@@ -141,13 +144,23 @@ def _pot() -> Body:
                       color=TERRACOTTA, friction=(1.2, 1.1))
 
 
+def _crown_leaf(k: int) -> Body:
+    """One of the crown's leaves: its body origin on the stem where its stalk joins; it lies pointing CROWN[k][0]."""
+    deg, h = CROWN[k]
+    c = _u(deg) * 0.08
+    return Body.build(f"crown_leaf_{k}", pos=(float(P[0]), float(P[1]), TOP + h), mass=LEAF_MASS,
+                      shapes=_leaf_shapes((0.0, 0.0), deg, 0.0, LEAF_C, LEAF_DARK), color=LEAF_C, friction=(0.8, 0.7),
+                      damping=(0.5, 3.0), com=(float(c[0]), float(c[1]), 0.0), report_contacts=True)
+
+
 def _leaf() -> Body:
     """The big front leaf: its body origin on the stem where its stalk joins, at HINGE_Z; it lies pointing LEAF_REST."""
     shapes = _leaf_shapes((0.0, 0.0), LEAF_REST, 0.0, LEAF_C, LEAF_DARK)
     shapes.append(CylShape((float(_u(LEAF_REST)[0]) * 0.008, 0.0, 0.0), 0.004, 0.016, STEM, axis="X"))  # its stalk
     c = _u(LEAF_REST) * 0.08
     return Body.build("big_leaf", pos=(float(P[0]), float(P[1]), HINGE_Z), mass=LEAF_MASS, shapes=shapes,
-                      color=LEAF_C, friction=(0.8, 0.7), damping=(0.5, 3.0), com=(float(c[0]), float(c[1]), 0.0))
+                      color=LEAF_C, friction=(0.8, 0.7), damping=(0.5, 3.0), com=(float(c[0]), float(c[1]), 0.0),
+                      report_contacts=True)
 
 
 def _jug() -> Body:
@@ -165,7 +178,7 @@ def _jug() -> Body:
     for zz in (CUP_H * 0.85, CUP_H * 0.25):  # the handle's arms
         shapes.append(BoxShape((-(CUP_R_I + 0.010), 0.0, zz), (0.014, 0.012, 0.006), JUG_C, collide=False))
     return Body.build("jug", pos=(float(JUG_AT[0]), float(JUG_AT[1]), TOP + STOOL_H + 0.0005), mass=JUG_MASS,
-                      shapes=shapes, friction=(1.5, 1.4), color=JUG_C, com=(0.0, 0.0, 0.022))
+                      shapes=shapes, friction=(1.5, 1.4), color=JUG_C, com=(0.0, 0.0, 0.022), report_contacts=True)
 
 
 def _bead_spots() -> list[tuple[float, float, float]]:
@@ -204,23 +217,32 @@ def _stool() -> Body:
 BEADS = _beads()
 BEAD_NAMES = [b.name for b in BEADS]
 JUG_START = np.array([float(JUG_AT[0]), float(JUG_AT[1]), TOP + STOOL_H])
-OBJECTS = [_pot(), _stool(), _leaf(), _jug(), *BEADS]
-# the leaf's stalk: turns round the stem (about the vertical), sprung back to where it lies; pushed aside it goes round
-# toward the right (counter-clockwise seen from above)
+CROWN_NAMES = [f"crown_leaf_{k}" for k in range(len(CROWN))]
+LEAF_NAMES = (*CROWN_NAMES, "big_leaf")  # every leaf: the crown's (back, left, right), then the big one
+LEAF_DEG = (*(d for d, _ in CROWN), LEAF_REST)  # where each points as it lies
+OBJECTS = [_pot(), _stool(), *(_crown_leaf(k) for k in range(len(CROWN))), _leaf(), _jug(), *BEADS]
+# the big leaf's stalk: turns round the stem (about the vertical), sprung back to where it lies; pushed aside it goes
+# round toward the right (counter-clockwise seen from above)
 hinge(name="leaf_stalk", body0="plant_pot", body1="big_leaf", anchor=(float(P[0]), float(P[1]), HINGE_Z), axis="Z",
       limits_deg=(-8.0, 100.0), spring=LEAF_SPRING, damping=LEAF_SPRING * 0.05, target_deg=0.0)
+for _k, (_, _h) in enumerate(CROWN):  # the crown's stalks: the same kind of sprung turn, stiffer
+    hinge(name=f"crown_stalk_{_k}", body0="plant_pot", body1=f"crown_leaf_{_k}",
+          anchor=(float(P[0]), float(P[1]), TOP + _h), axis="Z", limits_deg=(-CROWN_LIMIT, CROWN_LIMIT),
+          spring=CROWN_SPRING, damping=CROWN_SPRING * 0.05, target_deg=0.0)
 
 
-# -- followed after every control step --------------------------------------------------------------------------------
+# -- followed after every physics step and every control step ---------------------------------------------------------
 
 def _fresh() -> dict:
-    return {"wet": set(), "soil": set(), "tcps": None, "s": {}, "aside_max": 0.0, "wet_ctrl": set(), "substeps": 0,
-            "jug_touch": False, "jug_gap": 1.0}
+    return {"wet": set(), "soil": set(), "tcps": None, "s": {}, "substeps": 0, "poured": False, "lip_wet": False,
+            "force": [0.0] * len(LEAF_NAMES), "force_by": [""] * len(LEAF_NAMES), "f_sum": None, "f_n": 0,
+            "peak": 0.0, "jug_gap": 1.0}
 
 
 _EP = _fresh()
 _DEBUG = {"on": bool(os.environ.get("PLANT_DEBUG")), "steps": 0}
 _WATCH: dict = {}
+_CT: dict = {"view": None, "failed": "", "names": []}
 
 
 @on_reset
@@ -246,8 +268,8 @@ def _pose(base, origin, name):
 
 
 def _on_leaf(local) -> bool:
-    """Whether a point (in a leaf's own frame: out along +x from where it joins the stem, its blade at z 0) touches the
-    blade."""
+    """Whether a bead's centre (in a leaf's own frame: out along +x from where it joins the stem, its blade at z 0) is
+    within WET of the blade."""
     x, y, z = (float(v) for v in local)
     if abs(z) > LEAF_T / 2 + BEAD_R + WET:
         return False
@@ -261,7 +283,7 @@ def _box_grid(centre, size, step: float = 0.004) -> list[tuple[float, float, flo
 
 def _jug_points() -> np.ndarray:
     """Points over the whole jug as drawn (its body, rim, floor, pouring lip and handle), in its own frame, at most 4 mm
-    apart, for the jug-touches-a-leaf check."""
+    apart (for the debug read-out of how close the jug comes to a leaf)."""
     ro = CUP_R_I + CUP_WALL
     pts = [(0.0, 0.0, 0.0)]
     for k in range(48):
@@ -276,7 +298,20 @@ def _jug_points() -> np.ndarray:
     return np.array(pts)
 
 
+def _wet_points() -> np.ndarray:
+    """The jug's wet part once water has left it: its pouring lip and the top WET_RIM of its rim, inside and out."""
+    pts = []
+    for k in range(48):
+        a = 2 * math.pi * k / 48
+        c, s = math.cos(a), math.sin(a)
+        for r in (CUP_R_I, CUP_R_I + CUP_WALL):
+            pts += [(r * c, r * s, float(z)) for z in np.linspace(CUP_H - WET_RIM, CUP_H, 4)]
+    pts += _box_grid((CUP_R_I + 0.008, 0.0, CUP_H - 0.004), (0.018, 0.020, 0.003))
+    return np.array(pts)
+
+
 JUG_POINTS = _jug_points()
+WET_POINTS = _wet_points()
 _OUTLINE = np.array(OUTLINE)
 
 
@@ -290,58 +325,134 @@ def _leaf_gap(local: np.ndarray) -> float:
     return float(np.sqrt(dxy ** 2 + dz ** 2).min())
 
 
-def _jug_gap(j_pos, j_rot, frames) -> float:
-    """How close the jug comes to any leaf's blade (m)."""
-    world = j_pos + JUG_POINTS @ np.asarray(j_rot).T
+def _points_gap(points, j_pos, j_rot, frames) -> float:
+    """How close any of these points of the jug (its own frame) come to any leaf's blade (m)."""
+    world = j_pos + points @ np.asarray(j_rot).T
     return min(_leaf_gap((world - o) @ r) for o, r in frames)
 
 
-def _leaf_frames(l_pos, l_rot) -> list[tuple[np.ndarray, np.ndarray]]:
-    """Every leaf's frame (origin, rotation whose x points out along the leaf)."""
-    pot0 = np.array([float(P[0]), float(P[1]), TOP])
-    out = [(pot0 + [0.0, 0.0, h], np.array([_u(d), _u(d + 90.0), [0.0, 0.0, 1.0]]).T) for d, h in CROWN]
-    out.append((l_pos, l_rot @ np.array([_u(LEAF_REST), _u(LEAF_REST + 90.0), [0.0, 0.0, 1.0]]).T))
-    return out
+def _leaf_frames(leaf_poses) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Every leaf's frame (origin, rotation whose x points out along the leaf), from each leaf body's pose, in
+    LEAF_NAMES order."""
+    return [(p, r @ np.array([_u(d), _u(d + 90.0), [0.0, 0.0, 1.0]]).T) for (p, r), d in zip(leaf_poses, LEAF_DEG)]
 
 
 def _leaf_turn(l_rot) -> float:
-    """How far round the big leaf is from where it lies (degrees, counter-clockwise seen from above)."""
+    """How far round a leaf is from where it lies (degrees, counter-clockwise seen from above)."""
     return math.degrees(math.atan2(float(l_rot[1, 0]), float(l_rot[0, 0])))
 
 
+def _rest_tips() -> list[np.ndarray]:
+    out = [np.array([float(P[0]), float(P[1]), TOP + h]) + _u(d) * LEAF_LEN for d, h in CROWN]
+    out.append(np.array([float(P[0]), float(P[1]), HINGE_Z]) + _u(LEAF_REST) * LEAF_LEN)
+    return out
+
+
+REST_TIPS = _rest_tips()
+
+
+def _tip_moves(frames) -> list[float]:
+    """How far each leaf's tip is from where it lay (m)."""
+    return [float(np.linalg.norm(o + r @ np.array([LEAF_LEN, 0.0, 0.0]) - t)) for (o, r), t in zip(frames, REST_TIPS)]
+
+
 def _on_soil(p) -> bool:
-    return float(np.linalg.norm(np.asarray(p[:2]) - P)) <= SOIL_R - BEAD_R and SOIL_Z - 0.003 <= float(p[2]) <= \
-        SOIL_Z + 0.015
+    """Whether a bead lies on the soil inside the pot: its centre within the wall's inner face (a bead against the wall
+    counts; one outside the pot is at least 8.85 cm out) and between 3 mm below and 15 mm above the soil's surface (a
+    bead on the rim is 16.5 mm up)."""
+    return float(np.linalg.norm(np.asarray(p[:2]) - P)) <= SOIL_R and SOIL_Z - 0.003 <= float(p[2]) <= SOIL_Z + 0.015
+
+
+def _np(a) -> np.ndarray:
+    if hasattr(a, "numpy") and not hasattr(a, "detach"):
+        return np.asarray(a.numpy(), float)
+    return as_numpy(a)
+
+
+def _contact_view():
+    """A PhysX rigid-contact view, made once: each leaf against the jug and against every link of both arms."""
+    if _CT["view"] is None and not _CT["failed"]:
+        try:
+            from isaaclab_physx.physics import PhysxManager
+            from yam_arena.robot import asset_link_paths
+
+            env = "/World/envs/env_*"
+            links = asset_link_paths()
+            arms = [f"{env}/{arm}{p}" for arm in ("LeftArm", "RightArm") for p in links.values()]
+            others = [f"{env}/jug/body"] + arms
+            _CT["names"] = ["jug"] + [f"{arm[:-3].lower()} {n}" for arm in ("LeftArm", "RightArm") for n in links]
+            _CT["view"] = PhysxManager.get_physics_sim_view().create_rigid_contact_view(
+                [f"{env}/{n}/body" for n in LEAF_NAMES], filter_patterns=[others] * len(LEAF_NAMES),
+                max_contact_data_count=0)
+        except Exception as e:  # noqa: BLE001
+            _CT["failed"] = repr(e)[:300]
+            print(f"[plant] leaf contact-force view failed: {_CT['failed']}", file=sys.stderr, flush=True)
+    return _CT["view"]
+
+
+def _leaf_forces() -> np.ndarray | None:
+    """(leaves, partners): the size of the contact force (N) each leaf takes from the jug and from each link of either
+    arm over the last physics step (each finger separately, so a pinch is not cancelled out)."""
+    view = _contact_view()
+    if view is None:
+        return None
+    from yam_arena.constants import PHYSICS_DT
+
+    m = _np(view.get_contact_force_matrix(dt=PHYSICS_DT)).reshape(len(LEAF_NAMES), len(_CT["names"]), 3)
+    return np.linalg.norm(m, axis=2)
 
 
 def _watch_leaves(base) -> None:
     """After every physics step (240 a second, not only after each 50 ms control step): every bead that comes within
-    WET of any leaf's blade has wetted a leaf, even if it runs off the leaf straight away; and the jug coming within
-    JUG_NEAR of any leaf's blade has touched it."""
+    WET of any leaf's blade has wetted a leaf, even if it runs off straight away; once water has left the jug, its lip
+    and rim within WET of a leaf's blade have wetted it; and the largest contact force each leaf has taken from the jug
+    or either arm is added up, to be averaged over the control step."""
     import torch
 
-    names = ("big_leaf", "jug", *BEAD_NAMES)
+    names = (*LEAF_NAMES, "jug", *BEAD_NAMES)
     poses = torch.cat([getattr(base.scene[n].data.root_link_pose_w, "torch", base.scene[n].data.root_link_pose_w)[:1]
                        for n in names]).detach().cpu().numpy().astype(np.float64)
     origin = _WATCH["origin"]
-    frames = _leaf_frames(poses[0, :3] - origin, rotation(poses[0, 3:7]))
+    nl = len(LEAF_NAMES)
+    frames = _leaf_frames([(poses[i, :3] - origin, rotation(poses[i, 3:7])) for i in range(nl)])
     _EP["substeps"] += 1
-    gap = _jug_gap(poses[1, :3] - origin, rotation(poses[1, 3:7]), frames)
-    _EP["jug_gap"] = min(_EP["jug_gap"], gap)
-    if gap <= JUG_NEAR:
-        if not _EP["jug_touch"] and _DEBUG["on"]:
-            jp, jr = poses[1, :3] - origin, rotation(poses[1, 3:7])
-            each = [_leaf_gap((jp + JUG_POINTS @ jr.T - o) @ r) for o, r in frames]
-            print(f"[plant] first jug touch at {_EP['substeps'] / 240:.2f} s: leaf {int(np.argmin(each))} "
-                  f"(0 back, 1 left, 2 right, 3 big), jug at {np.round(jp * 1000).astype(int).tolist()}",
-                  file=sys.stderr, flush=True)
-        _EP["jug_touch"] = True
-    for name, row in zip(BEAD_NAMES, poses[2:]):
+    jp, jr = poses[nl, :3] - origin, rotation(poses[nl, 3:7])
+    for name, row in zip(BEAD_NAMES, poses[nl + 1:]):
+        p = row[:3] - origin
+        if not _EP["poured"]:
+            q = jr.T @ (p - jp)  # in the jug's frame: still inside it?
+            if math.hypot(float(q[0]), float(q[1])) > CUP_R_I + 0.002 or not -0.002 <= float(q[2]) <= CUP_H + 0.002:
+                _EP["poured"] = True
         if name in _EP["wet"] or name in _EP["soil"]:
             continue
-        p = row[:3] - origin
         if any(_on_leaf(r.T @ (p - o)) for o, r in frames):
             _EP["wet"].add(name)
+    if _EP["poured"] and not _EP["lip_wet"] and _points_gap(WET_POINTS, jp, jr, frames) <= WET:
+        _EP["lip_wet"] = True
+        if _DEBUG["on"]:
+            print(f"[plant] wet lip touches a leaf at {_EP['substeps'] / 240:.2f} s", file=sys.stderr, flush=True)
+    if _DEBUG["on"]:
+        _EP["jug_gap"] = min(_EP["jug_gap"], _points_gap(JUG_POINTS, jp, jr, frames))
+        if _EP["poured"]:
+            _EP["lip_gap"] = min(_EP.get("lip_gap", 1.0), _points_gap(WET_POINTS, jp, jr, frames))
+    f = _leaf_forces()
+    if f is not None:
+        _EP["f_sum"] = f if _EP["f_sum"] is None else _EP["f_sum"] + f
+        _EP["f_n"] += 1
+        _EP["peak"] = max(_EP["peak"], float(f.max()))  # a single physics step's largest (debug only)
+
+
+def _press() -> None:
+    """After each control step: each leaf's contact force from each partner, averaged over the step's physics steps;
+    the largest so far per leaf is kept."""
+    if not _EP["f_n"]:
+        return
+    mean = _EP["f_sum"] / _EP["f_n"]
+    _EP["f_sum"], _EP["f_n"] = None, 0
+    for i in range(len(LEAF_NAMES)):
+        j = int(np.argmax(mean[i]))
+        if mean[i, j] > _EP["force"][i]:
+            _EP["force"][i], _EP["force_by"][i] = float(mean[i, j]), _CT["names"][j]
 
 
 def _install_watch(base) -> None:
@@ -364,52 +475,54 @@ def _install_watch(base) -> None:
 def _follow(env) -> None:
     base = env.unwrapped
     _install_watch(base)
+    _press()
     origin = as_numpy(base.scene.env_origins[0])
-    l_pos, l_rot = _pose(base, origin, "big_leaf")
-    frames = _leaf_frames(l_pos, l_rot)
+    leaf_poses = [_pose(base, origin, n) for n in LEAF_NAMES]
+    frames = _leaf_frames(leaf_poses)
     beads = []
     for name in BEAD_NAMES:
         p = as_numpy(base.scene[name].data.root_link_pose_w)[0][:3] - origin
         beads.append(p)
-        near_leaf = any(_on_leaf(r.T @ (p - o)) for o, r in frames)
-        if near_leaf and name not in _EP["soil"]:
-            _EP["wet_ctrl"].add(name)  # what a check after each control step alone would catch (debug only)
-        if name not in _EP["soil"] and near_leaf:
+        if name not in _EP["soil"] and any(_on_leaf(r.T @ (p - o)) for o, r in frames):
             _EP["wet"].add(name)
         if name not in _EP["wet"] and _on_soil(p):
             _EP["soil"].add(name)
     soaked = sum(1 for n, p in zip(BEAD_NAMES, beads) if n in _EP["soil"] and _on_soil(p))
-    turn = _leaf_turn(l_rot)
-    _EP["aside_max"] = max(_EP["aside_max"], turn)
+    tips = _tip_moves(frames)
+    in_place = all(t <= TIP_WITHIN for t in tips)
+    pressed = max(_EP["force"]) > DAMAGE_N
+    l_pos, l_rot = leaf_poses[-1]
     j_pos, j_rot = _pose(base, origin, "jug")
     jug_back = (float(np.linalg.norm(j_pos[:2] - JUG_START[:2])) <= BACK_WITHIN
                 and math.degrees(math.acos(max(-1.0, min(1.0, float(j_rot[2, 2]))))) <= UPRIGHT
                 and float(j_pos[2]) < JUG_START[2] + 0.01)
-    leaf_back = abs(turn) <= LEAF_BACK
     _EP["tcps"] = _tcps(base, origin)
     jug_mid = j_pos + j_rot @ np.array([0.0, 0.0, CUP_H / 2])
     leaf_mid = l_pos + l_rot @ (_u(LEAF_REST) * 0.10)
     clear = all(float(np.linalg.norm(t - q)) >= LET_GO for t in _EP["tcps"] for q in (jug_mid, leaf_mid))
-    gap_now = _jug_gap(j_pos, j_rot, frames)
-    if gap_now <= JUG_NEAR:
-        _EP["jug_touch"] = True
-    _EP["s"] = {"soaked": soaked, "wet": len(_EP["wet"]), "jug_touch": _EP["jug_touch"], "jug_back": jug_back,
-                "leaf_back": leaf_back, "clear": clear, "turn": turn}
+    _EP["s"] = {"soaked": soaked, "wet": len(_EP["wet"]), "lip_wet": _EP["lip_wet"], "in_place": in_place,
+                "pressed": pressed, "jug_back": jug_back, "clear": clear}
     if _DEBUG["on"]:
         _DEBUG["steps"] += 1
         if _DEBUG["steps"] % 10 == 0:
             tl, tr = _EP["tcps"]
             in_jug = sum(1 for p in beads if float(np.linalg.norm(p[:2] - j_pos[:2])) < CUP_R_I + 0.012
                          and p[2] > j_pos[2] - 0.01)
-            print(f"[plant] t={_DEBUG['steps'] / 20:5.1f}s leaf_turn={turn:6.1f} soaked={soaked} wet={len(_EP['wet'])} "
-                  f"wet_ctrl_only={len(_EP['wet_ctrl'])} substeps={_EP['substeps']} jug_touch={_EP['jug_touch']} "
-                  f"jug_gap_mm={gap_now * 1000:.1f} jug_gap_min_mm={_EP['jug_gap'] * 1000:.1f} "
-                  f"in_jug={in_jug} jug={np.round(j_pos * 1000).astype(int).tolist()} jug_back={jug_back} "
+            turns = [round(_leaf_turn(r), 1) for _, r in leaf_poses]
+            off = [np.round((p - [P[0], P[1], SOIL_Z]) * 1000).astype(int).tolist()
+                   for n, p in zip(BEAD_NAMES, beads) if _EP["poured"] and not (n in _EP["soil"] and _on_soil(p))]
+            force = " ".join(f"{v:.2f}({b})" for v, b in zip(_EP["force"], _EP["force_by"]))
+            print(f"[plant] t={_DEBUG['steps'] / 20:5.1f}s turns={turns} tips_mm={[round(t * 1000) for t in tips]} "
+                  f"in_place={in_place} force_max_N=[{force}] step_peak_N={_EP['peak']:.2f} pressed={pressed} "
+                  f"soaked={soaked} "
+                  f"wet={len(_EP['wet'])} poured={_EP['poured']} lip_wet={_EP['lip_wet']} substeps={_EP['substeps']} "
+                  f"jug_gap_min_mm={_EP['jug_gap'] * 1000:.1f} lip_gap_min_mm={_EP.get('lip_gap', 1.0) * 1000:.1f} "
+                  f"in_jug={in_jug} off_soil={off} "
+                  f"jug={np.round(j_pos * 1000).astype(int).tolist()} jug_back={jug_back} "
                   f"jug_tilt={math.degrees(math.acos(max(-1.0, min(1.0, float(j_rot[2, 2]))))):5.1f} "
-                  f"jug_from_L={np.round((j_pos - tl) * 1000).astype(int).tolist()} leaf_back={leaf_back} "
                   f"clear={clear} L={np.round(tl * 1000).astype(int).tolist()} "
-                  f"R={np.round(tr * 1000).astype(int).tolist()} score={_points(_status())}", file=sys.stderr,
-                  flush=True)
+                  f"R={np.round(tr * 1000).astype(int).tolist()} view={_CT['failed'] or 'ok'} "
+                  f"score={_points(_status())}", file=sys.stderr, flush=True)
 
 
 # -- scoring --------------------------------------------------------------------------------------------------------
@@ -432,15 +545,17 @@ def _arms_home() -> bool:
 
 def _status() -> dict:
     s = _EP["s"]
-    return {"soaked": int(s.get("soaked", 0)), "wet": int(s.get("wet", 0)), "jug_touch": bool(s.get("jug_touch")),
-            "jug_back": bool(s.get("jug_back")),
-            "leaf_back": bool(s.get("leaf_back")), "clear": bool(s.get("clear")), "home": _arms_home()}
+    return {"soaked": int(s.get("soaked", 0)), "wet": int(s.get("wet", 0)), "lip_wet": bool(s.get("lip_wet")),
+            "in_place": bool(s.get("in_place")), "pressed": bool(s.get("pressed")),
+            "jug_back": bool(s.get("jug_back")), "clear": bool(s.get("clear")), "home": _arms_home()}
 
 
 def _points(s) -> float:
-    if s["wet"] > LEAVES_WET_MAX or s["jug_touch"]:  # water or the jug touched a leaf: the constraint is broken
+    if s["wet"] or s["lip_wet"]:  # water on a leaf: the instruction's constraint is broken
         return 0.0
-    if s["soaked"] >= SOAKED_FULL and s["jug_back"] and s["leaf_back"] and s["clear"] and s["home"]:
+    if not s["in_place"] or s["pressed"]:  # a leaf out of place at the end, or pressed harder than it takes undamaged
+        return 0.0
+    if s["soaked"] >= SOAKED_FULL and s["jug_back"] and s["clear"] and s["home"]:
         return 1.0
     if s["soaked"] >= SOAKED_FULL:
         return 0.5
@@ -448,21 +563,22 @@ def _points(s) -> float:
 
 
 def score(objects) -> float:
-    """A water bead touches a leaf if it ever comes within 4 mm of one, and the jug touches a leaf if any part of it
-    ever comes within 4 mm of one (both checked after every physics step); a bead waters the soil if it ends on the
-    soil inside the pot's wall without having touched a leaf (the saucer is drawn only, so a bead outside the pot never
-    counts). Judged at the end: 0.0 if any bead or the jug ever touched a leaf. Otherwise 1.0 with at
-    least 9 of the 12 beads (90 of 120 ml) on the soil, the jug back on its stool (within 3 cm, upright within 15
-    degrees), the big leaf back over the soil (within 12 degrees of where it lay), both hands let go (each TCP at least
-    4 cm from the jug and the leaf) and both arms back where they started (each TCP within 5 cm); 0.5 with at least 9
-    beads on the soil; 0.25 with at least 4 beads (40 ml) on the soil; else 0.0. (Each bead stands for 10 ml of
-    water.)"""
+    """Water on a leaf: a bead ever within 4 mm of a leaf's blade, or, once water has left the jug, the jug's lip or the
+    top 1 cm of its rim ever within 4 mm of one (both checked after every physics step). A leaf disturbed: at the
+    end, any leaf's tip more than 3 cm from where it lay, or, at any time, a contact force above 5 N (averaged over
+    a 50 ms control step) on a leaf from the jug or any part of either arm. A dry touch of the jug or a hand on a
+    leaf is allowed. A bead waters the soil if it ends on the soil inside the pot's wall without having touched a
+    leaf (the saucer is drawn only, so a bead outside the pot never counts). Judged at the end: 0.0 for water on a
+    leaf or a leaf disturbed. Otherwise 1.0 with at least 9 of the 12 beads (90 of 120 ml) on the soil, the jug back
+    on its stool (within 3 cm, upright within 15 degrees), both hands let go (each TCP at least 4 cm from the jug
+    and the big leaf) and both arms back where they started (each TCP within 5 cm); 0.5 with at least 9 beads on the
+    soil; 0.25 with at least 4 beads (40 ml) on the soil; else 0.0. (Each bead stands for 10 ml of water.)"""
     return _points(_status())
 
 
 def success(objects) -> bool:
-    """Full score with the jug, the big leaf and every bead still."""
-    return score(objects) >= 1.0 and all(objects[n].resting() for n in ("jug", "big_leaf", *BEAD_NAMES))
+    """Full score with the jug, every leaf and every bead still."""
+    return score(objects) >= 1.0 and all(objects[n].resting() for n in ("jug", *LEAF_NAMES, *BEAD_NAMES))
 
 
 # -- scripted demo ----------------------------------------------------------------------------------------------------
