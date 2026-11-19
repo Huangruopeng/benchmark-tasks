@@ -1,16 +1,15 @@
 """A fast-food fry station. On a stainless work counter stands a countertop fry dump station: a stainless base
 holding a full-size food pan 2 in deep, a back panel and a heat hood over the pan (two calrod heaters and a lamp). A
 heap of fries lies against the pan's back wall; the station's fry scoop lies empty in the pan's front:
-a stainless flat-bottomed scoop (an open blade, a funnel, then a straight chute to its serving end), its black
-cool-touch handle on the right wing, trailing back beside the chute. An empty small
-paper fry carton (red) stands on the counter in front of the station. The fries are the real trial's clean replica
+a stainless flat-bottomed scoop that narrows to a straight spout at its funnel end, its black cool-touch handle on
+the right. An empty small paper fry carton (red) stands on the counter in front of the station. The fries are the real trial's clean replica
 fries: hard-maple sticks of a 3/8 in straight-cut fry's size, every edge bevelled 2 mm.
 
 Task (the instruction gives the goal and its constraints only): with the scoop, fill the carton with a portion of fries,
 put the scoop back in the pan and leave the carton standing on the counter, arms back home. The way it is done: hold
 the carton by one hand, take the scoop by its handle with the other, drive it along the pan's floor into the heap so the
-fries ride up onto it, raise the lip so they slide back into the funnel, lift it, tip it so they slide down the chute
-into the carton, then lay the scoop back in the pan.
+fries ride up onto it, draw the load back out, lift it, tip it into the carton through the funnel end, then lay the
+scoop back in the pan.
 
 Rules: the carton may not go into the pan (it is not the scoop); a fry the robot touches may not be served; only fries
 the scoop carried up out of the pan count. Scored by the number of fries in the carton (18-28, a small order), the
@@ -29,7 +28,7 @@ import numpy as np
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import bodykit  # noqa: E402
-from bodykit import Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, on_reset, on_step, plate, segment  # noqa: E402
+from bodykit import Body, BoxShape, CylShape, allow_matrix_grips, as_numpy, on_reset, on_step, plate  # noqa: E402
 from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET  # noqa: E402
 from yam_arena.demo import Waypoint  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
@@ -76,23 +75,16 @@ PAN_FLOOR = CT + ST_BASE - PAN_DEPTH  # the pan's floor (top face)
 HOOD_X0, HOOD_Z0, HOOD_Z1 = X0 + 0.210, CT + 0.430, CT + ST_H  # the heat hood: front edge, underside, top
 BACK_T = 0.012
 
-# -- the fry scoop: the body of a Choice 407RFFSCP8 French fry scoop (9 in long, 8 in wide at its open end, 3 3/4 in at
-# its serving end). From its serving end: a straight, parallel-sided chute 3 3/4 in wide, a funnel whose two wings flare
-# out to 8 in, and a flat front blade 8 in wide with straight parallel sides and no walls (section lengths scaled from
-# the maker's photos to the listed 9 in; walls 2 1/4 in, the same-pattern TableCraft FFR8's listed height) ------------
+# -- the fry scoop (flat bottom; 9 in long, 8 in wide at the open end, 3 3/4 in at the funnel end, where a straight,
+# parallel-sided spout 5 cm long runs out from the flared body) --------------------------------------------------------
 SC_L, SC_W0, SC_W1, SC_H = 0.229, 0.095, 0.203, 0.057
-SC_LC, SC_LF = 0.100, 0.080  # the straight chute's length, the funnel's length (the front blade: the rest, 4.9 cm)
-SC_WING_FULL = 0.5  # the wings stand full height over the rear half of the funnel, then slope down to the blade
+SC_SPOUT = 0.050  # the straight spout at the funnel end
 SC_T = float(os.environ.get("FRIES_SC_T", "0.001"))  # the sheet: its lip thin enough to slide under a fry's bevel
 SC_WALL_T = float(os.environ.get("FRIES_SC_WALL_T", "0.001"))  # the side walls' sheet (rolled top edges drawn)
 SC_MASS = 0.20
-# the handle: fixed on the outside of the right wing where the funnel meets the chute, trailing back toward the serving
-# end beside the chute, angled out from the scoop's long axis and rising; its length and section
-H_ROOT_X = float(os.environ.get("FRIES_H_ROOT_X", "0.115"))
-H_LEN, H_SEC, H_OFF = 0.120, (0.015, 0.022), 0.010  # H_OFF: the grip's root this far outside the wing
-H_OUT_DEG = float(os.environ.get("FRIES_H_OUT", "45"))  # angled out from the long axis
-H_RISE_DEG = float(os.environ.get("FRIES_H_RISE", "35"))
-SC_X = PAN_X0 + 0.004  # the scoop's serving end, at the start (lying in the pan's front)
+H_ROOT_X, H_LEN, H_RISE_DEG, H_SEC = 0.035, 0.120, 20.0, (0.015, 0.022)  # handle: where on the right wall, length,
+# rise, section (along the scoop's x, and across)
+SC_X = PAN_X0 + 0.004  # the scoop's funnel end, at the start (lying in the pan's front)
 SC_Y = YS
 
 # -- the carton (small fry carton: 4.50 x 2.25 x 4.50 in, paperboard, about 7.7 g) ------------------------------------
@@ -195,72 +187,37 @@ def _station() -> Body:
                       friction=(STATION_MU, STATION_MU - 0.05))
 
 
-def _sc_width(x):
-    """The floor's width at ``x`` from the serving end (a number or an array): the straight chute, the funnel's taper,
-    the straight blade."""
-    w = np.interp(x, (SC_LC, SC_LC + SC_LF), (SC_W0, SC_W1))
-    return float(w) if np.ndim(w) == 0 else w
-
-
-def _wall_h(x: float) -> float:
-    """The side wall's height at ``x``: full along the chute and the funnel's rear half, sloping to 0 at the blade."""
-    x0 = SC_LC + SC_LF * SC_WING_FULL
-    if x <= x0:
-        return SC_H
-    return max(0.0, SC_H * (SC_LC + SC_LF - x) / (SC_LC + SC_LF - x0))
-
-
-def _h_dir() -> np.ndarray:
-    """Along the handle, from its root toward its end (scoop frame): back toward the serving end, out, rising."""
-    o, r = math.radians(H_OUT_DEG), math.radians(H_RISE_DEG)
-    return np.array([-math.cos(r) * math.cos(o), -math.cos(r) * math.sin(o), math.sin(r)])
-
-
-def _h_root() -> np.ndarray:
-    """The grip's root, on its centre line (scoop frame)."""
-    return np.array([H_ROOT_X, -(_sc_width(H_ROOT_X) / 2 + H_OFF), SC_H + 0.004])
+def _sc_width(x: float) -> float:
+    """The scoop's width inside at ``x`` from its funnel end: the straight spout, then the flare to the open end."""
+    w = SC_W0 + (SC_W1 - SC_W0) * (np.asarray(x, float) - SC_SPOUT) / (SC_L - SC_SPOUT)
+    w = np.where(np.asarray(x, float) <= SC_SPOUT, SC_W0, w)
+    return float(w) if w.ndim == 0 else w
 
 
 def _scoop_shapes() -> tuple[list, int]:
-    """The scoop in its own frame: origin under the middle of the serving end, x toward the open (wide) end. Returns the
+    """The scoop in its own frame: origin under the middle of the funnel end, x toward the open (wide) end. Returns the
     shapes and the index of the first handle shape (the handle has its own, grippier material)."""
     shapes = []
-    # the flat bottom: the chute in one piece, the funnel in strips (each as wide as its middle; the wings hide the
-    # steps), the blade in one piece
-    shapes.append(BoxShape((SC_LC / 2, 0.0, SC_T / 2), (SC_LC + 0.0004, SC_W0 - 0.001, SC_T), SC_STEEL))
-    n = 10
-    for i in range(n):
-        xa, xb = SC_LC + SC_LF * i / n, SC_LC + SC_LF * (i + 1) / n
+    n = 16
+    for i in range(n):  # the flat bottom, in strips (each as wide as its middle; the walls hide the steps)
+        xa, xb = SC_L * i / n, SC_L * (i + 1) / n
         shapes.append(BoxShape(((xa + xb) / 2, 0.0, SC_T / 2), (xb - xa + 0.0004, _sc_width((xa + xb) / 2) - 0.001,
                                                                  SC_T), SC_STEEL))
-    xb0 = SC_LC + SC_LF
-    shapes.append(BoxShape(((xb0 + SC_L) / 2, 0.0, SC_T / 2), (SC_L - xb0 + 0.0004, SC_W1 - 0.001, SC_T), SC_STEEL))
-    for s in (-1.0, 1.0):
-        # the chute's straight side walls
-        shapes.append(plate((0.0, s * SC_W0 / 2, SC_H / 2), (SC_LC, s * SC_W0 / 2, SC_H / 2), SC_H, SC_WALL_T,
-                            (0.0, s, 0.0), SC_STEEL))
-        shapes.append(plate((0.0, s * (SC_W0 / 2 + 0.001), SC_H - 0.0015), (SC_LC, s * (SC_W0 / 2 + 0.001), SC_H - 0.0015),
-                            0.004, 0.004, (0.0, s, 0.0), SC_EDGE, collide=False))  # rolled top edge
-        # the funnel's wings: full height over the rear half, then a sloping front edge down to the blade
-        x_full = SC_LC + SC_LF * SC_WING_FULL
-        p1 = (SC_LC, s * SC_W0 / 2, SC_H / 2)
-        p2 = (x_full, s * _sc_width(x_full) / 2, SC_H / 2)
-        shapes.append(plate(p1, p2, SC_H, SC_WALL_T, (0.0, s, 0.0), SC_STEEL))
-        shapes.append(plate((SC_LC, s * (SC_W0 / 2 + 0.001), SC_H - 0.0015),
-                            (x_full, s * (_sc_width(x_full) / 2 + 0.001), SC_H - 0.0015), 0.004, 0.004, (0.0, s, 0.0),
-                            SC_EDGE, collide=False))
-        m = 5
-        for k in range(m):  # the sloping part, in strips
-            xa = x_full + (SC_LC + SC_LF - x_full) * k / m
-            xb = x_full + (SC_LC + SC_LF - x_full) * (k + 1) / m
-            h = _wall_h((xa + xb) / 2)
-            shapes.append(plate((xa, s * _sc_width(xa) / 2, h / 2), (xb, s * _sc_width(xb) / 2, h / 2), h, SC_WALL_T,
-                                (0.0, s, 0.0), SC_STEEL))
-    # the handle: a steel strap off the right wing, then the black cool-touch grip, trailing back beside the chute
-    d, g0 = _h_dir(), _h_root()
+    for s in (-1.0, 1.0):  # the side walls: straight along the spout, then along the flare
+        for xa, xb in ((0.0, SC_SPOUT), (SC_SPOUT, SC_L)):
+            p1 = (xa, s * (_sc_width(xa) / 2), SC_H / 2)
+            p2 = (xb, s * (_sc_width(xb) / 2), SC_H / 2)
+            shapes.append(plate(p1, p2, SC_H, SC_WALL_T, (0.0, s, 0.0), SC_STEEL))
+            q1 = (xa, s * (_sc_width(xa) / 2 + 0.001), SC_H - 0.0015)
+            q2 = (xb, s * (_sc_width(xb) / 2 + 0.001), SC_H - 0.0015)
+            shapes.append(plate(q1, q2, 0.004, 0.004, (0.0, s, 0.0), SC_EDGE, collide=False))  # rolled top edge
+    # the handle: a steel strap off the right wall, then the black cool-touch grip, rising toward its end
+    y0 = -(_sc_width(H_ROOT_X) / 2)
     first_handle = len(shapes)
-    shapes.append(segment((H_ROOT_X + 0.006, -(_sc_width(H_ROOT_X) / 2) + 0.002, SC_H - 0.006),
-                          tuple((g0 + d * 0.004 - np.array([0.0, 0.0, 0.004])).tolist()), 0.006, STEEL))
+    shapes.append(BoxShape((H_ROOT_X, y0 - 0.012, SC_H - 0.008), (0.018, 0.026, 0.003), STEEL))
+    a = math.radians(H_RISE_DEG)
+    d = np.array([0.0, -math.cos(a), math.sin(a)])
+    g0 = np.array([H_ROOT_X, y0 - 0.020, SC_H - 0.004])
     g1 = g0 + d * H_LEN
     shapes.append(plate(tuple(g0.tolist()), tuple(g1.tolist()), H_SEC[0], H_SEC[1], (0.0, 0.0, 1.0), BLACK))
     shapes.append(CylShape(tuple((g1 + d * 0.004).tolist()), 0.004, 0.003, BLACK_L, collide=False, axis="Y"))
@@ -272,7 +229,7 @@ _SCOOP_SHAPES, HANDLE_FIRST = _scoop_shapes()
 
 def _scoop() -> Body:
     return Body.build("scoop", pos=(SC_X, SC_Y, PAN_FLOOR + 0.0005), mass=SC_MASS, color=SC_STEEL, shapes=_SCOOP_SHAPES,
-                      friction=(SCOOP_MU, SCOOP_MU - 0.05), com=(0.107, -0.020, 0.024), solver_iterations=32)
+                      friction=(SCOOP_MU, SCOOP_MU - 0.05), com=(0.116, -0.020, 0.028), solver_iterations=32)
 
 
 def _carton_shapes() -> list:
@@ -498,12 +455,6 @@ def _rx(deg: float) -> np.ndarray:
     return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
 
 
-def _rz(deg: float) -> np.ndarray:
-    a = math.radians(deg)
-    c, s = math.cos(a), math.sin(a)
-    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
-
-
 def _ry(deg: float) -> np.ndarray:
     a = math.radians(deg)
     c, s = math.cos(a), math.sin(a)
@@ -519,8 +470,9 @@ def _ca_half_d(z: float) -> float:
     return CA_BOT_D / 2 + (CA_TOP_D - CA_BOT_D) / 2 * (min(max(z, CA_T), CA_H_BACK) - CA_T) / (CA_H_BACK - CA_T)
 
 
-H_D = _h_dir()  # along the handle, toward its end (scoop frame)
-H_G0 = _h_root()  # the handle's root, on its centre line
+H_RISE = math.radians(H_RISE_DEG)
+H_D = np.array([0.0, -math.cos(H_RISE), math.sin(H_RISE)])  # along the handle, toward its end (scoop frame)
+H_G0 = np.array([H_ROOT_X, -_sc_width(H_ROOT_X) / 2 - 0.020, SC_H - 0.004])  # the handle's root, on its centre line
 
 
 def _handle_point(s: float) -> np.ndarray:
@@ -636,7 +588,7 @@ def _in_pan(p: np.ndarray) -> bool:
 
 
 def _on_scoop(fp: np.ndarray, ps: np.ndarray, rs: np.ndarray) -> np.ndarray:
-    """Which fries (centres, world) lie in the scoop's bowl: between its walls, from its serving end to its open end, at
+    """Which fries (centres, world) lie in the scoop's bowl: between its walls, from its funnel end to its open end, at
     most 3 cm above its walls' top edges (a heaped scoopful)."""
     q = (fp - ps) @ rs
     x = np.clip(q[:, 0], 0.0, SC_L)
@@ -644,7 +596,8 @@ def _on_scoop(fp: np.ndarray, ps: np.ndarray, rs: np.ndarray) -> np.ndarray:
             & (q[:, 2] <= SC_H + 0.030))
 
 
-_SCOOP_PTS = np.array([[x, s * _sc_width(x) / 2, z] for x in np.linspace(0.0, SC_L, 8) for s in (-1.0, 1.0)
+_SC_XS = sorted({float(v) for v in np.linspace(0.0, SC_L, 8)} | {SC_SPOUT})
+_SCOOP_PTS = np.array([[x, s * _sc_width(x) / 2, z] for x in _SC_XS for s in (-1.0, 1.0)
                        for z in (0.0, SC_H / 2, SC_H)] + [[0.0, y, 0.0] for y in np.linspace(-SC_W0 / 2, SC_W0 / 2, 5)]
                       + [list(_handle_point(t)) for t in np.linspace(0.0, H_LEN, 5)])
 
@@ -804,10 +757,9 @@ def success(objects) -> bool:
 # The left hand pinches the empty carton low at its left end, across its depth, its wrist leaned out to the left, and
 # holds it standing on the counter. The right takes the scoop's handle from its end, fingers above and below it. It tips
 # the scoop lip-down onto the pan's floor and pushes it along the floor into the heap: the heap packs against the pan's
-# back wall and the fries ride up over the scoop's thin lip onto its open blade. It levels the scoop and tips the lip up
-# in place (the open blade has no walls, so the load is not drawn back along the floor), lifts the scoopful out over the
-# pan's front rim, brings the chute's end over the carton's low front and tips the scoop up until the fries slide down
-# the straight chute into the carton. The right lays the scoop back in the pan,
+# back wall and the fries ride up over the scoop's thin lip. It levels the scoop, draws it back along the floor, tips the
+# lip up and lifts the scoopful out over the pan's front rim, brings the funnel end over the carton's low front and tips
+# the scoop up until the fries slide out through the funnel into the carton. The right lays the scoop back in the pan,
 # lets go and goes home; the left lets go of the standing carton and goes home.
 
 GRIP_S = float(os.environ.get("FRIES_GRIP_S", "0.05"))  # where along the handle the right hand holds it
@@ -817,20 +769,19 @@ CA_GRIP_Y, CA_GRIP_Z = 0.040, 0.045  # the carton grip: toward its left end, low
 CA_OPEN = -0.04695
 CA_CLOSE = float(os.environ.get("FRIES_CA_CLOSE", f"{-(0.017 + 0.0115 * (0.045 - 0.003) / 0.111 + 0.0015 - 0.003):.4f}"))
 CA_PRESS = 0.002
-DIG_DEG, PUSH, PRESS = float(os.environ.get("FRIES_DIG_DEG", "8")), float(os.environ.get("FRIES_PUSH", "0.20")), 0.003
+DIG_DEG, PUSH, PRESS = float(os.environ.get("FRIES_DIG_DEG", "8")), float(os.environ.get("FRIES_PUSH", "0.30")), 0.003
 PUSH_S = float(os.environ.get("FRIES_PUSH_S", "6.0"))  # how long the push into the heap takes
-LIFT_DEG = float(os.environ.get("FRIES_LIFT_DEG", "-18"))  # the lip raised through the heap, the serving end down
+LIFT_DEG = float(os.environ.get("FRIES_LIFT_DEG", "-8"))  # the lip raised through the heap, the funnel end down
 SCOOP_ONLY = bool(os.environ.get("FRIES_SCOOP_ONLY"))  # test: stop after the first scoopful is lifted out
 PULL = float(os.environ.get("FRIES_PULL", "0.0"))  # drawn back this much while the lip comes up
-DRAG = float(os.environ.get("FRIES_DRAG", "0.0"))  # the full scoop drawn back along the floor, out of the heap
+DRAG = float(os.environ.get("FRIES_DRAG", "0.08"))  # the full scoop drawn back along the floor, out of the heap
 DRAG_S = float(os.environ.get("FRIES_DRAG_S", "3.0"))
 SCOOP_YS = tuple(float(v) for v in os.environ.get("FRIES_SCOOP_YS", "0.0").split(","))  # one per scoopful
 CARRY_DEG = LIFT_DEG  # carried lip-up
-POUR_DX, POUR_DZ = float(os.environ.get("FRIES_POUR_DX", "0.020")), float(os.environ.get("FRIES_POUR_DZ", "0.045"))
+POUR_DX, POUR_DZ = float(os.environ.get("FRIES_POUR_DX", "0.010")), float(os.environ.get("FRIES_POUR_DZ", "0.015"))
 BACK_DX = float(os.environ.get("FRIES_BACK_DX", "0.025"))
-CARRY_S = float(os.environ.get("FRIES_CARRY_S", "6.0"))  # carrying the scoopful from the pan to the carton  # where the scoop is laid back, behind its start
-POUR_DY = float(os.environ.get("FRIES_POUR_DY", "0.015"))
-POUR_YAW = float(os.environ.get("FRIES_POUR_YAW", "20"))  # the scoop turned this far to the left over the carton
+CARRY_S = float(os.environ.get("FRIES_CARRY_S", "3.5"))  # carrying the scoopful from the pan to the carton  # where the scoop is laid back, behind its start
+POUR_DY = float(os.environ.get("FRIES_POUR_DY", "-0.006"))
 POUR_DEGS = tuple(float(v) for v in os.environ.get("FRIES_POUR_DEGS", "-25,-40,-55,-65").split(","))
 SHAKE_DEG = float(os.environ.get("FRIES_SHAKE", "8"))
 N_SHAKES = int(os.environ.get("FRIES_N_SHAKES", "3"))
@@ -840,12 +791,10 @@ LEAD_S, LEAD_STEPS = 3.0, 15
 
 
 def _r_handle() -> np.ndarray:
-    """The right TCP's rotation on the handle with the scoop level: pointing along the handle from its end toward its
-    root, fingers closing across the handle (above and below it)."""
-    zc = -H_D
-    up = np.array([0.0, 0.0, 1.0]) - H_D[2] * H_D
-    xc = -up / np.linalg.norm(up)
-    return np.column_stack([xc, np.cross(zc, xc), zc])
+    """The right TCP's rotation on the handle with the scoop level: pointing along the handle toward the scoop (+y,
+    20 degrees down), fingers closing across the handle (above and below it)."""
+    xc, zc = np.array([0.0, 0.0, -1.0]), np.array([0.0, 1.0, 0.0])
+    return _rx(-H_RISE_DEG) @ np.column_stack([xc, np.cross(zc, xc), zc])
 
 
 def _r_carton() -> np.ndarray:
@@ -1056,29 +1005,28 @@ def _demo_plan():
             plan["left"] = []
             wait(L, dur(R), "the left stays home (scoop test)")
             return plan
-        # -- 3. the chute's end over the carton's mouth; tip the scoop up until the fries slide out ---------------
+        # -- 3. the funnel end over the carton's mouth; tip the scoop up until the fries slide out ----------------
         if k_scoop == 0:
             sync()
-        r_y = _rz(POUR_YAW)
-        scoop_at(CARRY_S, pour + [0.0, 0.0, 0.04], r_y @ _ry(CARRY_DEG), FINGER_CLOSED, "bring the chute's end over the carton",
+        scoop_at(CARRY_S, pour + [0.0, 0.0, 0.04], _ry(CARRY_DEG), FINGER_CLOSED, "bring the funnel end over the carton",
                  n=3)
-        scoop_at(1.0, pour, r_y @ _ry(CARRY_DEG), FINGER_CLOSED, "lower it over the mouth")
-        o, r_prev = pour, r_y @ _ry(CARRY_DEG)
+        scoop_at(1.0, pour, _ry(CARRY_DEG), FINGER_CLOSED, "lower it over the mouth")
+        o, r_prev = pour, _ry(CARRY_DEG)
         for k, deg in enumerate(POUR_DEGS):
-            o = scoop_turn(1.6, np.zeros(3), o, r_prev, r_y @ _ry(deg), FINGER_CLOSED,
-                           "tip the scoop up: the fries slide down the chute")
-            r_prev = r_y @ _ry(deg)
+            o = scoop_turn(1.6, np.zeros(3), o, r_prev, _ry(deg), FINGER_CLOSED,
+                           "tip the scoop up: the fries slide out through the funnel")
+            r_prev = _ry(deg)
             scoop_at(0.8, o, r_prev, FINGER_CLOSED, "let them fall")
-        for _ in range(N_SHAKES):  # a little shake frees the fries jammed in the funnel
-            o = scoop_turn(0.35, np.zeros(3), o, r_prev, r_y @ _ry(POUR_DEGS[-1] + SHAKE_DEG), FINGER_CLOSED, "shake")
-            o = scoop_turn(0.35, np.zeros(3), o, r_y @ _ry(POUR_DEGS[-1] + SHAKE_DEG), r_prev, FINGER_CLOSED, "shake")
+        for _ in range(N_SHAKES):  # a little shake frees the fries jammed across the funnel
+            o = scoop_turn(0.35, np.zeros(3), o, r_prev, _ry(POUR_DEGS[-1] + SHAKE_DEG), FINGER_CLOSED, "shake")
+            o = scoop_turn(0.35, np.zeros(3), o, _ry(POUR_DEGS[-1] + SHAKE_DEG), r_prev, FINGER_CLOSED, "shake")
         scoop_at(0.8, o, r_prev, FINGER_CLOSED, "let the last fall")
         o = o + [RETREAT, 0.0, LIFT_OFF]
-        scoop_at(1.2, o, r_prev, FINGER_CLOSED, "lift the chute's end off the fries it rests on")
+        scoop_at(1.2, o, r_prev, FINGER_CLOSED, "lift the funnel end off the fries it rests on")
         scoop_at(0.5, o, r_prev, FINGER_CLOSED, "they drop into the carton")
-        o = scoop_turn(1.5, np.zeros(3), o, r_prev, r_y, FINGER_CLOSED, "level the scoop")
+        o = scoop_turn(1.5, np.zeros(3), o, r_prev, np.eye(3), FINGER_CLOSED, "level the scoop")
         o = o + [0.0, 0.0, 0.04]
-        scoop_at(1.0, o, r_y, FINGER_CLOSED, "lift it")
+        scoop_at(1.0, o, np.eye(3), FINGER_CLOSED, "lift it")
     sync()
     # -- 4. the scoop back in the pan; the carton let go, standing; both home -------------------------------------
     s_back = s0 + [BACK_DX, 0.0, 0.0]  # well inside the pan's front: the scoop turns a little in the grip while pushing
