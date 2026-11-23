@@ -7,7 +7,9 @@ evaporation, done the maker's way: put the flask on the vapour tube's ground con
 flask's collar until it clicks, then lower the flask into the water bath with the lift. The task is one task file,
 [`load_a_flask_onto_a_rotary_evaporator_and_lower_it_into_the_bath.py`](load_a_flask_onto_a_rotary_evaporator_and_lower_it_into_the_bath.py),
 for the `yam_arena` embodiment (scene, scoring and the scripted demo), plus [`bodykit.py`](bodykit.py), which it
-imports from the same folder.
+imports from the same folder. The real trial runs on a low-cost fixture with the same geometry, a real NS 24/40 cone,
+a printed clamp and a keyed 12 V lift (section "Real-trial fixture", printed parts in
+[`rotavap_fixture.scad`](rotavap_fixture.scad)), so it needs no evaporator.
 
 Why it matters (category Other, laboratory research automation): a rotary evaporator is standard equipment in
 synthetic, medicinal, natural-product and analytical chemistry labs, used to strip the solvent after nearly every
@@ -65,14 +67,14 @@ R-300 product page, https://www.buchi.com/en/products/instruments/rotavapor-r-30
 ## How it is modelled
 
 - **Scene, at real size.** The station table is cut out where the lab bench is: the bench top is 60 mm below the
-  arms' deck, as if the arms stood on a 60 mm plinth at the bench. That puts the flask's working height, with the lift
-  up, inside the arms' two-handed reach. The evaporator's base unit, lift column and condenser are built from boxes and
-  cylinders, the condenser's top about 80 cm above the bench (the maker gives 845 mm overall); the bath stands in front
-  of the base unit rather than beside it, so that the flask hangs facing the arms. The heating bath is the maker's
+  arms' deck, which puts the flask's working height, lift up, inside the arms' two-handed reach. The evaporator's base
+  unit, lift column and condenser are boxes and cylinders, the condenser's top about 80 cm above the bench (maker:
+  845 mm overall); the bath stands in front of the base unit, so that the flask hangs facing the arms. The heating bath is the maker's
   253/291 mm pot with 3.0 L of water (the water is a surface, drawn only). The head on the lift carries the drive
   housing, the glass vapour tube, the EASY CLIP ring and the NS 24/40 cone, its axis 30 degrees below horizontal.
 - **The flask** is one rigid body: a 64 mm bulb, a hollow neck (25 mm bore, 30 mm outside), a 34 mm bead round its
-  mouth; 0.10 kg with its 40 mL of extract, the centre of mass 8 mm below the bulb's centre.
+  mouth; 0.10 kg with its 40 mL of extract, the centre of mass 8 mm below the bulb's centre. In the real trial
+  dry glass beads bring the real flask to the same 100 g.
 - **The ground joint.** The cone's collision core (14 mm square, its last 12 mm a 9 mm square tip) fits inside the
   socket's 25 mm bore, so a socket pushed at the cone well off its axis meets the cone's tip and does not go on. Once
   the socket's mouth is within 5.5 mm of the cone's axis and its axis within 10 degrees of the cone's (the 20 mm tip
@@ -107,11 +109,13 @@ The score follows `score()` in the task file; `task.json` has the same text.
 - The trial ends at the run limit, or once the full score has held for 1 s with the flask, the head and the lever
   still.
 
-In a real trial each tier is read with simple checks. Home: no frosted cone shows between the flask's collar and the
-clamp ring (a close photo with a ruler: the gap within 4 mm). Clamped: the lever lies flat on the joint with its hook
-behind the collar and stays shut when let go (photo; the click is heard). Lift down: the lift's carriage against its
-immersion stop and the bulb inside the bath below its rim (photo). On the cone: the socket over the cone (photo). Dropped: the trial
-video shows the flask off the cone, falling. The arms are checked against marks at their start.
+In a real trial (on the fixture) each tier is read with simple checks. Home: no frosted cone shows between the
+flask's bead and the clamp ring, the mouth within 10 mm of the ring (ruler; 6 mm when fully on). Clamped: the lever
+lies shut on the joint with its hook snapped round the socket behind the bead, which it does only with the socket
+home, and it stays shut when let go (photo; the snap is heard). Lift down: the carriage on its immersion-stop switch,
+the cone's base 54 mm above the deck (ruler) and the bulb inside the pan below its rim (photo). On the cone: the socket
+over the cone (photo). Dropped: the trial video shows the flask off the cone, falling. The arms are checked against
+marks at their start.
 
 ## Checks
 
@@ -135,24 +139,145 @@ anywhere else, or let go before the clamp clicks, ends on the bath's floor or th
 
 ## Real trial
 
-- **Evaporator:** a working lab's rotary evaporator (a Heidolph Hei-VAP Core with motor lift, or any model whose
-  flask clamp clicks over the flask's collar and whose lift runs on keys), with its vacuum, rotation and bath heating
-  off; tilt set to 30 degrees, the immersion stop 95 mm below the lift's top position, the bath left dry (the lift's
-  immersion stop and the bulb inside the bath's rim are the check). The arms stand on a 60 mm plinth at the bench, the bath's centre 29 cm in front of the
-  line between their bases. The trial needs no vacuum, heat or rotation, so any lab with an evaporator can run it as it
-  stands; a lab without one can borrow the instrument for the session.
-- **Flask:** a plastic-coated 100 mL round-bottom borosilicate safety flask with an NS 24/40 socket (any maker; a
-  dropped one does not break), holding 40 mL of water tinted with food colouring, in a cork ring for 100 to 250 mL
-  flasks.
+- **Instrument:** the fixture below, built to the simulated sizes. A lab's own motor-lift rotary evaporator set the
+  same way (vacuum, rotation and heating off, tilt 30 degrees, immersion stop 95 mm below the top, bath dry) is an
+  equivalent.
+- **Flask:** Chemglass CG-1506-05 (100 mL heavy-wall round-bottom, NS 24/40) holding dry 4 mm glass beads, added
+  until the flask weighs 100 g on a kitchen scale (the simulated flask's 0.10 kg). No liquid anywhere in the trial.
+- **Layout:** the arms' deck (the arm bases, the cork ring and the key box) is 60 mm above the fixture's base board,
+  as the lab bench is 60 mm below the deck in the simulation.
 - **Measuring:** a ruler, the overhead and side cameras, and marks for the arms' start poses.
-- **Safety and rig protection:** nothing is hot, under vacuum or turning; the grippers hold the flask by its dry neck
-  and the bath is dry; the 40 mL of tinted water stays in the flask's bulb. Reset as in
-  the reset notes: lift up, lever open, flask eased off the cone along its axis and stood back in its ring.
+- **Safety and rig protection:** nothing is hot, wet, under vacuum or turning; the fixture runs on 12 V; the grippers
+  touch only the flask's outside, the lever's thumb pad and the keys; the pan's floor carries a 3 mm rubber mat.
+  Reset as in the reset notes.
+
+## Real-trial fixture
+
+A stand-in for the evaporator that keeps everything the robot works with: the real flask, a real NS 24/40 ground cone
+held at 30 degrees, a clamp sized and placed as the EASY CLIP that snaps over the flask only with its socket home, a
+lift worked by two keys that stops at its immersion stop, and a pan where the bath is. Every part is a catalogue part
+with its number and price, a printed part in [`rotavap_fixture.scad`](rotavap_fixture.scad) (every dimension a named
+parameter, with the parts' positions in its header), or ordinary hardware. The named parts come to **US$263.89**
+(prices from the pages below, November 2026).
+
+### Parts
+
+| Part | Number | US$ | What it is (seller's page) |
+|---|---|---|---|
+| Flask | Chemglass CG-1506-05 | 37.95 | 100 mL heavy-wall single-neck round-bottom, 24/40 socket |
+| Ground cone | Chemglass CG-100-06 | 15.35 | 24/40 inner joint, full length, on 22 mm OD x 1.8 mm tubing |
+| Lift actuator | Pololu 4463 (Glideforce GF01-120510-1-66) | 74.95 | 12 V, 100 mm stroke, limit switches at both ends (reverses away from them), 28 mm/s unloaded, 21 mm/s at its 2.2 kgf rating, holds position unpowered; 157 / 257 mm between its 4.25 mm holes |
+| Speed trim | Pololu 2572 (S18V20ALV) | 32.95 | regulator, output set from 4 to 12 V with a trimmer |
+| Power | Pololu 1471 | 12.95 | 12 V, 1 A wall adapter, 5.5 x 2.1 mm plug |
+| Keys, 2 | Pololu 1402 | 4.74 | snap-action switch, SPDT, 16.7 mm lever (2.37 each) |
+| Immersion stop | Pololu 1404 | 2.51 | snap-action switch, SPDT, 16.3 mm roller lever |
+| Lift guide | South Main Hardware SLIDE-BB-10 (Zoro G905299001) | 25.35 | 10 in full-extension ball-bearing slide, 45 mm wide (sold in 3s, 8.45 each) |
+| Bath | Fat Daddio's PRD-104 (WebstaurantStore 627PRD104) | 20.99 | straight-sided anodized aluminium pan, 10 in (254 mm) across at the top, 4 in deep, 11 in outside |
+| Cork ring | Chemglass CG-3060-100 | 10.65 | 100 mm outside, 50 mm hole, for 150-250 mL flasks |
+| Mass stand-in | Lab Alley 11-312B | 25.50 | solid soda-lime glass beads, 4 mm |
+| Printed parts | `rotavap_fixture.scad` | | head (clamp ring, hinge ears, pinch sleeve, tube socket), lever with its hook, carriage, actuator foot, stop bracket, key box, 2 key caps; PETG |
+| Ordinary hardware | | | 18 mm plywood (base board 710 x 380, column 120 x 420, pan board 280 x 280, deck block 280 x 135 x 60 high); 20 x 20 x 1.5 mm aluminium square tube, 210 mm; M3 x 25 screw and locknut (hinge); M4 screws, nuts; wood screws, 2 angle brackets; springs 5 mm OD x 16 mm (lever), 2 of 10 mm OD x 12 mm (keys); 2 M3 x 8 screws, 9 mm washers; panel DC jack 5.5 x 2.1 mm; wire; 0.5 mm rubber strip; 3 mm rubber mat |
+
+Pages: https://www.pololu.com/product/4463, /product/2572, /product/1471, /product/1402, /product/1404;
+https://chemglass.com/flasks-heavy-wall-round-bottom-single-neck-100ml-to-300ml,
+https://chemglass.com/ground-joints-inner-full-length, https://chemglass.com/flask-support-rings-cork;
+https://www.webstaurantstore.com/fat-daddios-prd-104-proseries-10-x-4-round-anodized-aluminum-straight-sided-cake-pan/627PRD104.html;
+https://laballey.com/products/economical-solid-glass-beads;
+https://www.zoro.com/south-main-hardware-10-in-side-mount-stainless-steel-ball-bearing-full-extension-drawer-slides-slide-bb-10/i/G905299001/.
+
+### Drawing
+
+Task frame as in `task.json` (mm): x forward from the line between the arm bases, y to the left, z above the arms'
+deck; the base board's top is z -60. Side view from the right (y = 0), lift up:
+
+```
+  z
+ 311 |                                       carriage [=]|  column: 18 mm plywood,
+     |                        20 x 20 tube         /     |  front face x 600, centred
+ 187 |         hinge o (376, 187)             /          |  y 0; slide on its face;
+ 149 |  cone base * (363, 149)=ring=head====/            |  actuator (y -45) from a
+ 129 |   tip (328, 129), 30 deg below horizontal         |  foot on the board up to
+  60 | +-------- pan rim, 279 outside ----------+        |  the carriage
+     | |  PRD-104 pan, 254 across, centre x 292 |        |
+ -42 | +--- on an 18 mm pan board, mat inside --+        |
+ -60 +=====================================================  base board top
+       152            292                    432  579 600   x
+```
+
+Lift down: everything on the carriage 95 mm lower (cone base z 54; the bulb's lowest point z -19, 18 mm above the mat,
+computed).
+Top view: the base board spans x 90 to 800, y -220 to 160 (the simulation's bench). On the deck block left of it:
+the key box centred at x 175, y 235 (DOWN key x 145, y 257; UP key x 145, y 213; caps 16 mm across, tops z 57) and
+the cork ring centred at x 320, y 220.
+
+The clamp, in the joint's own frame (u along the axis from the cone base, up the slope; n square to it, up):
+
+| Piece | Size and place |
+|---|---|
+| Ring | 42 mm across, u 6 to 26, round the glass tube |
+| Hinge | 3 mm pin across the joint at u 30, n 26 |
+| Lever | 12 x 5 mm bar, u -9 to 36 (36 mm from hinge to tip); shut it lies at n 23.5 to 28.5; rests open at 35 degrees on a stop |
+| Thumb pad | 16 x 20 mm, u -8 to 8, on top of the lever |
+| Hook | a fork 4 mm thick (u -10 to -6) shaped as a C round the flask's socket: inside 30.5 mm, mouth 29 mm, opening downward |
+| Spring | 5 mm OD, in a pocket in the ring at u 22, pushing the lever open |
+
+The hook goes down behind the bead only with the socket within 2 mm of home, and snaps round the socket there (the
+mouth is 1 mm narrower than the socket); with the socket 2 to 12 mm short it lands on the bead; further out, or with no
+flask, it closes on nothing and the spring opens it again (computed from the file's geometry). Once snapped, the bead
+can't pass it, so the flask can't slide off.
+
+### Build
+
+1. Measure the flask's socket just behind its bead, the bead, and the bead's length along the axis, and set `NECK_D`,
+   `BEAD_D` and `BEAD_T` in the file (30, 34 and 4 mm as simulated). Print the parts in PETG (4 perimeters, 40 %
+   infill), one `part` at a time (header of the file).
+2. Lay the base board on the rig's table and mark the task frame on it. Raise the arms on 60 mm risers above the
+   board's top and set the deck block under the key box's and cork ring's places.
+3. Stand the column at x 600 with two angle brackets. Screw the slide's fixed member upright to its front face,
+   centred on y 0, 160 to 414 mm above the board, opening downward; with the lift up it stays 20 mm open.
+4. Bolt the carriage to the slide's moving member (four M4 screws in its slots). Screw the actuator's foot to the
+   board under the carriage's ear (y -45) and pin the actuator between the foot and the ear with M4 screws, plumb.
+5. Wrap the glass tube once with the rubber strip where the head grips it, push it tube first into the ring's end of
+   the head until the cone's base is 6 mm ahead of the ring, and tighten the two M4 pinch screws gently. Fit the lever on the M3 pin with its
+   spring in the pocket.
+6. Join the head and the carriage with the square tube (M4 grip screws in both sockets).
+7. Screw the stop bracket to the column beside the slide with the switch's roller under the carriage's lower edge.
+8. Set the pan board centred at x 292, y 0, the pan on it, the rubber mat on the pan's floor.
+9. Fit the keys (cap, spring, stem through the lid, M3 screw and washer under it), the key switches on their tabs,
+   the regulator and the DC jack in the box; wire as below; set the box at its place on the deck block.
+10. Set the cork ring; add glass beads to the flask until it weighs 100 g.
+
+### Wiring
+
+```
+ wall adapter 12 V -> DC jack -> regulator VIN, GND;  regulator VOUT = V+ (trimmed for the speed)
+ UP key   (1402):  common -> actuator red     NC -> GND   NO -> V+
+ DOWN key (1402):  common -> actuator black   NC -> GND   NO -> stop NC
+ stop     (1404):  common -> V+               NC -> DOWN key NO   (the carriage opens it at 95 mm down)
+```
+
+Keys released, both actuator leads sit on GND and the lift stays put. UP held: the lift rises to the actuator's own
+end-of-stroke switch, the top. DOWN held: the lift goes down until the carriage opens the stop; UP still works from
+there. If UP lowers the lift, swap the actuator's two leads.
+
+### Calibration
+
+| Check | Tool | Target |
+|---|---|---|
+| Tilt | inclinometer app on the glass tube, or a protractor | 30 ± 1 degrees below horizontal |
+| Cone base, lift up | ruler from the frame marks | x 363, y 0, z 149 (± 2 mm): slide the head along the square tube for x, then the carriage's ear slot for z |
+| Travel | ruler, DOWN held to the stop | the cone base goes down 95 ± 1 mm, to z 54 (stop bracket's slots) |
+| Lift speed | stopwatch, DOWN held from the top | 3.8 ± 0.2 s for the 95 mm, 25 mm/s (regulator's trimmer) |
+| Keys | ruler, kitchen scale under the box | caps at their places, tops z 57; each switches at 2 mm of its 3.5 mm travel and 0.6 to 0.9 kg (switch tab's slots, springs) |
+| Lever | protractor, luggage scale on the thumb pad | rests open at 35 ± 3 degrees; with no flask it pulls shut at 0.4 to 0.6 kg (about 5 N) and springs back open when let go |
+| Hook | the flask held home by hand, then 3 mm short (the mouth 9 mm from the ring) | home: the hook snaps round the socket at up to 1.2 kg on the pad and the lever stays shut; 3 mm short: it stops on the bead and springs back open. Set by sliding the glass in the head (then recheck the cone base); if it needs more, reprint the lever with `SNAP = 0.6` |
+| Bath | ruler | pan centred x 292, y 0; rim z 60; lift down, the bulb inside the pan below its rim |
+| Flask, cork ring | kitchen scale, ruler | flask with beads 100 g; ring centred x 320, y 220 on the deck |
 
 ## Assets and licences
 
-None from third parties. Every object is built from boxes, cylinders and spheres in the task file; `bodykit.py` is our
-own. The NVIDIA SimReady set has no rotary evaporator, round-bottom flask or cork ring, so everything is built from
+None from third parties. Every object is built from boxes, cylinders and spheres in the task file; `bodykit.py` and
+`rotavap_fixture.scad` are our own. The NVIDIA SimReady set has no rotary evaporator, round-bottom flask or cork ring, so everything is built from
 primitives at the parts' sizes.
 
 ## Run and score a trial
@@ -180,14 +305,8 @@ it straight up the cone along the axis (aiming 10 mm past home for the arm's lag
 hand comes down on the clamp's thumb pad with its closed fingers square to the joint (the gripper tilted 30 degrees)
 and presses the lever down past its click, then lifts off. The right hand opens and draws back off the neck; the
 clamp holds the flask. The left hand presses the lift's DOWN key and holds it for 5 s while the lift takes the flask
-95 mm down into the bath, to its stop, then lets go. Both arms go back to where they started:
-
-```bash
-inspect-robots run --embodiment yam_arena --policy yam_scripted \
-  -E task=load_a_flask_onto_a_rotary_evaporator_and_lower_it_into_the_bath.py -E object_jitter=0 -E control_hz=20 -E cam_width=1280 -E cam_height=704 \
-  --instruction "Put the flask of extract on the rotary evaporator, clamped, and lower it into the water bath, ready to run; then return both arms to where they started." \
-  --scorer task_score --max-steps 1600 --store-frames --log-dir ~/yam-eval/rv-demo
-```
+95 mm down into the bath, to its stop, then lets go. Both arms go back to where they started. It runs with the
+command above and `--policy yam_scripted --log-dir ~/yam-eval/rv-demo`.
 
 Videos, one MP4 per camera next to each run's frames:
 
@@ -195,11 +314,10 @@ Videos, one MP4 per camera next to each run's frames:
 for log in ~/yam-eval/rv-dream/*.json; do inspect-robots video "$log"; done
 ```
 
-Set `RV_DEBUG=1` to print what the score is built from four times a second: the flask's position, the socket's offset
-from the cone's axis and its distance from home, whether the joint has caught, the lever's angle and whether it has
-clicked, the lift's position, the DOWN key, the finger openings and where each TCP is. `RV_ONEHAND=left` (or `right`)
-replays only that arm's part of the demo (the other stays home). `RV_CHECK=noclip`, `noseat` and `nolower` run the
-scoring checks listed under "Checks". All of these are checks, not part of the task.
+`RV_DEBUG=1` prints what the score is built from four times a second (socket offset and distance from home, catch,
+lever angle and click, lift, keys, TCPs). `RV_ONEHAND=left` (or `right`) replays only that arm's part of the demo;
+`RV_CHECK=noclip`, `noseat`, `short`, `clipfirst` and `nolower` run the checks under "Checks". All of these are
+checks, not part of the task.
 
 ## Runtime per trial
 
@@ -208,3 +326,42 @@ On one RTX 5090: about 10 minutes for a Dream-1 trial of 1,600 steps (596 s on t
 ## Seeds
 
 None needed: with `-E object_jitter=0` the layout is fixed, and the scripted demo follows fixed waypoints.
+
+## Changes in this revision
+
+The review (TK-38GRFR), verbatim:
+
+> Flags: Note for the team: Protect the shared rig and work surface against accidental spills of the tinted water.
+>
+> Feasibility (not met): A motor-lift Hei-VAP rotary evaporator costs well over a few hundred dollars, and borrowing one
+> is not a reliably available low-cost setup.
+>
+> What to change: Please provide a reproducible low-cost real-trial alternative to the motor-lift rotary evaporator;
+> borrowing a working instrument is not a reliable provision for repeated trials. A fixture should retain the real
+> flask, compatible ground joint and clamp, the tilted insertion, and a functional lift, with part numbers or build
+> files and instructions sufficient to reproduce it.
+
+- **Low-cost, reproducible alternative, nothing borrowed:** the real trial runs on a fixture of catalogue and printed
+  parts, US$263.89 for the named parts plus ordinary hardware; the "borrow" sentence is gone (a lab's own motor-lift
+  evaporator set the same way is named only as an equivalent). Where: `task.json` setup; README "Real trial",
+  "Real-trial fixture". Check: the parts table, each price from its linked page.
+- **Real flask:** Chemglass CG-1506-05, 100 mL heavy-wall round-bottom, NS 24/40 (setup; Parts).
+- **Compatible ground joint:** a real NS 24/40 cone, Chemglass CG-100-06, held in the printed head (setup; Parts;
+  `rotavap_fixture.scad`).
+- **Compatible clamp:** printed with the EASY CLIP's ring, 36 mm lever (open 35 degrees) and hook; the hook is a C
+  that snaps round the socket behind its bead only with the socket within 2 mm of home and lands on the bead from 2
+  to 12 mm short (computed from the file's geometry). Where: setup; README "Drawing"; the file's `lever`. Check: the
+  "Hook" calibration (home: snaps and stays shut; 3 mm short: springs back open).
+- **Tilted insertion:** the cone at 30 degrees below horizontal, its base at x 363, z 149 with the lift up, as
+  simulated. Check: inclinometer app or protractor, ruler.
+- **Functional lift:** a drawer slide driven by a 12 V actuator with built-in end-of-stroke switches (Pololu 4463),
+  an immersion-stop switch at 95 mm, speed trimmed to 25 mm/s, DOWN and UP keys at the simulated places reversing it.
+  Where: setup; README "Wiring", "Calibration". Check: ruler (95 ± 1 mm), stopwatch (3.8 ± 0.2 s).
+- **Part numbers, build files, instructions:** parts table with numbers, prices and pages; `rotavap_fixture.scad`
+  (every dimension a named parameter, the parts' places in its header); drawing; build steps; wiring; calibration
+  with a ruler, protractor or inclinometer app, stopwatch, kitchen and luggage scales.
+- **Flag, spills of tinted water:** no liquid anywhere. The flask holds dry 4 mm glass beads (Lab Alley 11-312B) to
+  100 g, the simulated flask's 0.10 kg; the pan is dry, a 3 mm rubber mat on its floor. Where: setup, fidelity; README
+  "Real trial".
+- **Simulation unchanged:** the fixture reproduces the simulated sizes and places, so the task file, the demo (1.0)
+  and the Dream-1 run (0.0) stand as submitted.
