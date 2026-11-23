@@ -118,9 +118,9 @@ SPEC_C, HOLDER_C, STAND_C = (0.20, 0.22, 0.24), (0.88, 0.88, 0.86), (0.30, 0.32,
 
 # -- the rules ---------------------------------------------------------------------------------------------------------
 LOOK_DEPTH = 0.006  # the speculum's tip 6 mm or more inside the canal (and no deeper than 13 mm): examining
-BONY_DEPTH = 0.013  # deeper than 13 mm: into the bony canal (painful): the trial fails
+MAX_DEPTH = 0.013  # bench-trainer insertion limit, measured from the canal opening
 LOOK_S = 1.0  # the look lasts 1 s
-FORCE_LIMIT = 3.0  # N, the scope or speculum pressing on her ear or head
+FORCE_LIMIT = 3.0  # N, the resultant scope and speculum contact force on the trainer head
 FORCE_HOLD_S = 0.1
 ENGAGE = (0.006, 0.016)  # the tip cone this far into a speculum (and within 2.5 mm of its axis) can lock it
 ENGAGE_LAT = 0.0035
@@ -422,7 +422,7 @@ def _set_lock(name: str, on: bool) -> None:
 
 
 def _contact_force() -> float:
-    """The total contact force (N) between the scope with its specula and her head or ear, this step."""
+    """Magnitude of the resultant scope and speculum contact force on the trainer head, in N."""
     if _VIEW["view"] is None and not _VIEW["failed"] and _VIEW["env"]:
         try:
             from isaaclab_physx.physics import PhysxManager
@@ -438,7 +438,7 @@ def _contact_force() -> float:
         return 0.0
     m = _VIEW["view"].get_contact_force_matrix(dt=PHYSICS_DT)
     m = np.asarray(m.numpy() if hasattr(m, "numpy") and not hasattr(m, "detach") else as_numpy(m), float)
-    return float(np.linalg.norm(m.reshape(-1, 3), axis=1).sum())
+    return float(np.linalg.norm(m.reshape(-1, 3).sum(axis=0)))
 
 
 # -- followed after every control step --------------------------------------------------------------------------------
@@ -523,9 +523,9 @@ def _follow(env) -> None:
         if math.hypot(tip[0], tip[1]) < R_OUT + 0.002 and tip[2] < -0.001 and not _EP["bare_in"]:
             _EP["bare_in"], _EP["why"] = True, "the bare tip went into the canal without a speculum"
     _EP["max_depth"] = max(_EP["max_depth"], depth)
-    if depth > BONY_DEPTH and not _EP["deep"]:
-        _EP["deep"], _EP["why"] = True, f"speculum pushed {depth * 1000:.1f} mm in, into the bony canal"
-    looking = LOOK_DEPTH <= depth <= BONY_DEPTH
+    if depth > MAX_DEPTH and not _EP["deep"]:
+        _EP["deep"], _EP["why"] = True, f"speculum pushed {depth * 1000:.1f} mm in, past the trainer depth limit"
+    looking = LOOK_DEPTH <= depth <= MAX_DEPTH
     _EP["in_canal"] = _EP["in_canal"] or looking
     _EP["look_t"] = _EP["look_t"] + 0.05 if looking else 0.0
     if _EP["look_t"] >= LOOK_S - 1e-6:
